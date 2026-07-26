@@ -427,3 +427,13 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Angular
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# .NET build artifacts
+backend/bin/
+backend/obj/
+out/
