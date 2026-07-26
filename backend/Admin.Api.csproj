@@ -8,6 +8,14 @@
 
   <ItemGroup>
     <PackageReference Include="MongoDB.Driver" Version="3.10.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared auth + crypto from GitHub Packages. Restore reads the "github" source in
+         the repo-root nuget.config, which needs the PACKAGES_READ_TOKEN env var. -->
+    <PackageReference Include="KeshavSingh.Security" Version="0.1.0" />
+    <PackageReference Include="KeshavSingh.Auth" Version="0.1.0" />
   </ItemGroup>
 
 </Project>

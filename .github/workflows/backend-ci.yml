@@ -17,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Restore of the private KeshavSingh.* packages reads this via the repo-root
+    # nuget.config. Add PACKAGES_READ_TOKEN (a read:packages PAT) to this repo's secrets.
+    env:
+      PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
     defaults:
       run:
         working-directory: backend
