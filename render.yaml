@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: admin-api
+    runtime: dotnet
+    buildCommand: dotnet publish backend/Admin.Api.csproj -c Release -o out
+    startCommand: dotnet out/Admin.Api.dll
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: MongoDbSettings__ConnectionString
+        sync: false
+      - key: MongoDbSettings__DatabaseName
+        value: AdminDb
+      - key: AllowedOrigins__0
+        value: https://admin.keshavsingh.in
+      - key: AllowedOrigins__1
+        value: https://keshavsingh3197.github.io
+    healthCheckPath: /health
