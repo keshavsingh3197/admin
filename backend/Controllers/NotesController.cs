@@ -9,10 +9,12 @@ namespace Admin.Api.Controllers;
 public class NotesController : ControllerBase
 {
     private readonly NoteService _noteService;
+    private readonly ILogger<NotesController> _logger;
 
-    public NotesController(NoteService noteService)
+    public NotesController(NoteService noteService, ILogger<NotesController> logger)
     {
         _noteService = noteService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -41,7 +43,13 @@ public class NotesController : ControllerBase
 
         note.Id = id;
         var updated = await _noteService.UpdateAsync(id, note);
-        return updated ? NoContent() : StatusCode(500, "Update failed.");
+        if (!updated)
+        {
+            _logger.LogWarning("Update operation for note {NoteId} was acknowledged but modified 0 documents.", id);
+            return StatusCode(500, "The note could not be updated. It may have been modified concurrently.");
+        }
+
+        return NoContent();
     }
 
     [HttpDelete("{id}")]

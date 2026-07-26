@@ -31,6 +31,10 @@ import { ApiService, Note } from '../../core/services/api.service';
         </div>
       }
 
+      @if (errorMessage()) {
+        <div class="error-banner">⚠️ {{ errorMessage() }}</div>
+      }
+
       @if (loading()) {
         <p class="loading">Loading notes…</p>
       } @else if (notes().length === 0) {
@@ -74,12 +78,14 @@ import { ApiService, Note } from '../../core/services/api.service';
     .btn-secondary { background: transparent; border: 1px solid #ccc; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
     .btn-danger { background: transparent; border: 1px solid #d93025; color: #d93025; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
     .loading, .empty { color: #666; }
+    .error-banner { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 4px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
   `]
 })
 export class NotesComponent implements OnInit {
   notes = signal<Note[]>([]);
   loading = signal(false);
   showForm = signal(false);
+  errorMessage = signal<string | null>(null);
   editingNote: Note | null = null;
 
   form: Note = { title: '', content: '', category: 'general' };
@@ -92,9 +98,13 @@ export class NotesComponent implements OnInit {
 
   loadNotes() {
     this.loading.set(true);
+    this.errorMessage.set(null);
     this.api.getNotes().subscribe({
       next: (data) => { this.notes.set(data); this.loading.set(false); },
-      error: () => this.loading.set(false)
+      error: () => {
+        this.errorMessage.set('Failed to load notes. Please try again.');
+        this.loading.set(false);
+      }
     });
   }
 
@@ -117,21 +127,24 @@ export class NotesComponent implements OnInit {
 
   save() {
     if (this.editingNote?.id) {
-      this.api.updateNote(this.editingNote.id, this.form).subscribe(() => {
-        this.cancelForm();
-        this.loadNotes();
+      this.api.updateNote(this.editingNote.id, this.form).subscribe({
+        next: () => { this.cancelForm(); this.loadNotes(); },
+        error: () => this.errorMessage.set('Failed to update note. Please try again.')
       });
     } else {
-      this.api.createNote(this.form).subscribe(() => {
-        this.cancelForm();
-        this.loadNotes();
+      this.api.createNote(this.form).subscribe({
+        next: () => { this.cancelForm(); this.loadNotes(); },
+        error: () => this.errorMessage.set('Failed to create note. Please try again.')
       });
     }
   }
 
   delete(id: string) {
     if (confirm('Delete this note?')) {
-      this.api.deleteNote(id).subscribe(() => this.loadNotes());
+      this.api.deleteNote(id).subscribe({
+        next: () => this.loadNotes(),
+        error: () => this.errorMessage.set('Failed to delete note. Please try again.')
+      });
     }
   }
 }

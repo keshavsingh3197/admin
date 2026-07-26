@@ -1,5 +1,4 @@
 using Admin.Api.Models;
-using Admin.Api.Services;
 using MongoDB.Driver;
 
 namespace Admin.Api.Services;
