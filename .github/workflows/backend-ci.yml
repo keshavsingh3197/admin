@@ -17,10 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
     # Restore of the private KeshavSingh.* packages reads this via the repo-root
-    # nuget.config. Add PACKAGES_READ_TOKEN (a read:packages PAT) to this repo's secrets.
+    # nuget.config. Use the built-in GitHub token so CI does not depend on a
+    # separate PACKAGES_READ_TOKEN secret being configured for this repository.
     env:
-      PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
+      PACKAGES_READ_TOKEN: ${{ github.token }}
     defaults:
       run:
         working-directory: backend
