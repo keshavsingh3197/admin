@@ -4,7 +4,7 @@ namespace Admin.Api.Auth;
 
 // Placeholder OTP delivery. The admin's primary second factor is a TOTP authenticator
 // app, which needs no sender. Until a real SMTP/SMS transport is configured, the email
-// and SMS fallbacks simply log the code so the flow stays testable in development.
+// and SMS fallbacks only log that delivery was requested.
 // Do not enable EmailTwoFactorEnabled/SmsTwoFactorEnabled in production with these.
 
 public sealed class LoggingEmailSender : IEmailSender
@@ -14,7 +14,7 @@ public sealed class LoggingEmailSender : IEmailSender
 
     public Task SendOtpAsync(string toEmail, string code, CancellationToken ct = default)
     {
-        _logger.LogWarning("Email OTP for {Email} is {Code} (dev logging sender — configure real email).", toEmail, code);
+        _logger.LogWarning("Email OTP requested via development logging sender; configure a real email provider before enabling email 2FA.");
         return Task.CompletedTask;
     }
 }
@@ -26,7 +26,7 @@ public sealed class LoggingSmsSender : ISmsSender
 
     public Task SendOtpAsync(string toPhone, string code, CancellationToken ct = default)
     {
-        _logger.LogWarning("SMS OTP for {Phone} is {Code} (dev logging sender — configure real SMS).", toPhone, code);
+        _logger.LogWarning("SMS OTP requested via development logging sender; configure a real SMS provider before enabling SMS 2FA.");
         return Task.CompletedTask;
     }
 }
