@@ -19,10 +19,12 @@ jobs:
       contents: read
       packages: read
     # Restore of the private KeshavSingh.* packages reads this via the repo-root
-    # nuget.config. Use the built-in GitHub token so CI does not depend on a
-    # separate PACKAGES_READ_TOKEN secret being configured for this repository.
+    # nuget.config. GitHub Packages returns 403 for these private user-scoped
+    # feeds when this job uses only the built-in GITHUB_TOKEN, so prefer the
+    # repository secret PAT and only fall back to github.token if that secret is
+    # intentionally not configured.
     env:
-      PACKAGES_READ_TOKEN: ${{ github.token }}
+      PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN || github.token }}
     defaults:
       run:
         working-directory: backend
