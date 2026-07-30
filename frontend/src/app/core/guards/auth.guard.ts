@@ -31,3 +31,23 @@ export const roleGuard = (...roles: Role[]): CanActivateFn => () => {
   const router = inject(Router);
   return auth.hasRole(...roles) ? true : router.createUrlTree(['/']);
 };
+
+/**
+ * Session-aware Admin gate: resumes the SSO session first (so it works on a cold page load),
+ * then requires the Admin role. Non-admins go to the launcher; unauthenticated users to /login.
+ */
+export const adminGuard: CanActivateFn = (_route: ActivatedRouteSnapshot, state: RouterStateSnapshot) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const decide = () => (auth.hasRole('Admin') ? true : router.createUrlTree(['/']));
+
+  if (auth.isAuthenticated()) return of(decide());
+
+  return auth.session().pipe(
+    map(() => decide()),
+    catchError(() => {
+      auth.forceClear();
+      return of(router.createUrlTree(['/login'], { queryParams: { return: state.url } }));
+    })
+  );
+};
