@@ -1,10 +1,16 @@
+using System.Text.Json.Nodes;
 using Fido2NetLib;
 
 namespace Admin.Api.Dtos;
 
 /// <summary>Begin-registration result: an opaque handle plus the options the browser passes to
-/// <c>navigator.credentials.create()</c>. The handle is echoed back on complete.</summary>
-public sealed record PasskeyRegisterBeginResponse(string Handle, CredentialCreateOptions Options);
+/// <c>navigator.credentials.create()</c>. The handle is echoed back on complete.
+///
+/// Options is carried as a raw <see cref="JsonNode"/> produced by Fido2's own <c>ToJson()</c>, NOT
+/// the typed object — the app's global camelCase + JsonStringEnumConverter would otherwise rewrite
+/// WebAuthn's numeric COSE alg (-7) to "ES256" and "public-key" to "PublicKey", which the browser
+/// rejects with "Operation is not supported".</summary>
+public sealed record PasskeyRegisterBeginResponse(string Handle, JsonNode Options);
 
 /// <summary>Complete-registration body: the handle, an optional user-supplied device name, and the
 /// authenticator's attestation response.</summary>
@@ -12,8 +18,9 @@ public sealed record PasskeyRegisterCompleteRequest(
     string Handle, string? Name, AuthenticatorAttestationRawResponse Response);
 
 /// <summary>Begin-login result: an opaque handle plus the options for
-/// <c>navigator.credentials.get()</c>. Usernameless, so no credential list is disclosed.</summary>
-public sealed record PasskeyLoginBeginResponse(string Handle, AssertionOptions Options);
+/// <c>navigator.credentials.get()</c>. Usernameless, so no credential list is disclosed. Options is
+/// raw Fido2 <c>ToJson()</c> for the same reason as the registration response above.</summary>
+public sealed record PasskeyLoginBeginResponse(string Handle, JsonNode Options);
 
 /// <summary>Complete-login body: the handle and the authenticator's assertion response.</summary>
 public sealed record PasskeyLoginCompleteRequest(

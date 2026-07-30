@@ -7,6 +7,7 @@ using KeshavSingh.Security;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using System.Text;
+using System.Text.Json.Nodes;
 
 namespace Admin.Api.Services;
 
@@ -98,8 +99,9 @@ public sealed class PasskeyService
             PubKeyCredParams = PubKeyCredParam.Defaults,
         });
 
-        var handle = await StoreChallengeAsync("register", userId, options.ToJson(), ct);
-        return new PasskeyRegisterBeginResponse(handle, options);
+        var optionsJson = options.ToJson();
+        var handle = await StoreChallengeAsync("register", userId, optionsJson, ct);
+        return new PasskeyRegisterBeginResponse(handle, JsonNode.Parse(optionsJson)!);
     }
 
     public async Task<PasskeyListItem> CompleteRegistrationAsync(
@@ -154,8 +156,9 @@ public sealed class PasskeyService
             AllowedCredentials = Array.Empty<PublicKeyCredentialDescriptor>(), // usernameless / discoverable
             UserVerification = UserVerificationRequirement.Required,
         });
-        var handle = await StoreChallengeAsync("assert", null, options.ToJson(), ct);
-        return new PasskeyLoginBeginResponse(handle, options);
+        var optionsJson = options.ToJson();
+        var handle = await StoreChallengeAsync("assert", null, optionsJson, ct);
+        return new PasskeyLoginBeginResponse(handle, JsonNode.Parse(optionsJson)!);
     }
 
     /// <summary>Verifies an assertion and returns the authenticated user. Fails closed.</summary>
