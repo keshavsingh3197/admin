@@ -4,7 +4,8 @@ export const environment = {
   // SSO cookie on ".keshavsingh.in". A server on onrender.com cannot set a keshavsingh.in cookie.
   // Point id.keshavsingh.in at the admin Render service (custom domain) — see Phase 6 / README.
   apiUrl: 'https://id.keshavsingh.in/api',
-  // Launcher targets.
-  blogUrl: 'https://git.keshavsingh.in',
-  blogAdminUrl: 'https://git.keshavsingh.in/admin',
+  // Launcher targets. (The blog is served at blog.keshavsingh.in; SSO works from any
+  // keshavsingh.in subdomain regardless, so switch these to git.keshavsingh.in if preferred.)
+  blogUrl: 'https://blog.keshavsingh.in',
+  blogAdminUrl: 'https://blog.keshavsingh.in/admin',
 };

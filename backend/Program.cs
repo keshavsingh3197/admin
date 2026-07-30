@@ -47,14 +47,24 @@ builder.Services
     .AddKeshavAuthControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-// ---- CORS: only the configured admin origins may call the API ----
-var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
-    ?? ["http://localhost:4200"];
+// ---- CORS: allow the SSO family — any keshavsingh.in subdomain (admin, id, git, blog, …)
+// over https, plus localhost in dev. Credentialed, so this is a scoped predicate allowlist
+// (never AllowAnyOrigin). New sibling apps work without touching this. ----
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AdminCorsPolicy", policy =>
-        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
+        policy.SetIsOriginAllowed(IsAllowedOrigin)
+              .AllowAnyHeader().AllowAnyMethod().AllowCredentials());
 });
+
+static bool IsAllowedOrigin(string origin)
+{
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+    if (uri.Host == "localhost") return true; // dev, any port
+    return uri.Scheme == Uri.UriSchemeHttps
+        && (uri.Host == "keshavsingh.in"
+            || uri.Host.EndsWith(".keshavsingh.in", StringComparison.OrdinalIgnoreCase));
+}
 
 // ---- Authentication: OAuth2 bearer (JWT) validated on every request ----
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
