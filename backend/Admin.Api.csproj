@@ -28,6 +28,13 @@
          the repo-root nuget.config, which needs the PACKAGES_READ_TOKEN env var. -->
     <PackageReference Include="KeshavSingh.Security" Version="0.1.0" />
     <PackageReference Include="KeshavSingh.Auth" Version="0.1.0" />
+    <PackageReference Include="KeshavSingh.Mongo.NoSql" Version="0.1.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(SkipPrivatePackages)' == 'true'">
+    <ProjectReference Include="..\..\shared-security\src\KeshavSingh.Security\KeshavSingh.Security.csproj" />
+    <ProjectReference Include="..\..\shared-security\src\KeshavSingh.Auth\KeshavSingh.Auth.csproj" />
+    <ProjectReference Include="..\..\KeshavSingh-Packages-Nosql\src\KeshavSingh.Mongo.NoSql\KeshavSingh.Mongo.NoSql.csproj" />
   </ItemGroup>
 
 </Project>

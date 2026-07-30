@@ -33,7 +33,7 @@ builder.Services.Configure<WebAuthnOptions>(builder.Configuration.GetSection(Web
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>() ?? new JwtOptions();
 
 // ---- Data + domain services ----
-builder.Services.AddSingleton<MongoDbService>();
+builder.Services.AddKeshavMongo(builder.Configuration);
 builder.Services.AddSingleton<NoteService>();
 
 // ---- Shared security primitives (KeshavSingh.Security) ----
