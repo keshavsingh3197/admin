@@ -23,5 +23,13 @@ export const routes: Routes = [
         (m) => m.NotesComponent
       ),
   },
+  {
+    path: 'security',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/security/security.component').then(
+        (m) => m.SecurityComponent
+      ),
+  },
   { path: '**', redirectTo: '' },
 ];
