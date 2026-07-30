@@ -4,10 +4,23 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- GitHub's hosted automatic NuGet dependency-submission job cannot read the private
+         feed, so it skips the private references instead of failing restore with a 403. -->
+    <AutoDependencySubmissionWorkflowName>Automatic Dependency Submission (NuGet)</AutoDependencySubmissionWorkflowName>
+    <AutoDependencySubmissionActor>github-advanced-security[bot]</AutoDependencySubmissionActor>
+    <SkipPrivatePackages Condition="'$(GITHUB_WORKFLOW)' == '$(AutoDependencySubmissionWorkflowName)' and '$(GITHUB_ACTOR)' == '$(AutoDependencySubmissionActor)'">true</SkipPrivatePackages>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="MongoDB.Driver" Version="3.10.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(SkipPrivatePackages)' != 'true'">
+    <!-- Shared auth + crypto from GitHub Packages. Restore reads the "github" source in
+         the repo-root nuget.config, which needs the PACKAGES_READ_TOKEN env var. -->
+    <PackageReference Include="KeshavSingh.Security" Version="0.1.0" />
+    <PackageReference Include="KeshavSingh.Auth" Version="0.1.0" />
   </ItemGroup>
 
 </Project>

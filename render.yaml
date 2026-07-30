@@ -15,4 +15,17 @@ services:
         value: https://admin.keshavsingh.in
       - key: AllowedOrigins__1
         value: https://keshavsingh3197.github.io
+      # Needed at build time to restore the private KeshavSingh.* packages (read:packages
+      # PAT). Set its value in the Render dashboard; sync:false keeps it out of git.
+      - key: PACKAGES_READ_TOKEN
+        sync: false
+      # Auth secrets — set values in the Render dashboard, never in git.
+      - key: Jwt__SigningKey
+        sync: false
+      - key: Encryption__DataKey
+        sync: false
+      - key: Seed__AdminEmail
+        sync: false
+      - key: Seed__AdminPassword
+        sync: false
     healthCheckPath: /health

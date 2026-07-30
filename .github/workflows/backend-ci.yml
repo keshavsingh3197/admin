@@ -17,6 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
+    # Restore of the private KeshavSingh.* packages reads this via the repo-root
+    # nuget.config. The built-in GITHUB_TOKEN failed with 403 on the private
+    # user-scoped package feeds in run 30369444769, so prefer the repository
+    # PAT secret and only fall back to github.token if that secret is
+    # intentionally not configured.
+    env:
+      PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN || github.token }}
     defaults:
       run:
         working-directory: backend

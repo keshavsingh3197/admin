@@ -1,11 +1,13 @@
 using Admin.Api.Models;
 using Admin.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Admin.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] // Default-deny: notes are personal data — every endpoint requires a valid session.
 public class NotesController : ControllerBase
 {
     private readonly NoteService _noteService;
