@@ -38,6 +38,7 @@ builder.Services.AddSingleton<NoteService>();
 builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
 builder.Services.AddSingleton<WebsiteVisitService>();
+builder.Services.AddSingleton<WebsiteContentService>();
 builder.Services.AddSingleton<SessionRetentionService>();
 builder.Services.AddHostedService<SessionRetentionCleanupWorker>();
 builder.Services.AddHttpClient();
@@ -183,6 +184,8 @@ await app.Services.GetRequiredService<SettingsService>().InitAsync();
 await app.Services.GetRequiredService<WebsiteRegistryService>()
     .EnsureIndexesAsync();
 await app.Services.GetRequiredService<WebsiteVisitService>()
+    .EnsureIndexesAsync();
+await app.Services.GetRequiredService<WebsiteContentService>()
     .EnsureIndexesAsync();
 var publicConfig = app.Services.GetRequiredService<SettingsService>().ToPublicConfig();
 await app.Services.GetRequiredService<WebsiteRegistryService>()
