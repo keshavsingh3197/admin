@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -19,6 +19,10 @@ import { TwoFactorMethod } from '../../core/models/auth.models';
       <div class="login-card">
         <h1 class="login-title">🛡️ Sign in</h1>
         <p class="login-sub">One sign-in for every keshavsingh.in app.</p>
+
+        @if (checking()) {
+          <p class="login-sub">Signing you in…</p>
+        } @else {
 
         @if (errorMessage()) {
           <div class="error-banner">{{ errorMessage() }}</div>
@@ -69,6 +73,8 @@ import { TwoFactorMethod } from '../../core/models/auth.models';
             <button type="button" class="linkish back" (click)="reset()">← Start over</button>
           </form>
         }
+
+        }
       </div>
     </div>
   `,
@@ -106,7 +112,7 @@ import { TwoFactorMethod } from '../../core/models/auth.models';
     .back { margin-top: 1rem; color: #666; }
   `]
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
@@ -114,6 +120,17 @@ export class LoginComponent {
   readonly step = signal<'credentials' | 'twofactor'>('credentials');
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
+  /** True while we silently test the shared SSO cookie; avoids flashing the form for signed-in users. */
+  readonly checking = signal(true);
+
+  ngOnInit(): void {
+    // Already signed in on another *.keshavsingh.in app? Resume silently and bounce straight
+    // to ?return= — no second prompt. A 401 just means "not signed in": show the form.
+    this.auth.session().subscribe({
+      next: () => this.finish(),
+      error: () => this.checking.set(false),
+    });
+  }
 
   readonly method = signal<TwoFactorMethod>('Totp');
   readonly emailFallback = signal(false);
