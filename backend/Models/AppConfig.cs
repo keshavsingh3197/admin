@@ -52,6 +52,7 @@ public sealed class AppConfig
         public string RelyingPartyName { get; set; } = "Keshav Singh ID";
         public List<string> Origins { get; set; } = new();
         public int ChallengeMinutes { get; set; } = 5;
+        public int MaxCredentialsPerUser { get; set; } = 5;
     }
 
     /// <summary>First-run admin identity — the admin password is absent (it stays in env/Key Vault).</summary>

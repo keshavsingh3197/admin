@@ -82,6 +82,9 @@ public sealed class PasskeyService
             ?? throw new PasskeyException("Account not found.");
 
         var existing = await _credentials.Find(c => c.UserId == userId).ToListAsync(ct);
+        if (existing.Count >= _options.MaxCredentialsPerUser)
+            throw new PasskeyException($"You can have at most {_options.MaxCredentialsPerUser} passkeys. Remove one first.");
+
         var exclude = existing
             .Select(c => new PublicKeyCredentialDescriptor(Base64UrlDecode(c.CredentialId)))
             .ToList();
@@ -116,6 +119,11 @@ public sealed class PasskeyService
         var attestation = Deserialize<AuthenticatorAttestationRawResponse>(req.Response, "attestation");
         var challenge = await ConsumeChallengeAsync(req.Handle, "register", ct);
         if (challenge.UserId != userId) throw new PasskeyException("Challenge does not belong to this account.");
+
+        // Authoritative cap check (the begin-time check can race with a concurrent registration).
+        var count = await _credentials.CountDocumentsAsync(c => c.UserId == userId, cancellationToken: ct);
+        if (count >= _options.MaxCredentialsPerUser)
+            throw new PasskeyException($"You can have at most {_options.MaxCredentialsPerUser} passkeys.");
 
         RegisteredPublicKeyCredential credential;
         try
@@ -283,7 +291,7 @@ public sealed class PasskeyService
     }
 
     private static PasskeyListItem ToListItem(PasskeyCredential c) =>
-        new(c.Id, c.Name, c.IsBackedUp, c.CreatedAt, c.LastUsedAt);
+        new(c.Id, c.Name, c.IsBackedUp, c.Transports ?? Array.Empty<string>(), c.CreatedAt, c.LastUsedAt);
 
     private static string? Sanitize(string? name)
     {

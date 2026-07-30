@@ -99,7 +99,20 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
                   <small>Added {{ pk.createdAt | date:'mediumDate' }}@if (pk.lastUsedAt) { · last used {{ pk.lastUsedAt | date:'mediumDate' }} }@if (pk.isBackedUp) { · synced }</small>
                 </span>
                 @if (removingId() !== pk.id) {
+                  <button class="btn-link" type="button" (click)="toggleDetails(pk)">
+                    {{ expandedId() === pk.id ? 'Hide' : 'Details' }}
+                  </button>
                   <button class="btn-link-danger" type="button" [disabled]="passkeyBusy()" (click)="startRemove(pk)">Remove</button>
+                }
+                @if (expandedId() === pk.id && removingId() !== pk.id) {
+                  <dl class="pk-details">
+                    <dt>Type</dt><dd>{{ deviceType(pk) }}</dd>
+                    <dt>Sign-in sync</dt><dd>{{ pk.isBackedUp ? 'Synced across your devices' : 'This device only' }}</dd>
+                    <dt>Transports</dt><dd>{{ pk.transports.length ? pk.transports.join(', ') : '—' }}</dd>
+                    <dt>Added</dt><dd>{{ pk.createdAt | date:'medium' }}</dd>
+                    <dt>Last used</dt><dd>{{ pk.lastUsedAt ? (pk.lastUsedAt | date:'medium') : 'Never' }}</dd>
+                    <dt>Credential</dt><dd class="mono">{{ pk.id.slice(0, 10) }}…</dd>
+                  </dl>
                 }
                 @if (removingId() === pk.id) {
                   <div class="pk-confirm">
@@ -120,12 +133,16 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
         }
 
         @if (passkeySupported) {
-          <label class="field"><span>Name for this device (optional)</span>
-            <input class="input" type="text" name="pkname" maxlength="60" placeholder="e.g. MacBook Touch ID"
-                   [(ngModel)]="newPasskeyName" [disabled]="passkeyBusy()" /></label>
-          <button class="btn-primary" type="button" [disabled]="passkeyBusy()" (click)="addPasskey()">
-            {{ passkeyBusy() ? 'Waiting for device…' : 'Add a passkey' }}
-          </button>
+          @if (passkeys().length >= maxPasskeys) {
+            <p class="muted">You’ve reached the limit of {{ maxPasskeys }} passkeys. Remove one to add another.</p>
+          } @else {
+            <label class="field"><span>Name for this device (optional)</span>
+              <input class="input" type="text" name="pkname" maxlength="60" placeholder="e.g. MacBook Touch ID"
+                     [(ngModel)]="newPasskeyName" [disabled]="passkeyBusy()" /></label>
+            <button class="btn-primary" type="button" [disabled]="passkeyBusy()" (click)="addPasskey()">
+              {{ passkeyBusy() ? 'Waiting for device…' : 'Add a passkey' }}
+            </button>
+          }
         } @else {
           <p class="muted">This browser doesn’t support passkeys.</p>
         }
@@ -173,6 +190,11 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
     .btn-danger-sm:disabled { opacity: 0.6; cursor: default; }
     .btn-link { background: none; border: none; color: #666; cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.4rem; }
     .btn-link:hover:not(:disabled) { text-decoration: underline; }
+    .pk-details { flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem;
+      margin: 0.5rem 0 0.25rem; padding: 0.6rem 0.75rem; background: #f8f9fa; border-radius: 6px; }
+    .pk-details dt { color: #777; font-size: 0.78rem; }
+    .pk-details dd { margin: 0; font-size: 0.82rem; color: #333; }
+    .pk-details dd.mono { font-family: monospace; }
   `]
 })
 export class SecurityComponent implements OnInit {
@@ -293,6 +315,8 @@ export class SecurityComponent implements OnInit {
   // ---- Passkeys ----
 
   readonly passkeySupported = isPasskeySupported();
+  /** UX gate only — the backend (WebAuthn:MaxCredentialsPerUser) is the real limit. */
+  readonly maxPasskeys = 5;
   readonly passkeys = signal<PasskeyListItem[]>([]);
   readonly passkeysLoaded = signal(false);
   readonly passkeyBusy = signal(false);
@@ -302,6 +326,21 @@ export class SecurityComponent implements OnInit {
   /** Id of the passkey currently awaiting a step-up password confirmation, if any. */
   readonly removingId = signal<string | null>(null);
   removePassword = '';
+  /** Id of the passkey whose details are expanded, if any. */
+  readonly expandedId = signal<string | null>(null);
+
+  toggleDetails(pk: PasskeyListItem): void {
+    this.expandedId.update(id => (id === pk.id ? null : pk.id));
+  }
+
+  /** A friendly device label derived from the credential's transports. */
+  deviceType(pk: PasskeyListItem): string {
+    const t = pk.transports ?? [];
+    if (t.includes('internal')) return 'This device (fingerprint / face / PIN)';
+    if (t.includes('hybrid')) return 'Phone or tablet';
+    if (t.includes('usb') || t.includes('nfc') || t.includes('ble')) return 'Security key';
+    return 'Passkey';
+  }
 
   loadPasskeys(): void {
     this.auth.passkeyList().subscribe({

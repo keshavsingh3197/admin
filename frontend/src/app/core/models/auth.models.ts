@@ -41,6 +41,7 @@ export interface PasskeyListItem {
   id: string;
   name?: string | null;
   isBackedUp: boolean;
+  transports: string[];
   createdAt: string;
   lastUsedAt?: string | null;
 }

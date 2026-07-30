@@ -43,6 +43,7 @@ if (dbx._migrations.findOne({ _id: MIGRATION_ID })) {
             'https://keshavsingh.in',
           ],
           ChallengeMinutes: 5,
+          MaxCredentialsPerUser: 5,
         },
         Seed: {
           // First-run admin identity. The PASSWORD stays in env (Seed__AdminPassword).

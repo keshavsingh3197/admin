@@ -21,4 +21,7 @@ public sealed class WebAuthnOptions
 
     /// <summary>Minutes a begun registration/assertion challenge stays valid.</summary>
     public int ChallengeMinutes { get; set; } = 5;
+
+    /// <summary>Maximum passkeys a single account may register.</summary>
+    public int MaxCredentialsPerUser { get; set; } = 5;
 }

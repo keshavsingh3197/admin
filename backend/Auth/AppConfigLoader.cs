@@ -75,6 +75,7 @@ public static class AppConfigLoader
                 RelyingPartyName = web.RelyingPartyName,
                 Origins = web.Origins.ToList(),
                 ChallengeMinutes = web.ChallengeMinutes,
+                MaxCredentialsPerUser = web.MaxCredentialsPerUser,
             },
             Seed = new AppConfig.SeedConfig
             {
@@ -103,6 +104,7 @@ public static class AppConfigLoader
             ["WebAuthn:RelyingPartyId"] = c.WebAuthn.RelyingPartyId,
             ["WebAuthn:RelyingPartyName"] = c.WebAuthn.RelyingPartyName,
             ["WebAuthn:ChallengeMinutes"] = c.WebAuthn.ChallengeMinutes.ToString(),
+            ["WebAuthn:MaxCredentialsPerUser"] = c.WebAuthn.MaxCredentialsPerUser.ToString(),
 
             ["Seed:AdminEmail"] = c.Seed.AdminEmail,
             ["Seed:AdminDisplayName"] = c.Seed.AdminDisplayName,
