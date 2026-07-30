@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
+import { AuthService } from './core/services/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -8,5 +9,10 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
   styleUrl: './app.css'
 })
 export class App {
-  protected readonly title = 'Admin Panel';
+  protected readonly auth = inject(AuthService);
+  private router = inject(Router);
+
+  logout(): void {
+    this.auth.logout().subscribe({ next: () => this.router.navigate(['/login']) });
+  }
 }

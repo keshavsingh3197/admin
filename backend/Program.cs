@@ -7,6 +7,7 @@ using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +17,7 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 builder.Services.Configure<EncryptionOptions>(builder.Configuration.GetSection(EncryptionOptions.Section));
 builder.Services.Configure<AuthSettingsOptions>(builder.Configuration.GetSection(AuthSettingsOptions.Section));
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.Section));
+builder.Services.Configure<SsoCookieOptions>(builder.Configuration.GetSection(SsoCookieOptions.Section));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>() ?? new JwtOptions();
 
@@ -93,9 +95,19 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddHealthChecks();
 
+// Behind Render's TLS-terminating proxy: honour X-Forwarded-* so the app sees the real client IP
+// (rate limiting & audit) and the original https scheme (so no in-container redirect loop).
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
 var app = builder.Build();
 
 // ---- Pipeline ----
+app.UseForwardedHeaders(); // Must run before anything that reads scheme / client IP.
 app.UseKeshavAuthExceptionHandling();
 
 // Baseline security headers.
@@ -110,7 +122,11 @@ app.Use(async (context, next) =>
 });
 
 if (!app.Environment.IsDevelopment())
-    app.UseHttpsRedirection();
+{
+    // TLS is terminated at Render's edge (which also redirects http->https), so an in-container
+    // HTTPS redirect is redundant and can loop behind the proxy. We still emit HSTS.
+    app.UseHsts();
+}
 
 app.UseCors("AdminCorsPolicy");
 app.UseRateLimiter();
