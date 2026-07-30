@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://admin-api.onrender.com/api',
+  apiUrl: 'https://admin-t6l4.onrender.com/api',
 };
