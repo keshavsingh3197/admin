@@ -17,6 +17,14 @@ import { ConfigService } from '../../core/services/config.service';
       <p class="subtitle">Your apps — one sign-in for all of them.</p>
 
       <div class="cards">
+        @if (hasAdminAccess()) {
+          <a class="card" routerLink="/analytics">
+            <span class="card-icon">📊</span>
+            <h2>Analytics</h2>
+            <p>View website health and usage metrics by site.</p>
+          </a>
+        }
+
         <a class="card" routerLink="/notes">
           <span class="card-icon">📝</span>
           <h2>Notes</h2>
@@ -71,5 +79,9 @@ export class DashboardComponent implements OnInit {
 
   firstName(): string {
     return this.auth.user()?.displayName?.split(' ')[0] ?? '';
+  }
+
+  hasAdminAccess(): boolean {
+    return this.auth.hasRole('Admin');
   }
 }

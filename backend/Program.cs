@@ -35,6 +35,8 @@ var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOpt
 // ---- Data + domain services ----
 builder.Services.AddKeshavMongo(builder.Configuration);
 builder.Services.AddSingleton<NoteService>();
+builder.Services.AddSingleton<AnalyticsService>();
+builder.Services.AddHttpClient();
 
 // ---- Shared security primitives (KeshavSingh.Security) ----
 builder.Services.AddSingleton<PasswordHasher>();
