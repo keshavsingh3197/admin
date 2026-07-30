@@ -35,7 +35,10 @@ builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<IAuthUserStore, MongoAuthUserStore>();
 builder.Services.AddScoped<IRefreshTokenStore, MongoRefreshTokenStore>();
 builder.Services.AddScoped<IAuthAuditSink, AuditLogger>();
-builder.Services.AddSingleton<IAuthSettings, ConfigAuthSettings>();
+// Auth settings are DB-backed (editable at runtime on the Settings screen) and also serve as the
+// engine's IAuthSettings. Seeded from the "Auth" config on first run (see SettingsService.InitAsync).
+builder.Services.AddSingleton<SettingsService>();
+builder.Services.AddSingleton<IAuthSettings>(sp => sp.GetRequiredService<SettingsService>());
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddSingleton<ISmsSender, LoggingSmsSender>();
 builder.Services.AddKeshavAuthEngine();
@@ -145,7 +148,8 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-// ---- First-run admin seed ----
+// ---- First-run settings load + admin seed ----
+await app.Services.GetRequiredService<SettingsService>().InitAsync();
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();

@@ -9,6 +9,7 @@
         <a routerLink="/security" routerLinkActive="active">Security</a>
         @if (auth.hasRole('Admin')) {
           <a routerLink="/users" routerLinkActive="active">Users</a>
+          <a routerLink="/settings" routerLinkActive="active">Settings</a>
         }
       </nav>
       <div class="spacer"></div>

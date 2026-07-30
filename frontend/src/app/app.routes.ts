@@ -37,5 +37,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/users/users.component').then((m) => m.UsersComponent),
   },
+  {
+    path: 'settings',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/settings/settings.component').then((m) => m.SettingsComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

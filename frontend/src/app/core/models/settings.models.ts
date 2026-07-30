@@ -1,0 +1,13 @@
+/** Auth-security settings as returned by GET /api/settings. Mirrors the backend SettingsView. */
+export interface SettingsView {
+  siteTitle: string;
+  emailTwoFactorEnabled: boolean;
+  smsTwoFactorEnabled: boolean;
+  emailOtpMinutes: number;
+  maxFailedLoginAttempts: number;
+  lockoutMinutes: number;
+  backupCodeCount: number;
+  updatedAt: string;
+}
+
+export type UpdateSettingsRequest = Partial<Omit<SettingsView, 'updatedAt'>>;
