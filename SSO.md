@@ -79,3 +79,4 @@ login/seed have been removed; its old user records are ignored.
 4. Sign out at admin → the blog console drops to unauthenticated on its next call.
 5. An admin-issued token is accepted by `content-blog-nms8.onrender.com/api`, and an
    `Editor`-gated content action authorizes.
+   
