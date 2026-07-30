@@ -1,9 +1,10 @@
 services:
   - type: web
     name: admin-api
-    runtime: dotnet
-    buildCommand: dotnet publish backend/Admin.Api.csproj -c Release -o out
-    startCommand: dotnet out/Admin.Api.dll
+    # This service builds from backend/Dockerfile (a Docker web service on Render).
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
@@ -15,17 +16,16 @@ services:
         value: https://admin.keshavsingh.in
       - key: AllowedOrigins__1
         value: https://keshavsingh3197.github.io
-      # Needed at build time to restore the private KeshavSingh.* packages (read:packages
-      # PAT). Set its value in the Render dashboard; sync:false keeps it out of git.
-      - key: PACKAGES_READ_TOKEN
+      # ---- Auth secrets (runtime) — set values in the Render dashboard, never in git ----
+      - key: Jwt__SigningKey        # >= 32 chars
         sync: false
-      # Auth secrets — set values in the Render dashboard, never in git.
-      - key: Jwt__SigningKey
-        sync: false
-      - key: Encryption__DataKey
+      - key: Encryption__DataKey    # base64 of 32 random bytes
         sync: false
       - key: Seed__AdminEmail
         sync: false
       - key: Seed__AdminPassword
         sync: false
     healthCheckPath: /health
+    # NOTE: PACKAGES_READ_TOKEN is a *build* secret, not a runtime env var. Docker builds
+    # can't read env vars, so add it in the Render dashboard as a SECRET FILE named
+    # PACKAGES_READ_TOKEN (contents = a read:packages classic PAT). The Dockerfile mounts it.
