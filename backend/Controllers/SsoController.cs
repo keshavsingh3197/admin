@@ -1,5 +1,6 @@
 using Admin.Api.Auth;
 using KeshavSingh.Auth;
+using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Auth.Dtos;
 using KeshavSingh.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -25,14 +26,14 @@ namespace Admin.Api.Controllers;
 public sealed class SsoController : ControllerBase
 {
     private readonly AuthEngine _auth;
+    private readonly IAuthSettings _settings;
     private readonly SsoCookieOptions _cookie;
-    private readonly JwtOptions _jwt;
 
-    public SsoController(AuthEngine auth, IOptions<SsoCookieOptions> cookie, IOptions<JwtOptions> jwt)
+    public SsoController(AuthEngine auth, IAuthSettings settings, IOptions<SsoCookieOptions> cookie)
     {
         _auth = auth;
+        _settings = settings;
         _cookie = cookie.Value;
-        _jwt = jwt.Value;
     }
 
     /// <summary>Step 1: verify email + password. Sets the SSO cookie, or returns a 2FA challenge.</summary>
@@ -129,7 +130,7 @@ public sealed class SsoController : ControllerBase
     /// <summary>Writes the rotating refresh token to the SSO cookie; returns the in-body session.</summary>
     private SsoSessionResponse IssueSession(AuthTokens tokens)
     {
-        var expires = DateTimeOffset.UtcNow.AddDays(_jwt.RefreshTokenDays);
+        var expires = DateTimeOffset.UtcNow.AddDays(_settings.RefreshTokenDays);
         Response.Cookies.Append(_cookie.CookieName, tokens.RefreshToken, _cookie.BuildWriteOptions(expires));
         return new SsoSessionResponse(tokens.AccessToken, tokens.AccessTokenExpiresAt, tokens.User);
     }

@@ -37,6 +37,17 @@ import { SettingsView } from '../../core/models/settings.models';
           <label class="field"><span>Blog admin URL</span>
             <input class="input" type="url" name="blogadmin" [(ngModel)]="m.blogAdminUrl" /></label>
 
+          <h2>Session lifetime</h2>
+          <p class="hint">These values are stored in Mongo and affect newly issued tokens. Existing tokens keep their current expiry.</p>
+          <div class="grid">
+            <label class="field"><span>Access token lifetime (minutes)</span>
+              <input class="input" type="number" min="1" max="240" name="atm" [(ngModel)]="m.accessTokenMinutes" /></label>
+            <label class="field"><span>Refresh token lifetime (days)</span>
+              <input class="input" type="number" min="1" max="90" name="rtd" [(ngModel)]="m.refreshTokenDays" /></label>
+            <label class="field"><span>2FA step token lifetime (minutes)</span>
+              <input class="input" type="number" min="1" max="30" name="tft" [(ngModel)]="m.twoFactorTokenMinutes" /></label>
+          </div>
+
           <h2>Sign-in security</h2>
           <div class="grid">
             <label class="field"><span>Max failed attempts before lockout</span>
@@ -54,6 +65,16 @@ import { SettingsView } from '../../core/models/settings.models';
              email/SMS senders are configured for this service.</p>
           <label class="chk"><input type="checkbox" name="e2fa" [(ngModel)]="m.emailTwoFactorEnabled" /> Allow email code fallback</label>
           <label class="chk"><input type="checkbox" name="s2fa" [(ngModel)]="m.smsTwoFactorEnabled" /> Allow SMS code fallback</label>
+
+          <h2>First-run checklist</h2>
+          <p class="hint">For a fresh deployment, keep bootstrap secrets in env or Key Vault and manage non-secret runtime settings here after sign-in.</p>
+          <ul class="checklist">
+            <li>Set the Mongo connection and confirm the database is reachable.</li>
+            <li>Provide the JWT signing key and encryption data key outside source control.</li>
+            <li>Confirm launcher URLs, token lifetimes, and lockout settings on this screen.</li>
+            <li>Configure SMTP or SMS only if you want those fallback channels enabled.</li>
+            <li>Verify WebAuthn origins and relying-party domain for passkeys.</li>
+          </ul>
 
           <div class="foot">
             <button class="btn-primary" type="submit" [disabled]="busy()">{{ busy() ? 'Saving…' : 'Save settings' }}</button>
@@ -81,6 +102,7 @@ import { SettingsView } from '../../core/models/settings.models';
     .input { width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
     .input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px #e8f0fe; }
     .hint { color: #666; font-size: 0.85rem; margin: 0 0 0.6rem; }
+    .checklist { margin: 0 0 0.8rem 1.2rem; color: #444; font-size: 0.9rem; }
     .chk { display: block; margin-bottom: 0.5rem; font-size: 0.92rem; }
     .foot { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; }
     .btn-primary { padding: 0.6rem 1.2rem; background: #1a73e8; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
@@ -125,6 +147,9 @@ export class SettingsComponent implements OnInit {
       blogAdminUrl: m.blogAdminUrl,
       emailTwoFactorEnabled: m.emailTwoFactorEnabled,
       smsTwoFactorEnabled: m.smsTwoFactorEnabled,
+      accessTokenMinutes: Number(m.accessTokenMinutes),
+      refreshTokenDays: Number(m.refreshTokenDays),
+      twoFactorTokenMinutes: Number(m.twoFactorTokenMinutes),
       emailOtpMinutes: Number(m.emailOtpMinutes),
       maxFailedLoginAttempts: Number(m.maxFailedLoginAttempts),
       lockoutMinutes: Number(m.lockoutMinutes),

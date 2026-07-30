@@ -21,19 +21,19 @@ public sealed class SessionMinter
 {
     private readonly JwtService _jwt;
     private readonly IRefreshTokenStore _refreshTokens;
+    private readonly IAuthSettings _settings;
     private readonly SsoCookieOptions _cookie;
-    private readonly JwtOptions _jwtOptions;
 
     public SessionMinter(
         JwtService jwt,
         IRefreshTokenStore refreshTokens,
-        IOptions<SsoCookieOptions> cookie,
-        IOptions<JwtOptions> jwtOptions)
+        IAuthSettings settings,
+        IOptions<SsoCookieOptions> cookie)
     {
         _jwt = jwt;
         _refreshTokens = refreshTokens;
+        _settings = settings;
         _cookie = cookie.Value;
-        _jwtOptions = jwtOptions.Value;
     }
 
     /// <summary>
@@ -44,7 +44,7 @@ public sealed class SessionMinter
     public async Task<SsoSessionResponse> IssueAsync(User user, HttpResponse response, CancellationToken ct = default)
     {
         var (accessToken, accessTokenExpiresAt) = _jwt.CreateAccessToken(
-            new JwtSubject(user.Id, user.Email, user.DisplayName, user.Roles));
+            new JwtSubject(user.Id, user.Email, user.DisplayName, user.Roles), _settings.AccessTokenMinutes);
 
         // Opaque refresh token: only its hash is stored, exactly as the engine does at login.
         var refreshToken = TokenHasher.NewOpaqueToken();
@@ -52,10 +52,10 @@ public sealed class SessionMinter
         {
             UserId = user.Id,
             TokenHash = TokenHasher.Hash(refreshToken),
-            ExpiresAt = _jwt.RefreshTokenExpiry(),
+            ExpiresAt = _jwt.RefreshTokenExpiry(_settings.RefreshTokenDays),
         }, ct);
 
-        var expires = DateTimeOffset.UtcNow.AddDays(_jwtOptions.RefreshTokenDays);
+        var expires = DateTimeOffset.UtcNow.AddDays(_settings.RefreshTokenDays);
         response.Cookies.Append(_cookie.CookieName, refreshToken, _cookie.BuildWriteOptions(expires));
 
         var profile = new UserProfile(

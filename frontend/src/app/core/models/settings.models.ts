@@ -5,6 +5,9 @@ export interface SettingsView {
   blogAdminUrl: string;
   emailTwoFactorEnabled: boolean;
   smsTwoFactorEnabled: boolean;
+  accessTokenMinutes: number;
+  refreshTokenDays: number;
+  twoFactorTokenMinutes: number;
   emailOtpMinutes: number;
   maxFailedLoginAttempts: number;
   lockoutMinutes: number;

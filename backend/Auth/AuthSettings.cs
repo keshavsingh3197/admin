@@ -1,4 +1,5 @@
 using KeshavSingh.Auth.Abstractions;
+using KeshavSingh.Security;
 using Microsoft.Extensions.Options;
 
 namespace Admin.Api.Auth;
@@ -22,7 +23,12 @@ public sealed class AuthSettingsOptions
 public sealed class ConfigAuthSettings : IAuthSettings
 {
     private readonly AuthSettingsOptions _o;
-    public ConfigAuthSettings(IOptions<AuthSettingsOptions> options) => _o = options.Value;
+    private readonly JwtOptions _jwt;
+    public ConfigAuthSettings(IOptions<AuthSettingsOptions> options, IOptions<JwtOptions> jwtOptions)
+    {
+        _o = options.Value;
+        _jwt = jwtOptions.Value;
+    }
 
     public bool EmailTwoFactorEnabled => _o.EmailTwoFactorEnabled;
     public bool SmsTwoFactorEnabled => _o.SmsTwoFactorEnabled;
@@ -30,4 +36,7 @@ public sealed class ConfigAuthSettings : IAuthSettings
     public int MaxFailedLoginAttempts => _o.MaxFailedLoginAttempts;
     public int LockoutMinutes => _o.LockoutMinutes;
     public int BackupCodeCount => _o.BackupCodeCount;
+    public int AccessTokenMinutes => _jwt.AccessTokenMinutes;
+    public int RefreshTokenDays => _jwt.RefreshTokenDays;
+    public int TwoFactorTokenMinutes => _jwt.TwoFactorTokenMinutes;
 }

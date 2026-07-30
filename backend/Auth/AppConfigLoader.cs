@@ -58,9 +58,6 @@ public static class AppConfigLoader
             {
                 Issuer = jwt.Issuer,
                 Audience = jwt.Audience,
-                AccessTokenMinutes = jwt.AccessTokenMinutes,
-                RefreshTokenDays = jwt.RefreshTokenDays,
-                TwoFactorTokenMinutes = jwt.TwoFactorTokenMinutes,
             },
             Sso = new AppConfig.SsoConfig
             {
@@ -92,9 +89,6 @@ public static class AppConfigLoader
         {
             ["Jwt:Issuer"] = c.Jwt.Issuer,
             ["Jwt:Audience"] = c.Jwt.Audience,
-            ["Jwt:AccessTokenMinutes"] = c.Jwt.AccessTokenMinutes.ToString(),
-            ["Jwt:RefreshTokenDays"] = c.Jwt.RefreshTokenDays.ToString(),
-            ["Jwt:TwoFactorTokenMinutes"] = c.Jwt.TwoFactorTokenMinutes.ToString(),
 
             ["Sso:CookieName"] = c.Sso.CookieName,
             ["Sso:Domain"] = c.Sso.Domain,

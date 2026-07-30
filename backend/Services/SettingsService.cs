@@ -2,6 +2,7 @@ using Admin.Api.Auth;
 using Admin.Api.Dtos;
 using Admin.Api.Models;
 using KeshavSingh.Auth.Abstractions;
+using KeshavSingh.Security;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -16,13 +17,15 @@ public sealed class SettingsService : IAuthSettings
 {
     private readonly IMongoCollection<AppSettings> _col;
     private readonly AuthSettingsOptions _seed;
+    private readonly JwtOptions _jwtSeed;
     private readonly PublicConfigOptions _publicSeed;
     private volatile AppSettings _current = new();
 
-    public SettingsService(MongoDbService db, IOptions<AuthSettingsOptions> seed, IOptions<PublicConfigOptions> publicSeed)
+    public SettingsService(MongoDbService db, IOptions<AuthSettingsOptions> seed, IOptions<JwtOptions> jwtSeed, IOptions<PublicConfigOptions> publicSeed)
     {
         _col = db.GetCollection<AppSettings>("settings");
         _seed = seed.Value;
+        _jwtSeed = jwtSeed.Value;
         _publicSeed = publicSeed.Value;
     }
 
@@ -33,6 +36,9 @@ public sealed class SettingsService : IAuthSettings
     public int MaxFailedLoginAttempts => _current.MaxFailedLoginAttempts;
     public int LockoutMinutes => _current.LockoutMinutes;
     public int BackupCodeCount => _current.BackupCodeCount;
+    public int AccessTokenMinutes => _current.AccessTokenMinutes;
+    public int RefreshTokenDays => _current.RefreshTokenDays;
+    public int TwoFactorTokenMinutes => _current.TwoFactorTokenMinutes;
 
     public async Task InitAsync()
     {
@@ -47,6 +53,9 @@ public sealed class SettingsService : IAuthSettings
             BlogAdminUrl = _publicSeed.BlogAdminUrl,
             EmailTwoFactorEnabled = _seed.EmailTwoFactorEnabled,
             SmsTwoFactorEnabled = _seed.SmsTwoFactorEnabled,
+            AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
+            RefreshTokenDays = _jwtSeed.RefreshTokenDays,
+            TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
             EmailOtpMinutes = _seed.EmailOtpMinutes,
             MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
             LockoutMinutes = _seed.LockoutMinutes,
@@ -61,8 +70,8 @@ public sealed class SettingsService : IAuthSettings
     {
         var s = _current;
         return new SettingsView(s.SiteTitle, s.BlogUrl, s.BlogAdminUrl, s.EmailTwoFactorEnabled,
-            s.SmsTwoFactorEnabled, s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes,
-            s.BackupCodeCount, s.UpdatedAt);
+            s.SmsTwoFactorEnabled, s.AccessTokenMinutes, s.RefreshTokenDays, s.TwoFactorTokenMinutes,
+            s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes, s.BackupCodeCount, s.UpdatedAt);
     }
 
     /// <summary>The narrow, non-secret projection served publicly to every app.</summary>
@@ -83,6 +92,9 @@ public sealed class SettingsService : IAuthSettings
         if (r.BlogAdminUrl is not null) s.BlogAdminUrl = ValidateLauncherUrl(r.BlogAdminUrl, nameof(r.BlogAdminUrl));
         if (r.EmailTwoFactorEnabled is { } e) s.EmailTwoFactorEnabled = e;
         if (r.SmsTwoFactorEnabled is { } sm) s.SmsTwoFactorEnabled = sm;
+        if (r.AccessTokenMinutes is { } atm) s.AccessTokenMinutes = Math.Clamp(atm, 1, 240);
+        if (r.RefreshTokenDays is { } rtd) s.RefreshTokenDays = Math.Clamp(rtd, 1, 90);
+        if (r.TwoFactorTokenMinutes is { } tft) s.TwoFactorTokenMinutes = Math.Clamp(tft, 1, 30);
         // Clamp the security knobs to sane ranges (defence in depth against bad input).
         if (r.EmailOtpMinutes is { } eo) s.EmailOtpMinutes = Math.Clamp(eo, 1, 60);
         if (r.MaxFailedLoginAttempts is { } mfa) s.MaxFailedLoginAttempts = Math.Clamp(mfa, 1, 20);
@@ -100,6 +112,8 @@ public sealed class SettingsService : IAuthSettings
     {
         Id = s.Id, SiteTitle = s.SiteTitle, BlogUrl = s.BlogUrl, BlogAdminUrl = s.BlogAdminUrl,
         EmailTwoFactorEnabled = s.EmailTwoFactorEnabled, SmsTwoFactorEnabled = s.SmsTwoFactorEnabled,
+        AccessTokenMinutes = s.AccessTokenMinutes, RefreshTokenDays = s.RefreshTokenDays,
+        TwoFactorTokenMinutes = s.TwoFactorTokenMinutes,
         EmailOtpMinutes = s.EmailOtpMinutes, MaxFailedLoginAttempts = s.MaxFailedLoginAttempts,
         LockoutMinutes = s.LockoutMinutes, BackupCodeCount = s.BackupCodeCount,
     };

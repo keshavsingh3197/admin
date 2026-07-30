@@ -33,9 +33,6 @@ public sealed class AppConfig
     {
         public string Issuer { get; set; } = "keshavsingh-idp";
         public string Audience { get; set; } = "keshavsingh-apps";
-        public int AccessTokenMinutes { get; set; } = 15;
-        public int RefreshTokenDays { get; set; } = 7;
-        public int TwoFactorTokenMinutes { get; set; } = 5;
     }
 
     public sealed class SsoConfig

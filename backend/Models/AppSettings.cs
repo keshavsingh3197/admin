@@ -32,6 +32,9 @@ public sealed class AppSettings
     public int MaxFailedLoginAttempts { get; set; } = 5;
     public int LockoutMinutes { get; set; } = 15;
     public int BackupCodeCount { get; set; } = 10;
+    public int AccessTokenMinutes { get; set; } = 15;
+    public int RefreshTokenDays { get; set; } = 7;
+    public int TwoFactorTokenMinutes { get; set; } = 5;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
