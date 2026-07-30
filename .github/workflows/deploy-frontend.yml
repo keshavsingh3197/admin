@@ -3,7 +3,7 @@ name: Deploy Angular to GitHub Pages
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'frontend/**'
   workflow_dispatch:
@@ -41,6 +41,11 @@ jobs:
 
       - name: Build production bundle
         run: npm run build -- --configuration production --base-href /
+
+      # SPA fallback: GitHub Pages serves 404.html for unknown paths. Copying index.html there
+      # lets client-side routes (e.g. /login, deep links) load the app instead of a 404.
+      - name: Add SPA 404 fallback
+        run: cp frontend/dist/frontend/browser/index.html frontend/dist/frontend/browser/404.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

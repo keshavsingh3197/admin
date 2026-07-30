@@ -1,19 +1,38 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
+import { environment } from '../../../environments/environment';
 
+/**
+ * The launcher: the home of the identity provider. Signed in once here, every linked app is
+ * reachable without a second login (external links open the sibling *.keshavsingh.in sites,
+ * which silently pick up the shared SSO session).
+ */
 @Component({
   selector: 'app-dashboard',
   imports: [RouterLink],
   template: `
     <div class="dashboard">
-      <h1>Dashboard</h1>
-      <p class="subtitle">Welcome to your personal admin panel.</p>
+      <h1>Welcome{{ firstName() ? ', ' + firstName() : '' }} 👋</h1>
+      <p class="subtitle">Your apps — one sign-in for all of them.</p>
 
       <div class="cards">
         <a class="card" routerLink="/notes">
           <span class="card-icon">📝</span>
           <h2>Notes</h2>
           <p>Manage your notes and important information.</p>
+        </a>
+
+        <a class="card" [href]="blogAdminUrl" target="_blank" rel="noopener">
+          <span class="card-icon">✍️</span>
+          <h2>Blog Admin</h2>
+          <p>Write and manage content for the blog.</p>
+        </a>
+
+        <a class="card" [href]="blogUrl" target="_blank" rel="noopener">
+          <span class="card-icon">🌐</span>
+          <h2>Blog</h2>
+          <p>Open the public blog at git.keshavsingh.in.</p>
         </a>
       </div>
     </div>
@@ -25,7 +44,7 @@ import { RouterLink } from '@angular/router';
     .card {
       display: flex; flex-direction: column; align-items: center;
       padding: 2rem; border-radius: 8px; border: 1px solid #e0e0e0;
-      text-decoration: none; color: inherit; min-width: 160px;
+      text-decoration: none; color: inherit; min-width: 160px; max-width: 220px;
       transition: box-shadow 0.2s;
     }
     .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
@@ -34,4 +53,12 @@ import { RouterLink } from '@angular/router';
     p { margin: 0; color: #666; font-size: 0.9rem; text-align: center; }
   `]
 })
-export class DashboardComponent {}
+export class DashboardComponent {
+  private auth = inject(AuthService);
+  readonly blogUrl = environment.blogUrl;
+  readonly blogAdminUrl = environment.blogAdminUrl;
+
+  firstName(): string {
+    return this.auth.user()?.displayName?.split(' ')[0] ?? '';
+  }
+}

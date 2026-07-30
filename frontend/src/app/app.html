@@ -1,10 +1,18 @@
 <div class="app-shell">
   <header class="app-header">
     <a class="brand" routerLink="/">🛡️ Admin</a>
-    <nav class="app-nav">
-      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Dashboard</a>
-      <a routerLink="/notes" routerLinkActive="active">Notes</a>
-    </nav>
+
+    @if (auth.isAuthenticated()) {
+      <nav class="app-nav">
+        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Dashboard</a>
+        <a routerLink="/notes" routerLinkActive="active">Notes</a>
+      </nav>
+      <div class="spacer"></div>
+      <div class="user-chip">
+        <span class="user-name">{{ auth.user()?.displayName }}</span>
+        <button class="logout-btn" type="button" (click)="logout()">Sign out</button>
+      </div>
+    }
   </header>
 
   <main class="app-main">
