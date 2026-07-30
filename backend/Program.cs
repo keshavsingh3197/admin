@@ -36,6 +36,10 @@ var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOpt
 builder.Services.AddKeshavMongo(builder.Configuration);
 builder.Services.AddSingleton<NoteService>();
 builder.Services.AddSingleton<AnalyticsService>();
+builder.Services.AddSingleton<WebsiteRegistryService>();
+builder.Services.AddSingleton<WebsiteVisitService>();
+builder.Services.AddSingleton<SessionRetentionService>();
+builder.Services.AddHostedService<SessionRetentionCleanupWorker>();
 builder.Services.AddHttpClient();
 
 // ---- Shared security primitives (KeshavSingh.Security) ----
@@ -176,6 +180,13 @@ app.MapHealthChecks("/health");
 
 // ---- First-run settings load + admin seed ----
 await app.Services.GetRequiredService<SettingsService>().InitAsync();
+await app.Services.GetRequiredService<WebsiteRegistryService>()
+    .EnsureIndexesAsync();
+await app.Services.GetRequiredService<WebsiteVisitService>()
+    .EnsureIndexesAsync();
+var publicConfig = app.Services.GetRequiredService<SettingsService>().ToPublicConfig();
+await app.Services.GetRequiredService<WebsiteRegistryService>()
+    .SeedDefaultsAsync(publicConfig.BlogUrl, publicConfig.BlogAdminUrl);
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();

@@ -39,6 +39,9 @@ public sealed class SettingsService : IAuthSettings
     public int AccessTokenMinutes => _current.AccessTokenMinutes;
     public int RefreshTokenDays => _current.RefreshTokenDays;
     public int TwoFactorTokenMinutes => _current.TwoFactorTokenMinutes;
+    public bool EnforceSingleSessionPerUser => _current.EnforceSingleSessionPerUser;
+    public int RefreshTokenRetentionDays => _current.RefreshTokenRetentionDays;
+    public int AnalyticsRetentionDays => _current.AnalyticsRetentionDays;
 
     public async Task InitAsync()
     {
@@ -56,6 +59,9 @@ public sealed class SettingsService : IAuthSettings
             AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
             RefreshTokenDays = _jwtSeed.RefreshTokenDays,
             TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
+            EnforceSingleSessionPerUser = true,
+            RefreshTokenRetentionDays = 30,
+            AnalyticsRetentionDays = 90,
             EmailOtpMinutes = _seed.EmailOtpMinutes,
             MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
             LockoutMinutes = _seed.LockoutMinutes,
@@ -71,6 +77,7 @@ public sealed class SettingsService : IAuthSettings
         var s = _current;
         return new SettingsView(s.SiteTitle, s.BlogUrl, s.BlogAdminUrl, s.EmailTwoFactorEnabled,
             s.SmsTwoFactorEnabled, s.AccessTokenMinutes, s.RefreshTokenDays, s.TwoFactorTokenMinutes,
+            s.EnforceSingleSessionPerUser, s.RefreshTokenRetentionDays, s.AnalyticsRetentionDays,
             s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes, s.BackupCodeCount, s.UpdatedAt);
     }
 
@@ -95,6 +102,9 @@ public sealed class SettingsService : IAuthSettings
         if (r.AccessTokenMinutes is { } atm) s.AccessTokenMinutes = Math.Clamp(atm, 1, 240);
         if (r.RefreshTokenDays is { } rtd) s.RefreshTokenDays = Math.Clamp(rtd, 1, 90);
         if (r.TwoFactorTokenMinutes is { } tft) s.TwoFactorTokenMinutes = Math.Clamp(tft, 1, 30);
+        if (r.EnforceSingleSessionPerUser is { } esp) s.EnforceSingleSessionPerUser = esp;
+        if (r.RefreshTokenRetentionDays is { } rtrd) s.RefreshTokenRetentionDays = Math.Clamp(rtrd, 1, 365);
+        if (r.AnalyticsRetentionDays is { } ard) s.AnalyticsRetentionDays = Math.Clamp(ard, 1, 3650);
         // Clamp the security knobs to sane ranges (defence in depth against bad input).
         if (r.EmailOtpMinutes is { } eo) s.EmailOtpMinutes = Math.Clamp(eo, 1, 60);
         if (r.MaxFailedLoginAttempts is { } mfa) s.MaxFailedLoginAttempts = Math.Clamp(mfa, 1, 20);
@@ -114,6 +124,9 @@ public sealed class SettingsService : IAuthSettings
         EmailTwoFactorEnabled = s.EmailTwoFactorEnabled, SmsTwoFactorEnabled = s.SmsTwoFactorEnabled,
         AccessTokenMinutes = s.AccessTokenMinutes, RefreshTokenDays = s.RefreshTokenDays,
         TwoFactorTokenMinutes = s.TwoFactorTokenMinutes,
+        EnforceSingleSessionPerUser = s.EnforceSingleSessionPerUser,
+        RefreshTokenRetentionDays = s.RefreshTokenRetentionDays,
+        AnalyticsRetentionDays = s.AnalyticsRetentionDays,
         EmailOtpMinutes = s.EmailOtpMinutes, MaxFailedLoginAttempts = s.MaxFailedLoginAttempts,
         LockoutMinutes = s.LockoutMinutes, BackupCodeCount = s.BackupCodeCount,
     };

@@ -13,7 +13,13 @@ namespace Admin.Api.Controllers;
 public sealed class SettingsController : ControllerBase
 {
     private readonly SettingsService _settings;
-    public SettingsController(SettingsService settings) => _settings = settings;
+    private readonly WebsiteRegistryService _websites;
+
+    public SettingsController(SettingsService settings, WebsiteRegistryService websites)
+    {
+        _settings = settings;
+        _websites = websites;
+    }
 
     [HttpGet]
     public ActionResult<SettingsView> Get() => Ok(_settings.ToView());
@@ -29,5 +35,44 @@ public sealed class SettingsController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    [HttpGet("websites")]
+    public async Task<ActionResult<IReadOnlyList<WebsiteLinkView>>> ListWebsites(CancellationToken ct)
+        => Ok(await _websites.ListAsync(ct));
+
+    [HttpPost("websites")]
+    public async Task<ActionResult<WebsiteLinkView>> CreateWebsite(UpsertWebsiteLinkRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var created = await _websites.CreateAsync(request, ct);
+            return CreatedAtAction(nameof(ListWebsites), new { id = created.Id }, created);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPut("websites/{id}")]
+    public async Task<ActionResult<WebsiteLinkView>> UpdateWebsite(string id, UpsertWebsiteLinkRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var updated = await _websites.UpdateAsync(id, request, ct);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpDelete("websites/{id}")]
+    public async Task<IActionResult> DeleteWebsite(string id, CancellationToken ct)
+    {
+        await _websites.DeleteAsync(id, ct);
+        return NoContent();
     }
 }

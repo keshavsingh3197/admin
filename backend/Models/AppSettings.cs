@@ -35,6 +35,9 @@ public sealed class AppSettings
     public int AccessTokenMinutes { get; set; } = 15;
     public int RefreshTokenDays { get; set; } = 7;
     public int TwoFactorTokenMinutes { get; set; } = 5;
+    public bool EnforceSingleSessionPerUser { get; set; } = true;
+    public int RefreshTokenRetentionDays { get; set; } = 30;
+    public int AnalyticsRetentionDays { get; set; } = 90;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

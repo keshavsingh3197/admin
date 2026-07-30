@@ -7,15 +7,24 @@ namespace Admin.Api.Services;
 public sealed class AnalyticsService
 {
     private readonly SettingsService _settings;
+    private readonly WebsiteRegistryService _websites;
+    private readonly WebsiteVisitService _visits;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMongoCollection<User> _users;
     private readonly IMongoCollection<RefreshToken> _refreshTokens;
     private readonly IMongoCollection<Note> _notes;
     private readonly IMongoCollection<LoginAudit> _audit;
 
-    public AnalyticsService(SettingsService settings, MongoDbService db, IHttpClientFactory httpClientFactory)
+    public AnalyticsService(
+        SettingsService settings,
+        WebsiteRegistryService websites,
+        WebsiteVisitService visits,
+        MongoDbService db,
+        IHttpClientFactory httpClientFactory)
     {
         _settings = settings;
+        _websites = websites;
+        _visits = visits;
         _httpClientFactory = httpClientFactory;
         _users = db.GetCollection<User>("users");
         _refreshTokens = db.GetCollection<RefreshToken>("refresh_tokens");
@@ -23,7 +32,7 @@ public sealed class AnalyticsService
         _audit = db.GetCollection<LoginAudit>("audit");
     }
 
-    public IReadOnlyList<WebsiteOptionDto> GetWebsites(string adminBaseUrl)
+    public async Task<IReadOnlyList<WebsiteOptionDto>> GetWebsitesAsync(string adminBaseUrl, CancellationToken ct)
     {
         var config = _settings.ToPublicConfig();
         var websites = new List<WebsiteOptionDto>
@@ -31,11 +40,8 @@ public sealed class AnalyticsService
             new("admin", string.IsNullOrWhiteSpace(config.SiteTitle) ? "Admin" : config.SiteTitle, adminBaseUrl.TrimEnd('/')),
         };
 
-        if (!string.IsNullOrWhiteSpace(config.BlogUrl))
-            websites.Add(new("blog", "Blog", config.BlogUrl));
-
-        if (!string.IsNullOrWhiteSpace(config.BlogAdminUrl))
-            websites.Add(new("blog-admin", "Blog Admin", config.BlogAdminUrl));
+        var configured = await _websites.ListEnabledAsync(ct);
+        websites.AddRange(configured.Select(x => new WebsiteOptionDto(x.Key, x.Name, x.Url)));
 
         return websites
             .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
@@ -45,16 +51,17 @@ public sealed class AnalyticsService
 
     public async Task<WebsiteDashboardDto?> GetDashboardAsync(string websiteKey, string adminBaseUrl, CancellationToken ct)
     {
-        var websites = GetWebsites(adminBaseUrl);
+        var websites = await GetWebsitesAsync(adminBaseUrl, ct);
         var website = websites.FirstOrDefault(x => x.Key.Equals(websiteKey, StringComparison.OrdinalIgnoreCase));
         if (website is null) return null;
 
         var status = await CheckWebsiteAsync(website.Url, ct);
-        var metrics = await BuildMetricsAsync(ct);
-        return new WebsiteDashboardDto(website, status, metrics);
+        var metrics = await BuildMetricsAsync(website.Key, ct);
+        var details = await BuildDetailsAsync(website.Key, ct);
+        return new WebsiteDashboardDto(website, status, metrics, details);
     }
 
-    private async Task<WebsiteMetricsDto> BuildMetricsAsync(CancellationToken ct)
+    private async Task<WebsiteMetricsDto> BuildMetricsAsync(string websiteKey, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         var last24h = now.AddHours(-24);
@@ -65,8 +72,23 @@ public sealed class AnalyticsService
         var totalNotes = await _notes.CountDocumentsAsync(_ => true, cancellationToken: ct);
         var successLogins = await _audit.CountDocumentsAsync(a => a.Success && a.Timestamp >= last24h, cancellationToken: ct);
         var failedLogins = await _audit.CountDocumentsAsync(a => !a.Success && a.Timestamp >= last24h, cancellationToken: ct);
+        var (visits, uniqueVisitors) = await _visits.GetVisitCountsAsync(websiteKey, last24h, ct);
 
-        return new WebsiteMetricsDto(totalUsers, activeUsers, activeSessions, totalNotes, successLogins, failedLogins);
+        return new WebsiteMetricsDto(
+            totalUsers,
+            activeUsers,
+            activeSessions,
+            totalNotes,
+            successLogins,
+            failedLogins,
+            visits,
+            uniqueVisitors);
+    }
+
+    private Task<WebsiteDetailsDto> BuildDetailsAsync(string websiteKey, CancellationToken ct)
+    {
+        var last24h = DateTime.UtcNow.AddHours(-24);
+        return _visits.BuildDetailsAsync(websiteKey, last24h, ct);
     }
 
     private async Task<WebsiteStatusDto> CheckWebsiteAsync(string url, CancellationToken ct)

@@ -1,9 +1,10 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { forkJoin } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
 import { ConfigService } from '../../core/services/config.service';
-import { SettingsView } from '../../core/models/settings.models';
+import { SettingsView, WebsiteLinkView } from '../../core/models/settings.models';
 
 /**
  * Runtime auth-security settings for the identity provider (Admin only). Changes are stored in the
@@ -37,6 +38,49 @@ import { SettingsView } from '../../core/models/settings.models';
           <label class="field"><span>Blog admin URL</span>
             <input class="input" type="url" name="blogadmin" [(ngModel)]="m.blogAdminUrl" /></label>
 
+          <h2>Website registry (DB)</h2>
+          <p class="hint">These records are stored in the Mongo collection <strong>websites</strong>. Analytics and launcher targets read from this registry.</p>
+          <div class="website-editor">
+            <div class="grid">
+              <label class="field"><span>Key</span>
+                <input class="input" type="text" name="wkey" [(ngModel)]="websiteDraft.key" /></label>
+              <label class="field"><span>Name</span>
+                <input class="input" type="text" name="wname" [(ngModel)]="websiteDraft.name" /></label>
+              <label class="field"><span>URL</span>
+                <input class="input" type="url" name="wurl" [(ngModel)]="websiteDraft.url" /></label>
+              <label class="field"><span>Sort order</span>
+                <input class="input" type="number" name="wsort" [(ngModel)]="websiteDraft.sortOrder" /></label>
+            </div>
+            <label class="chk"><input type="checkbox" name="wenabled" [(ngModel)]="websiteDraft.isEnabled" /> Enabled</label>
+            <div class="row-actions">
+              <button class="btn-secondary" type="button" [disabled]="busy()" (click)="saveWebsite()">{{ editingWebsiteId ? 'Update website' : 'Add website' }}</button>
+              <button class="btn-secondary" type="button" [disabled]="busy()" (click)="resetWebsiteDraft()">Clear</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="tbl">
+              <thead>
+                <tr><th>Key</th><th>Name</th><th>URL</th><th>Enabled</th><th>Order</th><th></th></tr>
+              </thead>
+              <tbody>
+                @for (w of websites(); track w.id) {
+                  <tr>
+                    <td>{{ w.key }}</td>
+                    <td>{{ w.name }}</td>
+                    <td><a [href]="w.url" target="_blank" rel="noopener">{{ w.url }}</a></td>
+                    <td>{{ w.isEnabled ? 'Yes' : 'No' }}</td>
+                    <td>{{ w.sortOrder }}</td>
+                    <td class="row-actions">
+                      <button class="btn-link" type="button" [disabled]="busy()" (click)="editWebsite(w)">Edit</button>
+                      <button class="btn-link danger" type="button" [disabled]="busy()" (click)="deleteWebsite(w.id)">Delete</button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
           <h2>Session lifetime</h2>
           <p class="hint">These values are stored in Mongo and affect newly issued tokens. Existing tokens keep their current expiry.</p>
           <div class="grid">
@@ -46,7 +90,12 @@ import { SettingsView } from '../../core/models/settings.models';
               <input class="input" type="number" min="1" max="90" name="rtd" [(ngModel)]="m.refreshTokenDays" /></label>
             <label class="field"><span>2FA step token lifetime (minutes)</span>
               <input class="input" type="number" min="1" max="30" name="tft" [(ngModel)]="m.twoFactorTokenMinutes" /></label>
+            <label class="field"><span>Refresh token retention (days)</span>
+              <input class="input" type="number" min="1" max="365" name="rtr" [(ngModel)]="m.refreshTokenRetentionDays" /></label>
+            <label class="field"><span>Analytics retention (days)</span>
+              <input class="input" type="number" min="1" max="3650" name="ar" [(ngModel)]="m.analyticsRetentionDays" /></label>
           </div>
+          <label class="chk"><input type="checkbox" name="singleSession" [(ngModel)]="m.enforceSingleSessionPerUser" /> Enforce single active session per user (new login closes others)</label>
 
           <h2>Sign-in security</h2>
           <div class="grid">
@@ -104,6 +153,16 @@ import { SettingsView } from '../../core/models/settings.models';
     .hint { color: #666; font-size: 0.85rem; margin: 0 0 0.6rem; }
     .checklist { margin: 0 0 0.8rem 1.2rem; color: #444; font-size: 0.9rem; }
     .chk { display: block; margin-bottom: 0.5rem; font-size: 0.92rem; }
+    .website-editor { border: 1px solid #e0e0e0; border-radius: 8px; padding: 0.8rem; margin-bottom: 0.9rem; }
+    .table-wrap { overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .tbl th, .tbl td { padding: 0.55rem; border-bottom: 1px solid #eef0f2; text-align: left; vertical-align: top; }
+    .tbl th { background: #f9fafb; font-weight: 600; }
+    .tbl td a { color: #1a73e8; text-decoration: none; }
+    .row-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .btn-secondary { padding: 0.45rem 0.8rem; border: 1px solid #cfd4da; border-radius: 6px; background: #fff; cursor: pointer; }
+    .btn-link { border: none; background: transparent; color: #1a73e8; cursor: pointer; padding: 0; }
+    .btn-link.danger { color: #c5221f; }
     .foot { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; }
     .btn-primary { padding: 0.6rem 1.2rem; background: #1a73e8; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
     .btn-primary:disabled { opacity: 0.6; cursor: default; }
@@ -117,6 +176,9 @@ export class SettingsComponent implements OnInit {
   private config = inject(ConfigService);
 
   readonly model = signal<SettingsView | null>(null);
+  readonly websites = signal<WebsiteLinkView[]>([]);
+  editingWebsiteId: string | null = null;
+  websiteDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 100 };
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
@@ -130,9 +192,16 @@ export class SettingsComponent implements OnInit {
   reload(): void {
     this.loading.set(true);
     this.message.set(null);
-    this.api.get().subscribe({
-      next: s => { this.model.set(s); this.loading.set(false); },
-      error: (err: HttpErrorResponse) => { this.loading.set(false); this.fail(err, 'Could not load settings.'); },
+    forkJoin({ settings: this.api.get(), websites: this.api.listWebsites() }).subscribe({
+      next: ({ settings, websites }) => {
+        this.model.set(settings);
+        this.websites.set(websites);
+        this.loading.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.loading.set(false);
+        this.fail(err, 'Could not load settings.');
+      },
     });
   }
 
@@ -150,6 +219,9 @@ export class SettingsComponent implements OnInit {
       accessTokenMinutes: Number(m.accessTokenMinutes),
       refreshTokenDays: Number(m.refreshTokenDays),
       twoFactorTokenMinutes: Number(m.twoFactorTokenMinutes),
+      enforceSingleSessionPerUser: m.enforceSingleSessionPerUser,
+      refreshTokenRetentionDays: Number(m.refreshTokenRetentionDays),
+      analyticsRetentionDays: Number(m.analyticsRetentionDays),
       emailOtpMinutes: Number(m.emailOtpMinutes),
       maxFailedLoginAttempts: Number(m.maxFailedLoginAttempts),
       lockoutMinutes: Number(m.lockoutMinutes),
@@ -164,6 +236,72 @@ export class SettingsComponent implements OnInit {
       },
       error: (err: HttpErrorResponse) => { this.busy.set(false); this.fail(err, 'Could not save settings.'); },
     });
+  }
+
+  saveWebsite(): void {
+    const draft = this.websiteDraft;
+    this.busy.set(true);
+    this.message.set(null);
+
+    const payload = {
+      key: draft.key.trim(),
+      name: draft.name.trim(),
+      url: draft.url.trim(),
+      isEnabled: draft.isEnabled,
+      sortOrder: Number(draft.sortOrder),
+    };
+
+    const request$ = this.editingWebsiteId
+      ? this.api.updateWebsite(this.editingWebsiteId, payload)
+      : this.api.createWebsite(payload);
+
+    request$.subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.ok.set(true);
+        this.message.set(this.editingWebsiteId ? 'Website updated.' : 'Website added.');
+        this.resetWebsiteDraft();
+        this.api.listWebsites().subscribe({ next: list => this.websites.set(list) });
+      },
+      error: (err: HttpErrorResponse) => {
+        this.busy.set(false);
+        this.fail(err, 'Could not save website.');
+      }
+    });
+  }
+
+  editWebsite(w: WebsiteLinkView): void {
+    this.editingWebsiteId = w.id;
+    this.websiteDraft = {
+      key: w.key,
+      name: w.name,
+      url: w.url,
+      isEnabled: w.isEnabled,
+      sortOrder: w.sortOrder,
+    };
+  }
+
+  deleteWebsite(id: string): void {
+    this.busy.set(true);
+    this.message.set(null);
+    this.api.deleteWebsite(id).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.ok.set(true);
+        this.message.set('Website deleted.');
+        this.resetWebsiteDraft();
+        this.api.listWebsites().subscribe({ next: list => this.websites.set(list) });
+      },
+      error: (err: HttpErrorResponse) => {
+        this.busy.set(false);
+        this.fail(err, 'Could not delete website.');
+      }
+    });
+  }
+
+  resetWebsiteDraft(): void {
+    this.editingWebsiteId = null;
+    this.websiteDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 100 };
   }
 
   private fail(err: HttpErrorResponse, fallback: string): void {

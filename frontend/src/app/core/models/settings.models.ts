@@ -8,6 +8,9 @@ export interface SettingsView {
   accessTokenMinutes: number;
   refreshTokenDays: number;
   twoFactorTokenMinutes: number;
+  enforceSingleSessionPerUser: boolean;
+  refreshTokenRetentionDays: number;
+  analyticsRetentionDays: number;
   emailOtpMinutes: number;
   maxFailedLoginAttempts: number;
   lockoutMinutes: number;
@@ -16,3 +19,21 @@ export interface SettingsView {
 }
 
 export type UpdateSettingsRequest = Partial<Omit<SettingsView, 'updatedAt'>>;
+
+export interface WebsiteLinkView {
+  id: string;
+  key: string;
+  name: string;
+  url: string;
+  isEnabled: boolean;
+  sortOrder: number;
+  updatedAt: string;
+}
+
+export interface UpsertWebsiteLinkRequest {
+  key: string;
+  name: string;
+  url: string;
+  isEnabled: boolean;
+  sortOrder: number;
+}

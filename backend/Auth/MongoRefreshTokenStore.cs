@@ -9,17 +9,31 @@ namespace Admin.Api.Auth;
 public sealed class MongoRefreshTokenStore : IRefreshTokenStore
 {
     private readonly IMongoCollection<RefreshToken> _tokens;
+    private readonly SettingsService _settings;
 
-    public MongoRefreshTokenStore(MongoDbService db) =>
+    public MongoRefreshTokenStore(MongoDbService db, SettingsService settings)
+    {
         _tokens = db.GetCollection<RefreshToken>("refresh_tokens");
+        _settings = settings;
+    }
 
-    public Task AddAsync(RefreshTokenRecord token, CancellationToken ct = default) =>
-        _tokens.InsertOneAsync(new RefreshToken
+    public async Task AddAsync(RefreshTokenRecord token, CancellationToken ct = default)
+    {
+        if (_settings.EnforceSingleSessionPerUser)
+        {
+            await _tokens.UpdateManyAsync(
+                r => r.UserId == token.UserId && r.RevokedAt == null,
+                Builders<RefreshToken>.Update.Set(r => r.RevokedAt, DateTime.UtcNow),
+                cancellationToken: ct);
+        }
+
+        await _tokens.InsertOneAsync(new RefreshToken
         {
             UserId = token.UserId,
             TokenHash = token.TokenHash,
             ExpiresAt = token.ExpiresAt,
         }, cancellationToken: ct);
+    }
 
     public async Task<RefreshTokenRecord?> FindByHashAsync(string tokenHash, CancellationToken ct = default)
     {
