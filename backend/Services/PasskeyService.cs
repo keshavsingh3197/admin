@@ -7,6 +7,7 @@ using KeshavSingh.Security;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Admin.Api.Services;
@@ -23,6 +24,11 @@ public sealed class PasskeyException(string message) : Exception(message);
 /// </summary>
 public sealed class PasskeyService
 {
+    // Deserialize the browser's WebAuthn payloads with Fido2's own type attributes intact (no app
+    // JsonStringEnumConverter, which can't read the "public-key" enum). Web defaults give
+    // case-insensitive matching; Fido2's [JsonPropertyName]/[JsonConverter] attributes do the rest.
+    private static readonly JsonSerializerOptions FidoJson = new(JsonSerializerDefaults.Web);
+
     private readonly IFido2 _fido2;
     private readonly WebAuthnOptions _options;
     private readonly PasswordHasher _passwords;
@@ -107,7 +113,7 @@ public sealed class PasskeyService
     public async Task<PasskeyListItem> CompleteRegistrationAsync(
         string userId, PasskeyRegisterCompleteRequest req, CancellationToken ct)
     {
-        if (req.Response is null) throw new PasskeyException("Missing attestation response.");
+        var attestation = Deserialize<AuthenticatorAttestationRawResponse>(req.Response, "attestation");
         var challenge = await ConsumeChallengeAsync(req.Handle, "register", ct);
         if (challenge.UserId != userId) throw new PasskeyException("Challenge does not belong to this account.");
 
@@ -116,7 +122,7 @@ public sealed class PasskeyService
         {
             credential = await _fido2.MakeNewCredentialAsync(new MakeNewCredentialParams
             {
-                AttestationResponse = req.Response,
+                AttestationResponse = attestation,
                 OriginalOptions = CredentialCreateOptions.FromJson(challenge.OptionsJson),
                 IsCredentialIdUniqueToUserCallback = async (p, innerCt) =>
                 {
@@ -164,10 +170,10 @@ public sealed class PasskeyService
     /// <summary>Verifies an assertion and returns the authenticated user. Fails closed.</summary>
     public async Task<User> CompleteLoginAsync(PasskeyLoginCompleteRequest req, CancellationToken ct)
     {
-        if (req.Response is null) throw new PasskeyException("Missing assertion response.");
+        var assertion = Deserialize<AuthenticatorAssertionRawResponse>(req.Response, "assertion");
         var challenge = await ConsumeChallengeAsync(req.Handle, "assert", ct);
 
-        var credentialId = Base64UrlEncode(req.Response.RawId);
+        var credentialId = Base64UrlEncode(assertion.RawId);
         var stored = await _credentials.Find(c => c.CredentialId == credentialId).FirstOrDefaultAsync(ct)
             ?? throw new PasskeyException("Passkey not recognised.");
 
@@ -180,7 +186,7 @@ public sealed class PasskeyService
         {
             result = await _fido2.MakeAssertionAsync(new MakeAssertionParams
             {
-                AssertionResponse = req.Response,
+                AssertionResponse = assertion,
                 OriginalOptions = AssertionOptions.FromJson(challenge.OptionsJson),
                 StoredPublicKey = stored.PublicKey,
                 StoredSignatureCounter = (uint)stored.SignCount,
@@ -260,6 +266,21 @@ public sealed class PasskeyService
     }
 
     // ---- Helpers ----
+
+    /// <summary>Deserializes a browser WebAuthn payload with Fido2's own serialization rules.</summary>
+    private static T Deserialize<T>(JsonElement raw, string what)
+    {
+        if (raw.ValueKind != JsonValueKind.Object)
+            throw new PasskeyException($"Missing {what} response.");
+        try
+        {
+            return raw.Deserialize<T>(FidoJson) ?? throw new PasskeyException($"Missing {what} response.");
+        }
+        catch (JsonException)
+        {
+            throw new PasskeyException($"Malformed {what} response.");
+        }
+    }
 
     private static PasskeyListItem ToListItem(PasskeyCredential c) =>
         new(c.Id, c.Name, c.IsBackedUp, c.CreatedAt, c.LastUsedAt);

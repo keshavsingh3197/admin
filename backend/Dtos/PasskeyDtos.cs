@@ -1,5 +1,5 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
-using Fido2NetLib;
 
 namespace Admin.Api.Dtos;
 
@@ -13,18 +13,23 @@ namespace Admin.Api.Dtos;
 public sealed record PasskeyRegisterBeginResponse(string Handle, JsonNode Options);
 
 /// <summary>Complete-registration body: the handle, an optional user-supplied device name, and the
-/// authenticator's attestation response.</summary>
+/// authenticator's attestation response.
+///
+/// <c>Response</c> is kept as a raw <see cref="JsonElement"/> and deserialized by Fido2's own types
+/// in the service — NOT bound by MVC, whose global JsonStringEnumConverter can't read Fido2's
+/// "public-key" enum value ("could not be converted to PublicKeyCredentialType").</summary>
 public sealed record PasskeyRegisterCompleteRequest(
-    string Handle, string? Name, AuthenticatorAttestationRawResponse Response);
+    string Handle, string? Name, JsonElement Response);
 
 /// <summary>Begin-login result: an opaque handle plus the options for
 /// <c>navigator.credentials.get()</c>. Usernameless, so no credential list is disclosed. Options is
 /// raw Fido2 <c>ToJson()</c> for the same reason as the registration response above.</summary>
 public sealed record PasskeyLoginBeginResponse(string Handle, JsonNode Options);
 
-/// <summary>Complete-login body: the handle and the authenticator's assertion response.</summary>
+/// <summary>Complete-login body: the handle and the authenticator's assertion response (raw
+/// <see cref="JsonElement"/>, deserialized by Fido2 in the service — see the registration DTO).</summary>
 public sealed record PasskeyLoginCompleteRequest(
-    string Handle, AuthenticatorAssertionRawResponse Response);
+    string Handle, JsonElement Response);
 
 /// <summary>A passkey as shown on the security screen. No key material is exposed.</summary>
 public sealed record PasskeyListItem(
