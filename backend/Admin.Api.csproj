@@ -16,6 +16,11 @@
   <ItemGroup>
     <PackageReference Include="MongoDB.Driver" Version="3.10.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <!-- WebAuthn / FIDO2 passkeys (public nuget.org). Pinned; verifies attestation & assertion. -->
+    <PackageReference Include="Fido2" Version="4.0.0" />
+    <!-- Override Fido2's transitive Microsoft.Bcl.Memory 9.0.0 (advisory GHSA-73j8-2gch-69rq)
+         with the patched build. Remove once Fido2 ships a fixed transitive pin. -->
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="9.0.18" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(SkipPrivatePackages)' != 'true'">

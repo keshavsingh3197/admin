@@ -3,8 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
-  EnrollStartResponse, Role, SsoLoginResponse, SsoSessionResponse,
-  TwoFactorMethod, UserProfile,
+  EnrollStartResponse, PasskeyBeginResponse, PasskeyListItem, Role, SsoLoginResponse,
+  SsoSessionResponse, TwoFactorMethod, UserProfile,
 } from '../models/auth.models';
 
 /**
@@ -106,6 +106,37 @@ export class AuthService {
   changePassword(currentPassword: string, newPassword: string): Observable<void> {
     return this.http.post<void>(`${this.base}/auth/change-password`, { currentPassword, newPassword })
       .pipe(tap(() => this.patchUser({ mustChangePassword: false })));
+  }
+
+  // ---- Passkeys (WebAuthn) ----
+
+  /** Authenticated: registration ceremonies + management. */
+  passkeyRegisterBegin(): Observable<PasskeyBeginResponse> {
+    return this.http.post<PasskeyBeginResponse>(`${this.base}/passkeys/register/begin`, {});
+  }
+
+  passkeyRegisterComplete(handle: string, name: string | null, response: unknown): Observable<PasskeyListItem> {
+    return this.http.post<PasskeyListItem>(`${this.base}/passkeys/register/complete`, { handle, name, response });
+  }
+
+  passkeyList(): Observable<PasskeyListItem[]> {
+    return this.http.get<PasskeyListItem[]>(`${this.base}/passkeys`);
+  }
+
+  /** Step-up: removing a passkey re-verifies the account password server-side. */
+  passkeyRemove(id: string, password: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/passkeys/${id}/remove`, { password });
+  }
+
+  /** Anonymous, usernameless sign-in. The complete call sets the SSO cookie (withCredentials). */
+  passkeyLoginBegin(): Observable<PasskeyBeginResponse> {
+    return this.http.post<PasskeyBeginResponse>(`${this.base}/passkeys/login/begin`, {}, { withCredentials: true });
+  }
+
+  passkeyLoginComplete(handle: string, response: unknown): Observable<SsoSessionResponse> {
+    return this.http
+      .post<SsoSessionResponse>(`${this.base}/passkeys/login/complete`, { handle, response }, { withCredentials: true })
+      .pipe(tap(session => this.setSession(session)));
   }
 
   private patchUser(patch: Partial<UserProfile>): void {

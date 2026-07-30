@@ -16,6 +16,13 @@ public sealed class AppSettings
 
     public string SiteTitle { get; set; } = "Admin";
 
+    // ---- Shared, non-secret app config served publicly at GET /api/config ----
+    // Centralised here so every *.keshavsingh.in app reads one source instead of duplicating these
+    // in its own environment file. NEVER put secrets or bootstrap config (signing keys, DB/API
+    // URLs) here — this document is served without authentication.
+    public string BlogUrl { get; set; } = "https://blog.keshavsingh.in";
+    public string BlogAdminUrl { get; set; } = "https://blog.keshavsingh.in/admin";
+
     // Email/SMS second-factor toggles. Admin uses logging notification stubs, so these stay off
     // unless real senders are wired; TOTP (authenticator) 2FA works regardless via /security.
     public bool EmailTwoFactorEnabled { get; set; }

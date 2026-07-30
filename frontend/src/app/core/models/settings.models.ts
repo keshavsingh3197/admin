@@ -1,6 +1,8 @@
 /** Auth-security settings as returned by GET /api/settings. Mirrors the backend SettingsView. */
 export interface SettingsView {
   siteTitle: string;
+  blogUrl: string;
+  blogAdminUrl: string;
   emailTwoFactorEnabled: boolean;
   smsTwoFactorEnabled: boolean;
   emailOtpMinutes: number;

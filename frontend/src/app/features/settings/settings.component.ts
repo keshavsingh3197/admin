@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SettingsService } from '../../core/services/settings.service';
+import { ConfigService } from '../../core/services/config.service';
 import { SettingsView } from '../../core/models/settings.models';
 
 /**
@@ -13,7 +14,11 @@ import { SettingsView } from '../../core/models/settings.models';
   imports: [FormsModule],
   template: `
     <div class="set-wrap">
-      <h1 class="page-title">Settings</h1>
+      <div class="head">
+        <h1 class="page-title">Settings</h1>
+        <button class="icon-btn" type="button" title="Reload from server"
+                [class.spin]="loading()" [disabled]="loading() || busy()" (click)="reload()">↻</button>
+      </div>
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
       @if (loading()) {
@@ -23,6 +28,14 @@ import { SettingsView } from '../../core/models/settings.models';
           <h2>General</h2>
           <label class="field"><span>Site title</span>
             <input class="input" type="text" name="title" [(ngModel)]="m.siteTitle" /></label>
+
+          <h2>Launcher links</h2>
+          <p class="hint">Shared with every keshavsingh.in app via the public config endpoint —
+             no need to set these per app. Must be https keshavsingh.in addresses.</p>
+          <label class="field"><span>Blog URL</span>
+            <input class="input" type="url" name="blog" [(ngModel)]="m.blogUrl" /></label>
+          <label class="field"><span>Blog admin URL</span>
+            <input class="input" type="url" name="blogadmin" [(ngModel)]="m.blogAdminUrl" /></label>
 
           <h2>Sign-in security</h2>
           <div class="grid">
@@ -52,7 +65,14 @@ import { SettingsView } from '../../core/models/settings.models';
   `,
   styles: [`
     .set-wrap { max-width: 640px; margin: 0 auto; padding: 1rem; }
-    .page-title { font-size: 1.5rem; margin: 0 0 1rem; }
+    .head { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 1rem; }
+    .page-title { font-size: 1.5rem; margin: 0; }
+    .icon-btn { width: 2rem; height: 2rem; border: 1px solid #ccc; background: #fff; border-radius: 6px;
+      cursor: pointer; font-size: 1.1rem; line-height: 1; color: #444; }
+    .icon-btn:hover:not(:disabled) { background: #f1f3f4; border-color: #1a73e8; color: #1a73e8; }
+    .icon-btn:disabled { opacity: 0.6; cursor: default; }
+    .icon-btn.spin { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; }
     .card h2 { font-size: 1.05rem; margin: 1.25rem 0 0.75rem; }
     .card h2:first-of-type { margin-top: 0; }
@@ -72,6 +92,7 @@ import { SettingsView } from '../../core/models/settings.models';
 })
 export class SettingsComponent implements OnInit {
   private api = inject(SettingsService);
+  private config = inject(ConfigService);
 
   readonly model = signal<SettingsView | null>(null);
   readonly loading = signal(true);
@@ -80,6 +101,13 @@ export class SettingsComponent implements OnInit {
   readonly ok = signal(false);
 
   ngOnInit(): void {
+    this.reload();
+  }
+
+  /** (Re)loads the settings from the server — also driven by the ↻ button. */
+  reload(): void {
+    this.loading.set(true);
+    this.message.set(null);
     this.api.get().subscribe({
       next: s => { this.model.set(s); this.loading.set(false); },
       error: (err: HttpErrorResponse) => { this.loading.set(false); this.fail(err, 'Could not load settings.'); },
@@ -93,6 +121,8 @@ export class SettingsComponent implements OnInit {
     this.message.set(null);
     this.api.update({
       siteTitle: m.siteTitle,
+      blogUrl: m.blogUrl,
+      blogAdminUrl: m.blogAdminUrl,
       emailTwoFactorEnabled: m.emailTwoFactorEnabled,
       smsTwoFactorEnabled: m.smsTwoFactorEnabled,
       emailOtpMinutes: Number(m.emailOtpMinutes),
@@ -100,7 +130,13 @@ export class SettingsComponent implements OnInit {
       lockoutMinutes: Number(m.lockoutMinutes),
       backupCodeCount: Number(m.backupCodeCount),
     }).subscribe({
-      next: s => { this.busy.set(false); this.model.set(s); this.ok.set(true); this.message.set('Settings saved.'); },
+      next: s => {
+        this.busy.set(false);
+        this.model.set(s);
+        this.config.refresh(); // Propagate launcher/branding changes to the cached central config.
+        this.ok.set(true);
+        this.message.set('Settings saved.');
+      },
       error: (err: HttpErrorResponse) => { this.busy.set(false); this.fail(err, 'Could not save settings.'); },
     });
   }

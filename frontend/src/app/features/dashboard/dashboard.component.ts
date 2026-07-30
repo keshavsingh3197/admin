@@ -1,7 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { environment } from '../../../environments/environment';
+import { ConfigService } from '../../core/services/config.service';
 
 /**
  * The launcher: the home of the identity provider. Signed in once here, every linked app is
@@ -23,17 +23,21 @@ import { environment } from '../../../environments/environment';
           <p>Manage your notes and important information.</p>
         </a>
 
-        <a class="card" [href]="blogAdminUrl" target="_blank" rel="noopener">
-          <span class="card-icon">✍️</span>
-          <h2>Blog Admin</h2>
-          <p>Write and manage content for the blog.</p>
-        </a>
+        @if (blogAdminUrl()) {
+          <a class="card" [href]="blogAdminUrl()" target="_blank" rel="noopener">
+            <span class="card-icon">✍️</span>
+            <h2>Blog Admin</h2>
+            <p>Write and manage content for the blog.</p>
+          </a>
+        }
 
-        <a class="card" [href]="blogUrl" target="_blank" rel="noopener">
-          <span class="card-icon">🌐</span>
-          <h2>Blog</h2>
-          <p>Open the public blog at git.keshavsingh.in.</p>
-        </a>
+        @if (blogUrl()) {
+          <a class="card" [href]="blogUrl()" target="_blank" rel="noopener">
+            <span class="card-icon">🌐</span>
+            <h2>Blog</h2>
+            <p>Open the public blog.</p>
+          </a>
+        }
       </div>
     </div>
   `,
@@ -53,10 +57,17 @@ import { environment } from '../../../environments/environment';
     p { margin: 0; color: #666; font-size: 0.9rem; text-align: center; }
   `]
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnInit {
   private auth = inject(AuthService);
-  readonly blogUrl = environment.blogUrl;
-  readonly blogAdminUrl = environment.blogAdminUrl;
+  private config = inject(ConfigService);
+
+  // Launcher targets come from the IdP's central config (GET /api/config), not a hard-coded env.
+  readonly blogUrl = computed(() => this.config.config()?.blogUrl ?? '');
+  readonly blogAdminUrl = computed(() => this.config.config()?.blogAdminUrl ?? '');
+
+  ngOnInit(): void {
+    if (!this.config.config()) this.config.load().subscribe({ error: () => { /* links stay hidden */ } });
+  }
 
   firstName(): string {
     return this.auth.user()?.displayName?.split(' ')[0] ?? '';

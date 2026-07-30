@@ -35,3 +35,18 @@ export interface EnrollStartResponse {
   otpAuthUri: string;
   qrCodePngDataUrl: string;
 }
+
+/** A registered passkey as shown on the security screen. No key material is exposed. */
+export interface PasskeyListItem {
+  id: string;
+  name?: string | null;
+  isBackedUp: boolean;
+  createdAt: string;
+  lastUsedAt?: string | null;
+}
+
+/** Begin-ceremony envelope: an opaque handle plus the raw WebAuthn options for the browser. */
+export interface PasskeyBeginResponse {
+  handle: string;
+  options: Record<string, unknown>;
+}

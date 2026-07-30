@@ -2,8 +2,10 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { TwoFactorMethod } from '../../core/models/auth.models';
+import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, ServerCredentialOptions } from '../../core/services/webauthn';
 
 /**
  * Central sign-in for the identity provider. Step 1 is email + password; if the account has
@@ -44,6 +46,14 @@ import { TwoFactorMethod } from '../../core/models/auth.models';
               {{ loading() ? 'Signing in…' : 'Sign in' }}
             </button>
           </form>
+
+          @if (passkeySupported) {
+            <div class="or-divider"><span>or</span></div>
+            <button class="btn-passkey" type="button" [disabled]="loading() || passkeyLoading()"
+                    (click)="signInWithPasskey()">
+              🔑 {{ passkeyLoading() ? 'Waiting for passkey…' : 'Sign in with a passkey' }}
+            </button>
+          }
         } @else {
           <form (ngSubmit)="submitTwoFactor()">
             <label class="field">
@@ -110,6 +120,15 @@ import { TwoFactorMethod } from '../../core/models/auth.models';
     }
     .linkish:hover { text-decoration: underline; }
     .back { margin-top: 1rem; color: #666; }
+    .or-divider { display: flex; align-items: center; text-align: center; color: #999; font-size: 0.8rem; margin: 1.1rem 0; }
+    .or-divider::before, .or-divider::after { content: ''; flex: 1; border-bottom: 1px solid #e0e0e0; }
+    .or-divider span { padding: 0 0.75rem; }
+    .btn-passkey {
+      width: 100%; padding: 0.65rem 1rem; background: #fff; color: #1a73e8; border: 1px solid #1a73e8;
+      border-radius: 6px; font-size: 1rem; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-passkey:hover:not(:disabled) { background: #e8f0fe; }
+    .btn-passkey:disabled { opacity: 0.6; cursor: default; }
   `]
 })
 export class LoginComponent implements OnInit {
@@ -135,6 +154,10 @@ export class LoginComponent implements OnInit {
   readonly method = signal<TwoFactorMethod>('Totp');
   readonly emailFallback = signal(false);
   readonly smsFallback = signal(false);
+
+  /** Whether this browser can do WebAuthn at all — gates the passkey button. */
+  readonly passkeySupported = isPasskeySupported();
+  readonly passkeyLoading = signal(false);
 
   email = '';
   password = '';
@@ -185,6 +208,30 @@ export class LoginComponent implements OnInit {
         this.errorMessage.set(this.messageFrom(err, 'Invalid or expired code.'));
       },
     });
+  }
+
+  /**
+   * Usernameless passkey sign-in: ask the server for assertion options, run the WebAuthn ceremony,
+   * then hand the signed assertion back. On success the SSO cookie is set and we finish like any
+   * other login. Cancellations surface as a gentle message, not an error.
+   */
+  async signInWithPasskey(): Promise<void> {
+    this.passkeyLoading.set(true);
+    this.errorMessage.set(null);
+    try {
+      const begin = await firstValueFrom(this.auth.passkeyLoginBegin());
+      const assertion = await getPasskeyAssertion(begin.options as unknown as ServerCredentialOptions);
+      await firstValueFrom(this.auth.passkeyLoginComplete(begin.handle, assertion));
+      this.finish();
+    } catch (err) {
+      if (err instanceof HttpErrorResponse) {
+        this.errorMessage.set(this.messageFrom(err, 'Passkey sign-in failed.'));
+      } else {
+        this.errorMessage.set(createPasskeyErrorMessage(err, 'Passkey sign-in failed.'));
+      }
+    } finally {
+      this.passkeyLoading.set(false);
+    }
   }
 
   useMethod(method: TwoFactorMethod): void {

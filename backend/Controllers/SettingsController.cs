@@ -20,5 +20,14 @@ public sealed class SettingsController : ControllerBase
 
     [HttpPut]
     public async Task<ActionResult<SettingsView>> Update(UpdateSettingsRequest request)
-        => Ok(await _settings.ApplyAsync(request));
+    {
+        try
+        {
+            return Ok(await _settings.ApplyAsync(request));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 }

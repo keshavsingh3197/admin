@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Admin.Api.Auth;
 using Admin.Api.Services;
+using Fido2NetLib;
 using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Security;
@@ -12,12 +13,22 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ---- Central config: layer the non-secret config held in Mongo (the "app-config" document) on top
+// of appsettings, BEFORE anything binds options. This lets Jwt/Sso/WebAuthn/Seed live in the DB
+// (one place, no per-env duplication) while secrets (Jwt:SigningKey, Encryption:DataKey,
+// Seed:AdminPassword) and bootstrap (the Mongo connection string) stay in env vars. The loader
+// never emits secret keys, so this can only override non-secret config. Changes to values the
+// framework reads once here (JWT validation, CORS) take effect on the next restart. ----
+builder.Configuration.AddInMemoryCollection(AppConfigLoader.LoadAndSeed(builder.Configuration));
+
 // ---- Options (secrets come from user-secrets / env vars, never appsettings) ----
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.Section));
 builder.Services.Configure<EncryptionOptions>(builder.Configuration.GetSection(EncryptionOptions.Section));
 builder.Services.Configure<AuthSettingsOptions>(builder.Configuration.GetSection(AuthSettingsOptions.Section));
+builder.Services.Configure<PublicConfigOptions>(builder.Configuration.GetSection(PublicConfigOptions.Section));
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.Section));
 builder.Services.Configure<SsoCookieOptions>(builder.Configuration.GetSection(SsoCookieOptions.Section));
+builder.Services.Configure<WebAuthnOptions>(builder.Configuration.GetSection(WebAuthnOptions.Section));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>() ?? new JwtOptions();
 
@@ -43,6 +54,19 @@ builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddSingleton<ISmsSender, LoggingSmsSender>();
 builder.Services.AddKeshavAuthEngine();
 builder.Services.AddScoped<AdminSeeder>();
+
+// ---- Passkeys (WebAuthn / FIDO2) ----
+// IFido2 is registered by hand (the DI helper lives in a separate Fido2.AspNet package). No
+// metadata service: we take no attestation (AttestationPreference.None), so MDS isn't needed.
+var webAuthn = builder.Configuration.GetSection(WebAuthnOptions.Section).Get<WebAuthnOptions>() ?? new WebAuthnOptions();
+builder.Services.AddSingleton<IFido2>(_ => new Fido2(new Fido2Configuration
+{
+    ServerDomain = webAuthn.RelyingPartyId,
+    ServerName = webAuthn.RelyingPartyName,
+    Origins = webAuthn.Origins.ToHashSet(StringComparer.OrdinalIgnoreCase),
+}, metadataService: null));
+builder.Services.AddScoped<PasskeyService>();
+builder.Services.AddScoped<SessionMinter>();
 
 // ---- Controllers (incl. the shared /api/auth controller from the package) ----
 builder.Services
@@ -153,6 +177,7 @@ await app.Services.GetRequiredService<SettingsService>().InitAsync();
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();
+    await scope.ServiceProvider.GetRequiredService<PasskeyService>().EnsureIndexesAsync();
 }
 
 app.Run();
