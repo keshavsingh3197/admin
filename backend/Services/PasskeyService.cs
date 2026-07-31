@@ -114,7 +114,11 @@ public sealed class PasskeyService
     }
 
     public async Task<PasskeyListItem> CompleteRegistrationAsync(
-        string userId, PasskeyRegisterCompleteRequest req, CancellationToken ct)
+        string userId,
+        PasskeyRegisterCompleteRequest req,
+        string? createdFromOrigin,
+        string? createdFromDevice,
+        CancellationToken ct)
     {
         var attestation = Deserialize<AuthenticatorAttestationRawResponse>(req.Response, "attestation");
         var challenge = await ConsumeChallengeAsync(req.Handle, "register", ct);
@@ -156,9 +160,17 @@ public sealed class PasskeyService
             AaGuid = credential.AaGuid,
             Transports = credential.Transports?.Select(t => t.ToString()).ToArray() ?? Array.Empty<string>(),
             IsBackedUp = credential.IsBackedUp,
+            CreatedFromOrigin = Sanitize(createdFromOrigin, 180),
+            CreatedFromDevice = Sanitize(createdFromDevice, 220),
         };
         await _credentials.InsertOneAsync(record, cancellationToken: ct);
         return ToListItem(record);
+    }
+
+    public async Task<PasskeyCapabilitiesDto> GetCapabilitiesAsync(string userId, CancellationToken ct)
+    {
+        var count = await _credentials.CountDocumentsAsync(c => c.UserId == userId, cancellationToken: ct);
+        return new PasskeyCapabilitiesDto(_options.MaxCredentialsPerUser, (int)count);
     }
 
     // ---- Login (anonymous, usernameless) ----
@@ -291,13 +303,21 @@ public sealed class PasskeyService
     }
 
     private static PasskeyListItem ToListItem(PasskeyCredential c) =>
-        new(c.Id, c.Name, c.IsBackedUp, c.Transports ?? Array.Empty<string>(), c.CreatedAt, c.LastUsedAt);
+        new(
+            c.Id,
+            c.Name,
+            c.IsBackedUp,
+            c.Transports ?? Array.Empty<string>(),
+            c.CreatedAt,
+            c.LastUsedAt,
+            c.CreatedFromOrigin,
+            c.CreatedFromDevice);
 
-    private static string? Sanitize(string? name)
+    private static string? Sanitize(string? name, int max = 60)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
         name = name.Trim();
-        return name.Length > 60 ? name[..60] : name;
+        return name.Length > max ? name[..max] : name;
     }
 
     private static string Base64UrlEncode(byte[] bytes) =>

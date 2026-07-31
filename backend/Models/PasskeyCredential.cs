@@ -38,6 +38,12 @@ public sealed class PasskeyCredential
     public string[] Transports { get; set; } = Array.Empty<string>();
     public bool IsBackedUp { get; set; }
 
+    /// <summary>Origin (scheme + host) where this passkey was registered.</summary>
+    public string? CreatedFromOrigin { get; set; }
+
+    /// <summary>Best-effort user-agent summary captured at registration time.</summary>
+    public string? CreatedFromDevice { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastUsedAt { get; set; }
 }

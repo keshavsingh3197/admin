@@ -40,11 +40,20 @@ public sealed class PasskeyController : ControllerBase
     [HttpPost("register/complete")]
     public async Task<ActionResult<PasskeyListItem>> RegisterComplete(
         PasskeyRegisterCompleteRequest req, CancellationToken ct)
-        => await Guard(() => _passkeys.CompleteRegistrationAsync(User.GetUserId(), req, ct));
+        => await Guard(() => _passkeys.CompleteRegistrationAsync(
+            User.GetUserId(),
+            req,
+            GetRequestOrigin(Request),
+            Request.Headers.UserAgent.ToString(),
+            ct));
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<PasskeyListItem>>> List(CancellationToken ct)
         => Ok(await _passkeys.ListAsync(User.GetUserId(), ct));
+
+    [HttpGet("capabilities")]
+    public async Task<ActionResult<PasskeyCapabilitiesDto>> Capabilities(CancellationToken ct)
+        => Ok(await _passkeys.GetCapabilitiesAsync(User.GetUserId(), ct));
 
     /// <summary>Removes a passkey. Requires step-up re-auth (the account password) in the body,
     /// which is why this is a POST rather than a bare DELETE.</summary>
@@ -92,5 +101,19 @@ public sealed class PasskeyController : ControllerBase
     {
         try { return Ok(await action()); }
         catch (PasskeyException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    private static string? GetRequestOrigin(HttpRequest request)
+    {
+        if (request.Headers.TryGetValue("Origin", out var origin) && !string.IsNullOrWhiteSpace(origin))
+            return origin.ToString().Trim();
+
+        if (request.Headers.TryGetValue("Referer", out var referer)
+            && Uri.TryCreate(referer.ToString(), UriKind.Absolute, out var uri))
+        {
+            return uri.GetLeftPart(UriPartial.Authority);
+        }
+
+        return null;
     }
 }

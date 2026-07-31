@@ -44,6 +44,13 @@ export interface PasskeyListItem {
   transports: string[];
   createdAt: string;
   lastUsedAt?: string | null;
+  createdFromOrigin?: string | null;
+  createdFromDevice?: string | null;
+}
+
+export interface PasskeyCapabilities {
+  maxDevices: number;
+  registeredDevices: number;
 }
 
 /** Begin-ceremony envelope: an opaque handle plus the raw WebAuthn options for the browser. */

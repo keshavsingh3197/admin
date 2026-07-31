@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
-  EnrollStartResponse, PasskeyBeginResponse, PasskeyListItem, Role, SsoLoginResponse,
+  EnrollStartResponse, PasskeyBeginResponse, PasskeyCapabilities, PasskeyListItem, Role, SsoLoginResponse,
   SsoSessionResponse, TwoFactorMethod, UserProfile,
 } from '../models/auth.models';
 
@@ -121,6 +121,10 @@ export class AuthService {
 
   passkeyList(): Observable<PasskeyListItem[]> {
     return this.http.get<PasskeyListItem[]>(`${this.base}/passkeys`);
+  }
+
+  passkeyCapabilities(): Observable<PasskeyCapabilities> {
+    return this.http.get<PasskeyCapabilities>(`${this.base}/passkeys/capabilities`);
   }
 
   /** Step-up: removing a passkey re-verifies the account password server-side. */

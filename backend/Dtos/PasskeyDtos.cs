@@ -33,7 +33,17 @@ public sealed record PasskeyLoginCompleteRequest(
 
 /// <summary>A passkey as shown on the security screen. No key material is exposed.</summary>
 public sealed record PasskeyListItem(
-    string Id, string? Name, bool IsBackedUp, string[] Transports, DateTime CreatedAt, DateTime? LastUsedAt);
+    string Id,
+    string? Name,
+    bool IsBackedUp,
+    string[] Transports,
+    DateTime CreatedAt,
+    DateTime? LastUsedAt,
+    string? CreatedFromOrigin,
+    string? CreatedFromDevice);
+
+/// <summary>Passkey policy + usage for the current account.</summary>
+public sealed record PasskeyCapabilitiesDto(int MaxDevices, int RegisteredDevices);
 
 /// <summary>Step-up confirmation for removing a passkey: the account password is re-verified.</summary>
 public sealed record PasskeyRemoveRequest(string Password);

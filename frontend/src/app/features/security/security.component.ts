@@ -86,6 +86,7 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
         <h2>Passkeys</h2>
         <p class="muted">Sign in with your fingerprint, face, or device PIN — no password or code to type.
           A passkey is tied to this device (or synced by your password manager) and can't be phished.</p>
+        <p class="muted">Registered devices: <strong>{{ passkeys().length }}</strong> / <strong>{{ maxPasskeys() }}</strong></p>
 
         @if (passkeyMessage()) { <div class="banner" [class.ok]="passkeyOk()">{{ passkeyMessage() }}</div> }
 
@@ -107,7 +108,10 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
                 @if (expandedId() === pk.id && removingId() !== pk.id) {
                   <dl class="pk-details">
                     <dt>Type</dt><dd>{{ deviceType(pk) }}</dd>
+                    <dt>Device label</dt><dd>{{ pk.name || 'Unnamed device' }}</dd>
                     <dt>Sign-in sync</dt><dd>{{ pk.isBackedUp ? 'Synced across your devices' : 'This device only' }}</dd>
+                    <dt>Registered from</dt><dd>{{ pk.createdFromOrigin || 'Unknown origin' }}</dd>
+                    <dt>Device/browser</dt><dd>{{ pk.createdFromDevice || 'Unknown device' }}</dd>
                     <dt>Transports</dt><dd>{{ pk.transports.length ? pk.transports.join(', ') : '—' }}</dd>
                     <dt>Added</dt><dd>{{ pk.createdAt | date:'medium' }}</dd>
                     <dt>Last used</dt><dd>{{ pk.lastUsedAt ? (pk.lastUsedAt | date:'medium') : 'Never' }}</dd>
@@ -133,8 +137,8 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
         }
 
         @if (passkeySupported) {
-          @if (passkeys().length >= maxPasskeys) {
-            <p class="muted">You’ve reached the limit of {{ maxPasskeys }} passkeys. Remove one to add another.</p>
+          @if (passkeys().length >= maxPasskeys()) {
+            <p class="muted">You’ve reached the limit of {{ maxPasskeys() }} passkeys. Remove one to add another.</p>
           } @else {
             <label class="field"><span>Name for this device (optional)</span>
               <input class="input" type="text" name="pkname" maxlength="60" placeholder="e.g. MacBook Touch ID"
@@ -204,6 +208,7 @@ export class SecurityComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadPasskeys();
+    this.loadPasskeyCapabilities();
   }
 
   // Change password
@@ -315,8 +320,7 @@ export class SecurityComponent implements OnInit {
   // ---- Passkeys ----
 
   readonly passkeySupported = isPasskeySupported();
-  /** UX gate only — the backend (WebAuthn:MaxCredentialsPerUser) is the real limit. */
-  readonly maxPasskeys = 5;
+  readonly maxPasskeys = signal(5);
   readonly passkeys = signal<PasskeyListItem[]>([]);
   readonly passkeysLoaded = signal(false);
   readonly passkeyBusy = signal(false);
@@ -349,6 +353,13 @@ export class SecurityComponent implements OnInit {
     });
   }
 
+  loadPasskeyCapabilities(): void {
+    this.auth.passkeyCapabilities().subscribe({
+      next: caps => this.maxPasskeys.set(caps.maxDevices > 0 ? caps.maxDevices : 5),
+      error: () => { /* keep default */ },
+    });
+  }
+
   /** Registers a new passkey on this device via a WebAuthn create() ceremony. */
   async addPasskey(): Promise<void> {
     this.passkeyBusy.set(true);
@@ -359,6 +370,7 @@ export class SecurityComponent implements OnInit {
       const created = await firstValueFrom(
         this.auth.passkeyRegisterComplete(begin.handle, this.newPasskeyName.trim() || null, attestation));
       this.passkeys.update(list => [created, ...list]);
+      this.loadPasskeyCapabilities();
       this.newPasskeyName = '';
       this.passkeyOk.set(true);
       this.passkeyMessage.set('Passkey added.');
@@ -393,6 +405,7 @@ export class SecurityComponent implements OnInit {
       next: () => {
         this.passkeyBusy.set(false);
         this.passkeys.update(list => list.filter(p => p.id !== pk.id));
+        this.loadPasskeyCapabilities();
         this.cancelRemove();
         this.passkeyOk.set(true);
         this.passkeyMessage.set('Passkey removed.');
