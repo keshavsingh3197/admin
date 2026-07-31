@@ -5,12 +5,7 @@ import { AnalyticsService } from '../../core/services/analytics.service';
 import { WebsiteDashboard, WebsiteOption } from '../../core/models/analytics.models';
 
 type MetricKey =
-  | 'totalUsers'
-  | 'activeUsers'
-  | 'activeSessions'
-  | 'totalNotes'
-  | 'successfulLoginsLast24h'
-  | 'failedLoginsLast24h'
+  | 'websiteStatus'
   | 'visitsLast24h'
   | 'uniqueVisitorsLast24h';
 
@@ -67,14 +62,22 @@ type MetricKey =
         </section>
 
         <section class="cards">
-          <button type="button" class="card" [class.active]="selectedMetric() === 'totalUsers'" (click)="selectMetric('totalUsers')"><h3>Total users</h3><strong>{{ d.metrics.totalUsers }}</strong></button>
-          <button type="button" class="card" [class.active]="selectedMetric() === 'activeUsers'" (click)="selectMetric('activeUsers')"><h3>Active users</h3><strong>{{ d.metrics.activeUsers }}</strong></button>
-          <button type="button" class="card" [class.active]="selectedMetric() === 'activeSessions'" (click)="selectMetric('activeSessions')"><h3>Active sessions</h3><strong>{{ d.metrics.activeSessions }}</strong></button>
-          <button type="button" class="card" [class.active]="selectedMetric() === 'totalNotes'" (click)="selectMetric('totalNotes')"><h3>Notes</h3><strong>{{ d.metrics.totalNotes }}</strong></button>
-          <button type="button" class="card" [class.active]="selectedMetric() === 'successfulLoginsLast24h'" (click)="selectMetric('successfulLoginsLast24h')"><h3>Successful logins (24h)</h3><strong>{{ d.metrics.successfulLoginsLast24h }}</strong></button>
-          <button type="button" class="card" [class.active]="selectedMetric() === 'failedLoginsLast24h'" (click)="selectMetric('failedLoginsLast24h')"><h3>Failed logins (24h)</h3><strong>{{ d.metrics.failedLoginsLast24h }}</strong></button>
+          <button type="button" class="card" [class.active]="selectedMetric() === 'websiteStatus'" (click)="selectMetric('websiteStatus')"><h3>Website status</h3><strong>{{ d.status.isReachable ? 'Up' : 'Down' }}</strong></button>
           <button type="button" class="card" [class.active]="selectedMetric() === 'visitsLast24h'" (click)="selectMetric('visitsLast24h')"><h3>Visits (24h)</h3><strong>{{ d.metrics.visitsLast24h }}</strong></button>
           <button type="button" class="card" [class.active]="selectedMetric() === 'uniqueVisitorsLast24h'" (click)="selectMetric('uniqueVisitorsLast24h')"><h3>Unique visitors (24h)</h3><strong>{{ d.metrics.uniqueVisitorsLast24h }}</strong></button>
+        </section>
+
+        <section class="idp-card">
+          <h3>Identity platform metrics (global)</h3>
+          <p>These values come from the shared identity provider, so they are the same across website selections.</p>
+          <div class="idp-grid">
+            <div><span>Total users</span><strong>{{ d.metrics.totalUsers }}</strong></div>
+            <div><span>Active users</span><strong>{{ d.metrics.activeUsers }}</strong></div>
+            <div><span>Active sessions</span><strong>{{ d.metrics.activeSessions }}</strong></div>
+            <div><span>Notes</span><strong>{{ d.metrics.totalNotes }}</strong></div>
+            <div><span>Successful logins (24h)</span><strong>{{ d.metrics.successfulLoginsLast24h }}</strong></div>
+            <div><span>Failed logins (24h)</span><strong>{{ d.metrics.failedLoginsLast24h }}</strong></div>
+          </div>
         </section>
 
         <section class="detail-card">
@@ -118,8 +121,10 @@ type MetricKey =
                 </tbody>
               </table>
             </div>
+          } @else if (selectedMetric() === 'websiteStatus') {
+            <p class="hint">Availability check for {{ d.website.name }} was executed from the admin server using a direct HTTP request.</p>
           } @else {
-            <p class="hint">This metric is an aggregate count over the last 24 hours. Click Visits or Unique visitors for geographic and page-level details.</p>
+            <p class="hint">Click Visits or Unique visitors to see geographic and page-level traffic details for this website.</p>
           }
         </section>
       }
@@ -130,7 +135,7 @@ type MetricKey =
     </section>
   `,
   styles: [`
-    .analytics-page { display: grid; gap: 1rem; }
+    .analytics-page { display: grid; gap: 1rem; color: var(--text); }
     .hero {
       display: flex;
       justify-content: space-between;
@@ -138,8 +143,8 @@ type MetricKey =
       gap: 1rem;
       padding: 1.25rem;
       border-radius: 10px;
-      background: linear-gradient(130deg, #102a43, #1f5f8b);
-      color: #fff;
+      background: linear-gradient(130deg, color-mix(in srgb, var(--brand) 28%, #0c1c31), color-mix(in srgb, var(--brand) 62%, #18375c));
+      color: var(--brand-text);
     }
     .hero h1 { margin: 0 0 0.25rem; }
     .hero p { margin: 0; opacity: 0.9; }
@@ -150,13 +155,13 @@ type MetricKey =
       border-radius: 6px;
       padding: 0.55rem 0.65rem;
       font-size: 0.95rem;
-      background: rgba(255,255,255,0.96);
+      background: rgba(255,255,255,0.93);
       color: #102a43;
     }
     .refresh-btn { cursor: pointer; }
     .site-overview {
-      background: #fff;
-      border: 1px solid #e6eaf0;
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1rem;
       display: grid;
@@ -179,12 +184,12 @@ type MetricKey =
     .status span { font-weight: 500; opacity: 0.9; }
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 0.9rem;
     }
     .card {
-      background: #fff;
-      border: 1px solid #e6eaf0;
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 0.9rem;
       display: grid;
@@ -192,12 +197,37 @@ type MetricKey =
       text-align: left;
       cursor: pointer;
     }
-    .card.active { border-color: #1a73e8; box-shadow: 0 0 0 2px #e8f0fe; }
-    .card h3 { margin: 0; font-size: 0.9rem; color: #4a5568; }
-    .card strong { font-size: 1.6rem; color: #102a43; }
+    .card.active { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 20%, transparent); }
+    .card h3 { margin: 0; font-size: 0.9rem; color: var(--muted); }
+    .card strong { font-size: 1.6rem; color: var(--text); }
+    .idp-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: grid;
+      gap: 0.5rem;
+    }
+    .idp-card h3 { margin: 0; }
+    .idp-card p { margin: 0; color: var(--muted); font-size: 0.86rem; }
+    .idp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.55rem;
+    }
+    .idp-grid div {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.6rem;
+      display: grid;
+      gap: 0.2rem;
+      background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+    }
+    .idp-grid span { font-size: 0.8rem; color: var(--muted); }
+    .idp-grid strong { font-size: 1.05rem; color: var(--text); }
     .detail-card {
-      background: #fff;
-      border: 1px solid #e6eaf0;
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1rem;
       display: grid;
@@ -206,14 +236,14 @@ type MetricKey =
     .detail-card h3, .detail-card h4 { margin: 0; }
     .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.8rem; }
     .detail-grid ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
-    .detail-grid li { display: flex; justify-content: space-between; gap: 0.5rem; border-bottom: 1px dashed #e8ecf1; padding-bottom: 0.2rem; }
-    .hint { color: #5f6c7b; margin: 0; }
-    .table-wrap { overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .detail-grid li { display: flex; justify-content: space-between; gap: 0.5rem; border-bottom: 1px dashed var(--border); padding-bottom: 0.2rem; }
+    .hint { color: var(--muted); margin: 0; }
+    .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
     .tbl { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-    .tbl th, .tbl td { padding: 0.5rem; border-bottom: 1px solid #eef0f2; text-align: left; }
-    .tbl th { background: #f9fafb; }
+    .tbl th, .tbl td { padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: left; }
+    .tbl th { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
     .error { color: #c5221f; }
-    .loading, .empty { color: #5f6c7b; }
+    .loading, .empty { color: var(--muted); }
 
     @media (max-width: 720px) {
       .hero { align-items: stretch; flex-direction: column; }
@@ -312,12 +342,7 @@ export class AnalyticsComponent implements OnInit {
     switch (this.selectedMetric()) {
       case 'visitsLast24h': return 'Visit breakdown (24h)';
       case 'uniqueVisitorsLast24h': return 'Unique visitors breakdown (24h)';
-      case 'successfulLoginsLast24h': return 'Successful logins (24h)';
-      case 'failedLoginsLast24h': return 'Failed logins (24h)';
-      case 'activeSessions': return 'Active sessions';
-      case 'activeUsers': return 'Active users';
-      case 'totalUsers': return 'Total users';
-      case 'totalNotes': return 'Total notes';
+      case 'websiteStatus': return 'Website availability';
       default: return 'Metric details';
     }
   }

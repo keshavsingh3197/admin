@@ -24,8 +24,8 @@ interface SettingsImportPayload {
         <h1 class="page-title">Settings</h1>
         <button class="icon-btn" type="button" title="Reload from server"
                 [class.spin]="loading()" [disabled]="loading() || busy()" (click)="reload()">↻</button>
-        <button class="btn-secondary" type="button" [disabled]="loading() || busy()" (click)="exportConfig()">Export config</button>
-        <button class="btn-secondary" type="button" [disabled]="loading() || busy()" (click)="importInput.click()">Import config</button>
+        <button class="icon-action" type="button" title="Export config" [disabled]="loading() || busy()" (click)="exportConfig()">⤓</button>
+        <button class="icon-action" type="button" title="Import config" [disabled]="loading() || busy()" (click)="importInput.click()">⤒</button>
         <input #importInput type="file" accept="application/json" class="hidden-input" (change)="importConfig($event)" />
       </div>
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
@@ -150,6 +150,10 @@ interface SettingsImportPayload {
     .icon-btn:hover:not(:disabled) { background: #f1f3f4; border-color: #1a73e8; color: #1a73e8; }
     .icon-btn:disabled { opacity: 0.6; cursor: default; }
     .icon-btn.spin { animation: spin 0.8s linear infinite; }
+    .icon-action { width: 2rem; height: 2rem; border: 1px solid #cfd4da; border-radius: 6px; background: #fff;
+      color: #1a73e8; cursor: pointer; font-size: 1rem; line-height: 1; }
+    .icon-action:hover:not(:disabled) { background: #e8f0fe; }
+    .icon-action:disabled { opacity: 0.6; cursor: default; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; }
     .card h2 { font-size: 1.05rem; margin: 1.25rem 0 0.75rem; }

@@ -26,6 +26,17 @@ body[data-theme='dark'] {
   --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.38);
 }
 
+body[data-theme='brand'] {
+  --bg: #f6f7ff;
+  --surface: #ffffff;
+  --text: #181f31;
+  --muted: #4f5d7b;
+  --brand: #0f7b6c;
+  --brand-text: #f4fffd;
+  --border: #d5dde8;
+  --shadow-sm: 0 3px 12px rgba(26, 39, 65, 0.14);
+}
+
 body {
   margin: 0;
   font-family: var(--font-family);
@@ -41,7 +52,39 @@ body[data-theme='dark'] .table-wrap,
 body[data-theme='dark'] .website-editor,
 body[data-theme='dark'] .input,
 body[data-theme='dark'] .icon-btn,
-body[data-theme='dark'] .btn-secondary {
+body[data-theme='dark'] .btn-secondary,
+body[data-theme='dark'] .login-card,
+body[data-theme='dark'] .note-card,
+body[data-theme='dark'] .form-card,
+body[data-theme='dark'] .tbl,
+body[data-theme='dark'] .edit-row td,
+body[data-theme='dark'] .pk-details,
+body[data-theme='dark'] .site-overview,
+body[data-theme='dark'] .detail-card,
+body[data-theme='dark'] .idp-card,
+body[data-theme='dark'] .route-loader-card {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body[data-theme='brand'] .card,
+body[data-theme='brand'] .set-wrap .card,
+body[data-theme='brand'] .table-wrap,
+body[data-theme='brand'] .website-editor,
+body[data-theme='brand'] .input,
+body[data-theme='brand'] .icon-btn,
+body[data-theme='brand'] .btn-secondary,
+body[data-theme='brand'] .login-card,
+body[data-theme='brand'] .note-card,
+body[data-theme='brand'] .form-card,
+body[data-theme='brand'] .tbl,
+body[data-theme='brand'] .edit-row td,
+body[data-theme='brand'] .pk-details,
+body[data-theme='brand'] .site-overview,
+body[data-theme='brand'] .detail-card,
+body[data-theme='brand'] .idp-card,
+body[data-theme='brand'] .route-loader-card {
   background: var(--surface) !important;
   color: var(--text) !important;
   border-color: var(--border) !important;
@@ -55,7 +98,35 @@ body[data-theme='dark'] .empty,
 body[data-theme='dark'] .tbl td,
 body[data-theme='dark'] .tbl th,
 body[data-theme='dark'] .checklist,
-body[data-theme='dark'] .chk {
+body[data-theme='dark'] .chk,
+body[data-theme='dark'] .subtitle,
+body[data-theme='dark'] .login-sub,
+body[data-theme='dark'] .muted,
+body[data-theme='dark'] .pk-meta small,
+body[data-theme='dark'] .note-card p,
+body[data-theme='dark'] .idp-card p,
+body[data-theme='dark'] .card h3,
+body[data-theme='dark'] .idp-grid span {
+  color: var(--muted) !important;
+}
+
+body[data-theme='brand'] .field span,
+body[data-theme='brand'] .hint,
+body[data-theme='brand'] .updated,
+body[data-theme='brand'] .loading,
+body[data-theme='brand'] .empty,
+body[data-theme='brand'] .tbl td,
+body[data-theme='brand'] .tbl th,
+body[data-theme='brand'] .checklist,
+body[data-theme='brand'] .chk,
+body[data-theme='brand'] .subtitle,
+body[data-theme='brand'] .login-sub,
+body[data-theme='brand'] .muted,
+body[data-theme='brand'] .pk-meta small,
+body[data-theme='brand'] .note-card p,
+body[data-theme='brand'] .idp-card p,
+body[data-theme='brand'] .card h3,
+body[data-theme='brand'] .idp-grid span {
   color: var(--muted) !important;
 }
 
@@ -63,9 +134,56 @@ body[data-theme='dark'] .tbl th {
   background: #1b2b43 !important;
 }
 
+body[data-theme='brand'] .tbl th {
+  background: #edf3fb !important;
+}
+
 body[data-theme='dark'] .btn-link { color: #8ec0ff !important; }
 body[data-theme='dark'] .btn-link.danger { color: #ff8c8a !important; }
 
+body[data-theme='brand'] .btn-link { color: #0f7b6c !important; }
+body[data-theme='brand'] .btn-link.danger { color: #c5221f !important; }
+
 body[data-theme='dark'] .input:focus {
   box-shadow: 0 0 0 2px rgba(75, 151, 255, 0.28) !important;
+}
+
+body[data-theme='brand'] .input:focus {
+  box-shadow: 0 0 0 2px rgba(15, 123, 108, 0.22) !important;
+}
+
+body[data-theme='dark'] .btn-primary,
+body[data-theme='brand'] .btn-primary {
+  background: var(--brand) !important;
+  color: var(--brand-text) !important;
+}
+
+body[data-theme='dark'] .btn-passkey,
+body[data-theme='brand'] .btn-passkey,
+body[data-theme='dark'] .btn-secondary,
+body[data-theme='brand'] .btn-secondary,
+body[data-theme='dark'] .icon-action,
+body[data-theme='brand'] .icon-action,
+body[data-theme='dark'] .icon-btn,
+body[data-theme='brand'] .icon-btn,
+body[data-theme='dark'] .theme-btn,
+body[data-theme='brand'] .theme-btn {
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body[data-theme='dark'] .badge,
+body[data-theme='brand'] .badge {
+  background: color-mix(in srgb, var(--brand) 15%, var(--surface)) !important;
+  color: var(--brand) !important;
+}
+
+body[data-theme='dark'] .status.ok,
+body[data-theme='brand'] .status.ok {
+  background: color-mix(in srgb, #137333 18%, var(--surface)) !important;
+}
+
+body[data-theme='dark'] .status.down,
+body[data-theme='brand'] .status.down {
+  background: color-mix(in srgb, #c5221f 16%, var(--surface)) !important;
 }

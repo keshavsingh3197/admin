@@ -16,7 +16,7 @@ export class App {
   private destroyRef = inject(DestroyRef);
 
   readonly routeLoading = signal(false);
-  readonly theme = signal<'light' | 'dark'>(this.detectInitialTheme());
+  readonly theme = signal<'light' | 'dark' | 'brand'>(this.detectInitialTheme());
 
   constructor() {
     effect(() => {
@@ -47,12 +47,16 @@ export class App {
   }
 
   toggleTheme(): void {
-    this.theme.update((current) => (current === 'light' ? 'dark' : 'light'));
+    this.theme.update((current) => {
+      if (current === 'light') return 'dark';
+      if (current === 'dark') return 'brand';
+      return 'light';
+    });
   }
 
-  private detectInitialTheme(): 'light' | 'dark' {
+  private detectInitialTheme(): 'light' | 'dark' | 'brand' {
     const stored = localStorage.getItem('admin.theme');
-    if (stored === 'light' || stored === 'dark') {
+    if (stored === 'light' || stored === 'dark' || stored === 'brand') {
       return stored;
     }
 
