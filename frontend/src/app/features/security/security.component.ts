@@ -250,7 +250,15 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     }
     .codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; list-style: none; padding: 0; margin: 0.75rem 0; }
-    .codes li { font-family: monospace; background: #f1f3f4; padding: 0.4rem 0.6rem; border-radius: 4px; text-align: center; }
+    .codes li {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      background: color-mix(in srgb, var(--surface) 82%, var(--bg));
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      text-align: center;
+    }
     .code-actions { display: flex; gap: 0.5rem; margin: 0.75rem 0 0.5rem; }
     .btn-secondary { padding: 0.5rem 0.9rem; background: #fff; color: #1a73e8; border: 1px solid #1a73e8; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
     .btn-secondary:hover { background: #e8f0fe; }
