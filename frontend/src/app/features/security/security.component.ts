@@ -236,7 +236,19 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
     .banner.ok { background: #e6f4ea; color: #137333; border-color: #b7e1c4; }
     .ok-text { color: #137333; }
     .qr { display: block; width: 200px; height: 200px; margin: 0.5rem 0; border: 1px solid #eee; border-radius: 6px; }
-    .secret code { background: #f1f3f4; padding: 0.15rem 0.4rem; border-radius: 4px; }
+    .secret { color: var(--text); }
+    .secret code {
+      display: inline-block;
+      max-width: 100%;
+      overflow-x: auto;
+      vertical-align: middle;
+      background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    }
     .codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; list-style: none; padding: 0; margin: 0.75rem 0; }
     .codes li { font-family: monospace; background: #f1f3f4; padding: 0.4rem 0.6rem; border-radius: 4px; text-align: center; }
     .code-actions { display: flex; gap: 0.5rem; margin: 0.75rem 0 0.5rem; }
