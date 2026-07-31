@@ -22,10 +22,12 @@ interface SettingsImportPayload {
     <div class="set-wrap">
       <div class="head">
         <h1 class="page-title">Settings</h1>
-        <button class="icon-btn" type="button" title="Reload from server"
-                [class.spin]="loading()" [disabled]="loading() || busy()" (click)="reload()">↻</button>
-        <button class="icon-action" type="button" title="Export config" [disabled]="loading() || busy()" (click)="exportConfig()">⤓</button>
-        <button class="icon-action" type="button" title="Import config" [disabled]="loading() || busy()" (click)="importInput.click()">⤒</button>
+      <button class="icon-btn tooltip" type="button" data-tip="Reload settings"
+        aria-label="Reload settings" [class.spin]="loading()" [disabled]="loading() || busy()" (click)="reload()">↻</button>
+      <button class="icon-action tooltip" type="button" data-tip="Export config"
+        aria-label="Export config" [disabled]="loading() || busy()" (click)="exportConfig()">⤓</button>
+      <button class="icon-action tooltip" type="button" data-tip="Import config"
+        aria-label="Import config" [disabled]="loading() || busy()" (click)="importInput.click()">⤒</button>
         <input #importInput type="file" accept="application/json" class="hidden-input" (change)="importConfig($event)" />
       </div>
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
@@ -142,20 +144,72 @@ interface SettingsImportPayload {
     </div>
   `,
   styles: [`
-    .set-wrap { max-width: 640px; margin: 0 auto; padding: 1rem; }
+    .set-wrap { width: min(980px, 92vw); margin: 0 auto; padding: 1rem; }
     .head { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 1rem; }
     .page-title { font-size: 1.5rem; margin: 0; }
-    .icon-btn { width: 2rem; height: 2rem; border: 1px solid #ccc; background: #fff; border-radius: 6px;
-      cursor: pointer; font-size: 1.1rem; line-height: 1; color: #444; }
-    .icon-btn:hover:not(:disabled) { background: #f1f3f4; border-color: #1a73e8; color: #1a73e8; }
+    .icon-btn { width: 2.1rem; height: 2.1rem; border: 1px solid var(--border); background: var(--surface); border-radius: 7px;
+      cursor: pointer; font-size: 1.05rem; line-height: 1; color: var(--text); box-shadow: var(--shadow-sm); }
+    .icon-btn:hover:not(:disabled), .icon-btn:focus-visible:not(:disabled) {
+      background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+      border-color: var(--brand);
+      color: var(--brand);
+      outline: none;
+    }
     .icon-btn:disabled { opacity: 0.6; cursor: default; }
     .icon-btn.spin { animation: spin 0.8s linear infinite; }
-    .icon-action { width: 2rem; height: 2rem; border: 1px solid #cfd4da; border-radius: 6px; background: #fff;
-      color: #1a73e8; cursor: pointer; font-size: 1rem; line-height: 1; }
-    .icon-action:hover:not(:disabled) { background: #e8f0fe; }
+    .icon-action { width: 2.1rem; height: 2.1rem; border: 1px solid var(--border); border-radius: 7px; background: var(--surface);
+      color: var(--text); cursor: pointer; font-size: 1.03rem; line-height: 1; box-shadow: var(--shadow-sm); }
+    .icon-action:hover:not(:disabled), .icon-action:focus-visible:not(:disabled) {
+      background: color-mix(in srgb, var(--brand) 18%, var(--surface));
+      color: var(--brand);
+      border-color: var(--brand);
+      outline: none;
+    }
     .icon-action:disabled { opacity: 0.6; cursor: default; }
+
+    .tooltip { position: relative; }
+    .tooltip::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 8px);
+      transform: translateX(-50%) translateY(-4px);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 85%, #0f1f34), color-mix(in srgb, var(--brand) 56%, #274a74));
+      color: var(--brand-text);
+      border: 1px solid color-mix(in srgb, var(--brand) 65%, #ffffff22);
+      border-radius: 7px;
+      padding: 0.35rem 0.55rem;
+      font-size: 0.74rem;
+      line-height: 1;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+      transition: opacity 120ms ease, transform 120ms ease;
+      z-index: 8;
+    }
+    .tooltip::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 3px);
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-bottom-color: color-mix(in srgb, var(--brand) 72%, #0f1f34);
+      opacity: 0;
+      transition: opacity 120ms ease;
+      z-index: 8;
+    }
+    .tooltip:hover::after,
+    .tooltip:hover::before,
+    .tooltip:focus-visible::after,
+    .tooltip:focus-visible::before {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
     @keyframes spin { to { transform: rotate(360deg); } }
-    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; box-shadow: var(--shadow-sm); }
     .card h2 { font-size: 1.05rem; margin: 1.25rem 0 0.75rem; }
     .card h2:first-of-type { margin-top: 0; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
