@@ -57,9 +57,9 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
           <ul class="codes">@for (c of codes; track c) { <li>{{ c }}</li> }</ul>
           <div class="code-actions">
             <button class="btn-secondary" type="button" (click)="copyCodes(codes)">
-              {{ copied() ? 'Copied ✓' : 'Copy codes' }}
+              {{ copied() ? '✓ Copied' : '⧉ Copy codes' }}
             </button>
-            <button class="btn-secondary" type="button" (click)="downloadCodes(codes)">Download .txt</button>
+            <button class="btn-secondary" type="button" (click)="downloadCodes(codes)">⬇ Download .txt</button>
           </div>
           <p class="hint">Store them in a password manager or print them. Each code works once if you lose your authenticator.</p>
         }
