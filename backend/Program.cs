@@ -39,6 +39,7 @@ builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
 builder.Services.AddSingleton<WebsiteVisitService>();
 builder.Services.AddSingleton<WebsiteContentService>();
+builder.Services.AddSingleton<TwoFactorDeviceService>();
 builder.Services.AddSingleton<SessionRetentionService>();
 builder.Services.AddHostedService<SessionRetentionCleanupWorker>();
 builder.Services.AddHttpClient();
@@ -186,6 +187,8 @@ await app.Services.GetRequiredService<WebsiteRegistryService>()
 await app.Services.GetRequiredService<WebsiteVisitService>()
     .EnsureIndexesAsync();
 await app.Services.GetRequiredService<WebsiteContentService>()
+    .EnsureIndexesAsync();
+await app.Services.GetRequiredService<TwoFactorDeviceService>()
     .EnsureIndexesAsync();
 var publicConfig = app.Services.GetRequiredService<SettingsService>().ToPublicConfig();
 await app.Services.GetRequiredService<WebsiteRegistryService>()

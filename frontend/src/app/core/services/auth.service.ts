@@ -3,8 +3,17 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
-  EnrollStartResponse, PasskeyBeginResponse, PasskeyCapabilities, PasskeyListItem, Role, SsoLoginResponse,
+  ConfirmTwoFactorDeviceEnrollmentResponse,
+  EnrollStartResponse,
+  PasskeyBeginResponse,
+  PasskeyCapabilities,
+  PasskeyListItem,
+  Role,
+  SsoLoginResponse,
+  StartTwoFactorDeviceEnrollmentResponse,
   SsoSessionResponse, TwoFactorMethod, UserProfile,
+  TwoFactorDevice,
+  TwoFactorDeviceCapabilities,
 } from '../models/auth.models';
 
 /**
@@ -106,6 +115,29 @@ export class AuthService {
   changePassword(currentPassword: string, newPassword: string): Observable<void> {
     return this.http.post<void>(`${this.base}/auth/change-password`, { currentPassword, newPassword })
       .pipe(tap(() => this.patchUser({ mustChangePassword: false })));
+  }
+
+  // ---- Authenticator devices (TOTP registry) ----
+
+  twoFactorDeviceList(): Observable<TwoFactorDevice[]> {
+    return this.http.get<TwoFactorDevice[]>(`${this.base}/auth/2fa/devices`);
+  }
+
+  twoFactorDeviceCapabilities(): Observable<TwoFactorDeviceCapabilities> {
+    return this.http.get<TwoFactorDeviceCapabilities>(`${this.base}/auth/2fa/devices/capabilities`);
+  }
+
+  twoFactorDeviceEnrollStart(): Observable<StartTwoFactorDeviceEnrollmentResponse> {
+    return this.http.post<StartTwoFactorDeviceEnrollmentResponse>(`${this.base}/auth/2fa/devices/enroll/start`, {});
+  }
+
+  twoFactorDeviceEnrollConfirm(code: string, name: string | null, deviceType: string | null): Observable<ConfirmTwoFactorDeviceEnrollmentResponse> {
+    return this.http.post<ConfirmTwoFactorDeviceEnrollmentResponse>(`${this.base}/auth/2fa/devices/enroll/confirm`, { code, name, deviceType })
+      .pipe(tap(() => this.patchUser({ twoFactorEnabled: true })));
+  }
+
+  twoFactorDeviceRemove(id: string, password: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/auth/2fa/devices/${encodeURIComponent(id)}/remove`, { password });
   }
 
   // ---- Passkeys (WebAuthn) ----

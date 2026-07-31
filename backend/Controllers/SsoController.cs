@@ -1,4 +1,5 @@
 using Admin.Api.Auth;
+using Admin.Api.Services;
 using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Auth.Dtos;
@@ -28,12 +29,18 @@ public sealed class SsoController : ControllerBase
     private readonly AuthEngine _auth;
     private readonly IAuthSettings _settings;
     private readonly SsoCookieOptions _cookie;
+    private readonly TwoFactorDeviceService _twoFactorDevices;
 
-    public SsoController(AuthEngine auth, IAuthSettings settings, IOptions<SsoCookieOptions> cookie)
+    public SsoController(
+        AuthEngine auth,
+        IAuthSettings settings,
+        IOptions<SsoCookieOptions> cookie,
+        TwoFactorDeviceService twoFactorDevices)
     {
         _auth = auth;
         _settings = settings;
         _cookie = cookie.Value;
+        _twoFactorDevices = twoFactorDevices;
     }
 
     /// <summary>Step 1: verify email + password. Sets the SSO cookie, or returns a 2FA challenge.</summary>
@@ -61,7 +68,16 @@ public sealed class SsoController : ControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<SsoSessionResponse>> VerifyTwoFactor(TwoFactorVerifyRequest request)
-        => Ok(IssueSession(await _auth.VerifyTwoFactorAsync(request)));
+    {
+        var tokens = await _auth.VerifyTwoFactorAsync(request);
+
+        if (request.Method == TwoFactorMethod.Totp)
+        {
+            await _twoFactorDevices.MarkUsedAsync(tokens.User.Id);
+        }
+
+        return Ok(IssueSession(tokens));
+    }
 
     /// <summary>Sends the email-fallback OTP for a pending two-factor session.</summary>
     [HttpPost("2fa/email/send")]

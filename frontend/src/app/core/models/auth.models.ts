@@ -53,6 +53,35 @@ export interface PasskeyCapabilities {
   registeredDevices: number;
 }
 
+export interface TwoFactorDevice {
+  id: string;
+  name: string;
+  deviceType: string;
+  createdFromOrigin?: string | null;
+  createdFromDevice?: string | null;
+  createdAt: string;
+  lastUsedAt?: string | null;
+}
+
+export interface TwoFactorDeviceCapabilities {
+  maxDevices: number;
+  registeredDevices: number;
+  twoFactorEnabled: boolean;
+}
+
+export interface StartTwoFactorDeviceEnrollmentResponse {
+  secret: string;
+  otpAuthUri: string;
+  qrCodePngDataUrl: string;
+  alreadyEnabled: boolean;
+}
+
+export interface ConfirmTwoFactorDeviceEnrollmentResponse {
+  device: TwoFactorDevice;
+  backupCodes?: string[] | null;
+  twoFactorEnabled: boolean;
+}
+
 /** Begin-ceremony envelope: an opaque handle plus the raw WebAuthn options for the browser. */
 export interface PasskeyBeginResponse {
   handle: string;

@@ -4,7 +4,12 @@ import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
-import { EnrollStartResponse, PasskeyListItem } from '../../core/models/auth.models';
+import {
+  ConfirmTwoFactorDeviceEnrollmentResponse,
+  PasskeyListItem,
+  StartTwoFactorDeviceEnrollmentResponse,
+  TwoFactorDevice,
+} from '../../core/models/auth.models';
 import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCredentialOptions } from '../../core/services/webauthn';
 
 /**
@@ -45,6 +50,8 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
         <h2>Two-factor authentication</h2>
         @if (twoFaMessage()) { <div class="banner" [class.ok]="twoFaOk()">{{ twoFaMessage() }}</div> }
 
+        <p class="muted">Registered authenticator devices: <strong>{{ twoFactorDevices().length }}</strong> / <strong>{{ twoFactorMaxDevices() }}</strong></p>
+
         @if (backupCodes(); as codes) {
           <p class="ok-text">✅ Two-factor is enabled. Save these one-time backup codes now — they are shown once:</p>
           <ul class="codes">@for (c of codes; track c) { <li>{{ c }}</li> }</ul>
@@ -55,28 +62,86 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
             <button class="btn-secondary" type="button" (click)="downloadCodes(codes)">Download .txt</button>
           </div>
           <p class="hint">Store them in a password manager or print them. Each code works once if you lose your authenticator.</p>
-        } @else if (enabled()) {
-          <p>Authenticator app is <strong>enabled</strong> on your account.</p>
-          <label class="field"><span>Confirm password to disable</span>
+        }
+
+        @if (twoFactorDevices().length > 0) {
+          <ul class="pk-list">
+            @for (d of twoFactorDevices(); track d.id) {
+              <li class="pk-row">
+                <span class="pk-icon">📱</span>
+                <span class="pk-meta">
+                  <strong>{{ d.name }}</strong>
+                  <small>{{ d.deviceType }} · added {{ d.createdAt | date:'mediumDate' }}@if (d.lastUsedAt) { · last used {{ d.lastUsedAt | date:'mediumDate' }} }</small>
+                </span>
+
+                @if (twoFactorRemovingId() !== d.id) {
+                  <button class="btn-link" type="button" (click)="toggleTwoFactorDetails(d.id)">
+                    {{ twoFactorDetailsId() === d.id ? 'Hide' : 'Details' }}
+                  </button>
+                  <button class="btn-link-danger" type="button" [disabled]="twoFaLoading()" (click)="startRemoveTwoFactorDevice(d.id)">Remove</button>
+                }
+
+                @if (twoFactorDetailsId() === d.id && twoFactorRemovingId() !== d.id) {
+                  <dl class="pk-details">
+                    <dt>Type</dt><dd>{{ d.deviceType }}</dd>
+                    <dt>Registered from</dt><dd>{{ d.createdFromOrigin || 'Unknown origin' }}</dd>
+                    <dt>Device/browser</dt><dd>{{ d.createdFromDevice || 'Unknown device' }}</dd>
+                    <dt>Added</dt><dd>{{ d.createdAt | date:'medium' }}</dd>
+                    <dt>Last used</dt><dd>{{ d.lastUsedAt ? (d.lastUsedAt | date:'medium') : 'Never' }}</dd>
+                  </dl>
+                }
+
+                @if (twoFactorRemovingId() === d.id) {
+                  <div class="pk-confirm">
+                    <input class="input" type="password" name="rm2fa" autocomplete="current-password"
+                           placeholder="Confirm your password" [ngModelOptions]="{ standalone: true }"
+                           [(ngModel)]="twoFactorRemovePassword" [disabled]="twoFaLoading()" />
+                    <button class="btn-danger-sm" type="button" [disabled]="twoFaLoading() || !twoFactorRemovePassword" (click)="removeTwoFactorDevice(d.id)">
+                      {{ twoFaLoading() ? 'Removing…' : 'Remove' }}
+                    </button>
+                    <button class="btn-link" type="button" [disabled]="twoFaLoading()" (click)="cancelRemoveTwoFactorDevice()">Cancel</button>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        }
+
+        @if (enroll(); as data) {
+          <p>Scan this QR in your authenticator app, then enter the 6-digit code to register this device.</p>
+          <img class="qr" [src]="data.qrCodePngDataUrl" alt="Authenticator QR code" />
+          <p class="secret">Or enter the key manually: <code>{{ data.secret }}</code></p>
+          <label class="field"><span>Device name</span>
+            <input class="input" type="text" name="dname" maxlength="80" placeholder="e.g. iPhone Authenticator"
+                   [(ngModel)]="enrollDeviceName" [disabled]="twoFaLoading()" /></label>
+          <label class="field"><span>Device type</span>
+            <input class="input" type="text" name="dtype" maxlength="60" placeholder="Authenticator App"
+                   [(ngModel)]="enrollDeviceType" [disabled]="twoFaLoading()" /></label>
+          <label class="field"><span>6-digit code</span>
+            <input class="input" type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+                   [(ngModel)]="enrollCode" [disabled]="twoFaLoading()" /></label>
+          <div class="code-actions">
+            <button class="btn-primary" type="button" [disabled]="twoFaLoading() || !enrollCode" (click)="confirmEnroll()">
+              {{ twoFaLoading() ? 'Confirming…' : (data.alreadyEnabled ? 'Register device' : 'Confirm &amp; enable') }}
+            </button>
+            <button class="btn-secondary" type="button" [disabled]="twoFaLoading()" (click)="cancelEnroll()">Cancel</button>
+          </div>
+        } @else {
+          @if (twoFactorDevices().length >= twoFactorMaxDevices()) {
+            <p class="muted">You’ve reached the limit of {{ twoFactorMaxDevices() }} authenticator devices. Remove one to add another.</p>
+          } @else {
+            <button class="btn-primary" type="button" [disabled]="twoFaLoading()" (click)="startEnroll()">
+              {{ twoFaLoading() ? 'Starting…' : (twoFactorEnabledView() ? 'Add authenticator device' : 'Set up authenticator') }}
+            </button>
+          }
+        }
+
+        @if (twoFactorEnabledView()) {
+          <label class="field" style="margin-top: 1rem;"><span>Disable all 2FA devices (confirm password)</span>
             <input class="input" type="password" name="dpw" autocomplete="current-password"
                    [(ngModel)]="disablePassword" [disabled]="twoFaLoading()" /></label>
           <button class="btn-danger" type="button" [disabled]="twoFaLoading() || !disablePassword" (click)="disable()">
             {{ twoFaLoading() ? 'Disabling…' : 'Disable 2FA' }}
-          </button>
-        } @else if (enroll(); as data) {
-          <p>Scan this QR in your authenticator app, then enter the 6-digit code to confirm.</p>
-          <img class="qr" [src]="data.qrCodePngDataUrl" alt="Authenticator QR code" />
-          <p class="secret">Or enter the key manually: <code>{{ data.secret }}</code></p>
-          <label class="field"><span>6-digit code</span>
-            <input class="input" type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
-                   [(ngModel)]="enrollCode" [disabled]="twoFaLoading()" /></label>
-          <button class="btn-primary" type="button" [disabled]="twoFaLoading() || !enrollCode" (click)="confirmEnroll()">
-            {{ twoFaLoading() ? 'Confirming…' : 'Confirm &amp; enable' }}
-          </button>
-        } @else {
-          <p>Add an authenticator app (TOTP) as a second factor for your account.</p>
-          <button class="btn-primary" type="button" [disabled]="twoFaLoading()" (click)="startEnroll()">
-            {{ twoFaLoading() ? 'Starting…' : 'Set up authenticator' }}
           </button>
         }
       </section>
@@ -207,6 +272,8 @@ export class SecurityComponent implements OnInit {
   readonly enabled = computed(() => !!this.auth.user()?.twoFactorEnabled);
 
   ngOnInit(): void {
+    this.loadTwoFactorDevices();
+    this.loadTwoFactorCapabilities();
     this.loadPasskeys();
     this.loadPasskeyCapabilities();
   }
@@ -220,14 +287,22 @@ export class SecurityComponent implements OnInit {
   readonly pwOk = signal(false);
 
   // Two-factor
-  readonly enroll = signal<EnrollStartResponse | null>(null);
+  readonly enroll = signal<StartTwoFactorDeviceEnrollmentResponse | null>(null);
   enrollCode = '';
+  enrollDeviceName = '';
+  enrollDeviceType = 'Authenticator App';
   disablePassword = '';
   readonly backupCodes = signal<string[] | null>(null);
   readonly copied = signal(false);
   readonly twoFaLoading = signal(false);
   readonly twoFaMessage = signal<string | null>(null);
   readonly twoFaOk = signal(false);
+  readonly twoFactorDevices = signal<TwoFactorDevice[]>([]);
+  readonly twoFactorMaxDevices = signal(5);
+  readonly twoFactorEnabledView = signal(false);
+  readonly twoFactorRemovingId = signal<string | null>(null);
+  readonly twoFactorDetailsId = signal<string | null>(null);
+  twoFactorRemovePassword = '';
 
   changePassword(): void {
     if (this.newPassword !== this.confirmPassword || this.newPassword.length < 12) return;
@@ -251,8 +326,14 @@ export class SecurityComponent implements OnInit {
   startEnroll(): void {
     this.twoFaLoading.set(true);
     this.twoFaMessage.set(null);
-    this.auth.enrollStart().subscribe({
-      next: data => { this.twoFaLoading.set(false); this.enroll.set(data); },
+    this.auth.twoFactorDeviceEnrollStart().subscribe({
+      next: data => {
+        this.twoFaLoading.set(false);
+        this.enroll.set(data);
+        this.enrollCode = '';
+        this.enrollDeviceName = '';
+        this.enrollDeviceType = 'Authenticator App';
+      },
       error: (err: HttpErrorResponse) => { this.twoFaLoading.set(false); this.setTwoFaError(err, 'Could not start enrollment.'); },
     });
   }
@@ -261,17 +342,33 @@ export class SecurityComponent implements OnInit {
     if (!this.enrollCode) return;
     this.twoFaLoading.set(true);
     this.twoFaMessage.set(null);
-    this.auth.enrollConfirm(this.enrollCode.trim()).subscribe({
+    this.auth.twoFactorDeviceEnrollConfirm(
+      this.enrollCode.trim(),
+      this.enrollDeviceName.trim() || null,
+      this.enrollDeviceType.trim() || null,
+    ).subscribe({
       next: res => {
         this.twoFaLoading.set(false);
         this.enroll.set(null);
         this.enrollCode = '';
-        this.backupCodes.set(res.backupCodes);
+        this.enrollDeviceName = '';
+        this.enrollDeviceType = 'Authenticator App';
+        this.backupCodes.set(res.backupCodes ?? null);
+        this.twoFactorEnabledView.set(res.twoFactorEnabled);
+        this.loadTwoFactorDevices();
+        this.loadTwoFactorCapabilities();
         this.twoFaOk.set(true);
-        this.twoFaMessage.set('Two-factor enabled.');
+        this.twoFaMessage.set('Authenticator device registered.');
       },
       error: (err: HttpErrorResponse) => { this.twoFaLoading.set(false); this.setTwoFaError(err, 'The code did not match.'); },
     });
+  }
+
+  cancelEnroll(): void {
+    this.enroll.set(null);
+    this.enrollCode = '';
+    this.enrollDeviceName = '';
+    this.enrollDeviceType = 'Authenticator App';
   }
 
   disable(): void {
@@ -283,10 +380,65 @@ export class SecurityComponent implements OnInit {
         this.twoFaLoading.set(false);
         this.disablePassword = '';
         this.backupCodes.set(null);
+        this.twoFactorEnabledView.set(false);
+        this.twoFactorDevices.set([]);
+        this.loadTwoFactorCapabilities();
         this.twoFaOk.set(true);
         this.twoFaMessage.set('Two-factor disabled.');
       },
       error: (err: HttpErrorResponse) => { this.twoFaLoading.set(false); this.setTwoFaError(err, 'Could not disable 2FA.'); },
+    });
+  }
+
+  loadTwoFactorDevices(): void {
+    this.auth.twoFactorDeviceList().subscribe({
+      next: list => this.twoFactorDevices.set(list),
+      error: () => this.twoFactorDevices.set([]),
+    });
+  }
+
+  loadTwoFactorCapabilities(): void {
+    this.auth.twoFactorDeviceCapabilities().subscribe({
+      next: caps => {
+        this.twoFactorMaxDevices.set(caps.maxDevices > 0 ? caps.maxDevices : 5);
+        this.twoFactorEnabledView.set(caps.twoFactorEnabled);
+      },
+      error: () => { /* keep defaults */ },
+    });
+  }
+
+  toggleTwoFactorDetails(id: string): void {
+    this.twoFactorDetailsId.update(current => (current === id ? null : id));
+  }
+
+  startRemoveTwoFactorDevice(id: string): void {
+    this.twoFactorRemovingId.set(id);
+    this.twoFactorRemovePassword = '';
+    this.twoFaMessage.set(null);
+  }
+
+  cancelRemoveTwoFactorDevice(): void {
+    this.twoFactorRemovingId.set(null);
+    this.twoFactorRemovePassword = '';
+  }
+
+  removeTwoFactorDevice(id: string): void {
+    if (!this.twoFactorRemovePassword) return;
+    this.twoFaLoading.set(true);
+    this.twoFaMessage.set(null);
+    this.auth.twoFactorDeviceRemove(id, this.twoFactorRemovePassword).subscribe({
+      next: () => {
+        this.twoFaLoading.set(false);
+        this.cancelRemoveTwoFactorDevice();
+        this.loadTwoFactorDevices();
+        this.loadTwoFactorCapabilities();
+        this.twoFaOk.set(true);
+        this.twoFaMessage.set('Authenticator device removed.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.twoFaLoading.set(false);
+        this.setTwoFaError(err, 'Could not remove authenticator device.');
+      },
     });
   }
 
