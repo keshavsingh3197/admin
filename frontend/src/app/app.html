@@ -15,11 +15,23 @@
       </nav>
       <div class="spacer"></div>
       <div class="user-chip">
+        <button class="theme-btn" type="button" (click)="toggleTheme()" [attr.aria-label]="theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
+          <span aria-hidden="true">{{ theme() === 'dark' ? 'Light' : 'Dark' }}</span>
+        </button>
         <span class="user-name">{{ auth.user()?.displayName }}</span>
         <button class="logout-btn" type="button" (click)="logout()">Sign out</button>
       </div>
     }
   </header>
+
+  @if (routeLoading()) {
+    <div class="route-loader" role="status" aria-live="polite" aria-label="Loading page">
+      <div class="route-loader-card">
+        <div class="logo-pulse">KS</div>
+        <p>Loading your admin workspace...</p>
+      </div>
+    </div>
+  }
 
   <main class="app-main">
     <router-outlet />

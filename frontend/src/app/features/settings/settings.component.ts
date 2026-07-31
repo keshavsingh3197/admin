@@ -1,10 +1,15 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { forkJoin } from 'rxjs';
+import { firstValueFrom, forkJoin } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
 import { ConfigService } from '../../core/services/config.service';
-import { SettingsView, WebsiteLinkView } from '../../core/models/settings.models';
+import { SettingsView, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../../core/models/settings.models';
+
+interface SettingsImportPayload {
+  settings?: Partial<SettingsView>;
+  websites?: Array<Partial<WebsiteLinkView>>;
+}
 
 /**
  * Runtime auth-security settings for the identity provider (Admin only). Changes are stored in the
@@ -19,6 +24,9 @@ import { SettingsView, WebsiteLinkView } from '../../core/models/settings.models
         <h1 class="page-title">Settings</h1>
         <button class="icon-btn" type="button" title="Reload from server"
                 [class.spin]="loading()" [disabled]="loading() || busy()" (click)="reload()">↻</button>
+        <button class="btn-secondary" type="button" [disabled]="loading() || busy()" (click)="exportConfig()">Export config</button>
+        <button class="btn-secondary" type="button" [disabled]="loading() || busy()" (click)="importInput.click()">Import config</button>
+        <input #importInput type="file" accept="application/json" class="hidden-input" (change)="importConfig($event)" />
       </div>
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
@@ -161,6 +169,7 @@ import { SettingsView, WebsiteLinkView } from '../../core/models/settings.models
     .tbl td a { color: #1a73e8; text-decoration: none; }
     .row-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .btn-secondary { padding: 0.45rem 0.8rem; border: 1px solid #cfd4da; border-radius: 6px; background: #fff; cursor: pointer; }
+    .hidden-input { display: none; }
     .btn-link { border: none; background: transparent; color: #1a73e8; cursor: pointer; padding: 0; }
     .btn-link.danger { color: #c5221f; }
     .foot { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; }
@@ -210,23 +219,7 @@ export class SettingsComponent implements OnInit {
     if (!m) return;
     this.busy.set(true);
     this.message.set(null);
-    this.api.update({
-      siteTitle: m.siteTitle,
-      blogUrl: m.blogUrl,
-      blogAdminUrl: m.blogAdminUrl,
-      emailTwoFactorEnabled: m.emailTwoFactorEnabled,
-      smsTwoFactorEnabled: m.smsTwoFactorEnabled,
-      accessTokenMinutes: Number(m.accessTokenMinutes),
-      refreshTokenDays: Number(m.refreshTokenDays),
-      twoFactorTokenMinutes: Number(m.twoFactorTokenMinutes),
-      enforceSingleSessionPerUser: m.enforceSingleSessionPerUser,
-      refreshTokenRetentionDays: Number(m.refreshTokenRetentionDays),
-      analyticsRetentionDays: Number(m.analyticsRetentionDays),
-      emailOtpMinutes: Number(m.emailOtpMinutes),
-      maxFailedLoginAttempts: Number(m.maxFailedLoginAttempts),
-      lockoutMinutes: Number(m.lockoutMinutes),
-      backupCodeCount: Number(m.backupCodeCount),
-    }).subscribe({
+    this.api.update(this.toUpdateRequest(m)).subscribe({
       next: s => {
         this.busy.set(false);
         this.model.set(s);
@@ -302,6 +295,126 @@ export class SettingsComponent implements OnInit {
   resetWebsiteDraft(): void {
     this.editingWebsiteId = null;
     this.websiteDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 100 };
+  }
+
+  exportConfig(): void {
+    const m = this.model();
+    if (!m) return;
+
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      settings: this.toUpdateRequest(m),
+      websites: this.websites().map(w => ({
+        key: w.key,
+        name: w.name,
+        url: w.url,
+        isEnabled: w.isEnabled,
+        sortOrder: w.sortOrder,
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `admin-config-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    this.ok.set(true);
+    this.message.set('Config exported.');
+  }
+
+  async importConfig(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+      this.busy.set(true);
+      this.message.set(null);
+      const text = await file.text();
+      const raw = JSON.parse(text) as SettingsImportPayload;
+
+      const current = this.model();
+      if (!current) throw new Error('Settings are not loaded yet.');
+
+      const merged: SettingsView = {
+        ...current,
+        ...(raw.settings ?? {}),
+      };
+
+      const savedSettings = await firstValueFrom(this.api.update(this.toUpdateRequest(merged)));
+      this.model.set(savedSettings);
+
+      if (Array.isArray(raw.websites) && raw.websites.length > 0) {
+        await this.upsertImportedWebsites(raw.websites);
+      }
+
+      const refreshedSites = await firstValueFrom(this.api.listWebsites());
+      this.websites.set(refreshedSites);
+      this.config.refresh();
+
+      this.ok.set(true);
+      this.message.set('Config imported.');
+    } catch (err) {
+      this.ok.set(false);
+      this.message.set(err instanceof Error ? err.message : 'Could not import config.');
+    } finally {
+      this.busy.set(false);
+      input.value = '';
+    }
+  }
+
+  private async upsertImportedWebsites(imported: Array<Partial<WebsiteLinkView>>): Promise<void> {
+    const existingByKey = new Map(this.websites().map(w => [w.key.toLowerCase(), w]));
+
+    for (const item of imported) {
+      const payload = this.normalizeWebsite(item);
+      if (!payload) continue;
+
+      const existing = existingByKey.get(payload.key.toLowerCase());
+      if (existing) {
+        await firstValueFrom(this.api.updateWebsite(existing.id, payload));
+      } else {
+        await firstValueFrom(this.api.createWebsite(payload));
+      }
+    }
+  }
+
+  private normalizeWebsite(item: Partial<WebsiteLinkView>): UpsertWebsiteLinkRequest | null {
+    const key = String(item.key ?? '').trim();
+    const name = String(item.name ?? '').trim();
+    const url = String(item.url ?? '').trim();
+    if (!key || !name || !url) return null;
+
+    return {
+      key,
+      name,
+      url,
+      isEnabled: item.isEnabled ?? true,
+      sortOrder: Number(item.sortOrder ?? 100),
+    };
+  }
+
+  private toUpdateRequest(m: SettingsView) {
+    return {
+      siteTitle: m.siteTitle,
+      blogUrl: m.blogUrl,
+      blogAdminUrl: m.blogAdminUrl,
+      emailTwoFactorEnabled: m.emailTwoFactorEnabled,
+      smsTwoFactorEnabled: m.smsTwoFactorEnabled,
+      accessTokenMinutes: Number(m.accessTokenMinutes),
+      refreshTokenDays: Number(m.refreshTokenDays),
+      twoFactorTokenMinutes: Number(m.twoFactorTokenMinutes),
+      enforceSingleSessionPerUser: m.enforceSingleSessionPerUser,
+      refreshTokenRetentionDays: Number(m.refreshTokenRetentionDays),
+      analyticsRetentionDays: Number(m.analyticsRetentionDays),
+      emailOtpMinutes: Number(m.emailOtpMinutes),
+      maxFailedLoginAttempts: Number(m.maxFailedLoginAttempts),
+      lockoutMinutes: Number(m.lockoutMinutes),
+      backupCodeCount: Number(m.backupCodeCount),
+    };
   }
 
   private fail(err: HttpErrorResponse, fallback: string): void {

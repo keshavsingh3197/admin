@@ -1,9 +1,9 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f5f5f5;
-  color: #202124;
+  font-family: var(--font-family);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .app-shell {
@@ -13,18 +13,18 @@ body {
 }
 
 .app-header {
-  background: #1a73e8;
-  color: #fff;
+  background: var(--brand);
+  color: var(--brand-text);
   padding: 0 2rem;
   height: 56px;
   display: flex;
   align-items: center;
   gap: 2rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-sm);
 }
 
 .brand {
-  color: #fff;
+  color: var(--brand-text);
   font-size: 1.2rem;
   font-weight: 700;
   text-decoration: none;
@@ -44,14 +44,28 @@ body {
 }
 
 .user-name {
-  color: #fff;
+  color: var(--brand-text);
   font-size: 0.9rem;
   opacity: 0.9;
 }
 
+.theme-btn {
+  background: rgba(255,255,255,0.14);
+  color: var(--brand-text);
+  border: 1px solid rgba(255,255,255,0.38);
+  border-radius: 4px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.theme-btn:hover { background: rgba(255,255,255,0.24); }
+
 .logout-btn {
   background: rgba(255,255,255,0.15);
-  color: #fff;
+  color: var(--brand-text);
   border: 1px solid rgba(255,255,255,0.35);
   border-radius: 4px;
   padding: 0.3rem 0.7rem;
@@ -73,8 +87,8 @@ body {
 
 .app-nav a:hover,
 .app-nav a.active {
-  color: #fff;
-  border-bottom-color: #fff;
+  color: var(--brand-text);
+  border-bottom-color: var(--brand-text);
 }
 
 .app-main {
@@ -88,6 +102,52 @@ body {
 .app-footer {
   text-align: center;
   padding: 1rem;
-  color: #888;
+  color: var(--muted);
   font-size: 0.85rem;
+}
+
+.route-loader {
+  position: fixed;
+  inset: 56px 0 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.route-loader-card {
+  display: grid;
+  place-items: center;
+  gap: 0.55rem;
+  min-width: 240px;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.route-loader-card p {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.logo-pulse {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--brand) 30%, transparent);
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+  color: var(--brand);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  animation: pulse 0.95s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  from { transform: scale(1); box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 20%, transparent); }
+  to { transform: scale(1.06); box-shadow: 0 0 0 10px color-mix(in srgb, var(--brand) 0%, transparent); }
 }
