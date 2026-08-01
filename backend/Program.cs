@@ -57,9 +57,14 @@ builder.Services.AddSingleton<DataProtector>();
 builder.Services.AddSingleton<JwtService>();
 
 // ---- Shared auth engine (KeshavSingh.Auth) + this app's storage adapters ----
+// MongoRefreshTokenStore/MongoAuditSink come from KeshavSingh.Core (shared with content-blog).
+// Admin is the only app that enforces single-session-per-user, so it's wired via a callback
+// into the DB-backed SettingsService rather than being baked into the shared store.
 builder.Services.AddScoped<IAuthUserStore, MongoAuthUserStore>();
-builder.Services.AddScoped<IRefreshTokenStore, MongoRefreshTokenStore>();
-builder.Services.AddScoped<IAuthAuditSink, AuditLogger>();
+builder.Services.AddScoped<IRefreshTokenStore>(sp => new MongoRefreshTokenStore(
+    sp.GetRequiredService<MongoDbService>(),
+    () => sp.GetRequiredService<SettingsService>().EnforceSingleSessionPerUser));
+builder.Services.AddScoped<IAuthAuditSink, MongoAuditSink>();
 // Auth settings are DB-backed (editable at runtime on the Settings screen) and also serve as the
 // engine's IAuthSettings. Seeded from the "Auth" config on first run (see SettingsService.InitAsync).
 builder.Services.AddSingleton<SettingsService>();
@@ -91,21 +96,8 @@ builder.Services
 // ---- CORS: allow the SSO family — any keshavsingh.in subdomain (admin, id, git, blog, …)
 // over https, plus localhost in dev. Credentialed, so this is a scoped predicate allowlist
 // (never AllowAnyOrigin). New sibling apps work without touching this. ----
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AdminCorsPolicy", policy =>
-        policy.SetIsOriginAllowed(IsAllowedOrigin)
-              .AllowAnyHeader().AllowAnyMethod().AllowCredentials());
-});
-
-static bool IsAllowedOrigin(string origin)
-{
-    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
-    if (uri.Host == "localhost") return true; // dev, any port
-    return uri.Scheme == Uri.UriSchemeHttps
-        && (uri.Host == "keshavsingh.in"
-            || uri.Host.EndsWith(".keshavsingh.in", StringComparison.OrdinalIgnoreCase));
-}
+const string CorsPolicy = "AdminCorsPolicy";
+builder.Services.AddKeshavSsoCors(CorsPolicy);
 
 // ---- Authentication: OAuth2 bearer (JWT) validated on every request ----
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

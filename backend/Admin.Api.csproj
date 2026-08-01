@@ -27,9 +27,10 @@
     <!-- Shared auth + crypto from GitHub Packages. Restore reads the "github" source in
          the repo-root nuget.config, which needs the PACKAGES_READ_TOKEN env var. -->
     <PackageReference Include="KeshavSingh.Security" Version="0.3.0" />
-    <PackageReference Include="KeshavSingh.Auth" Version="0.3.0" />
+    <PackageReference Include="KeshavSingh.Auth" Version="0.4.0" />
     <PackageReference Include="KeshavSingh.Mongo.NoSql" Version="0.1.1" />
     <PackageReference Include="KeshavSingh.Realtime" Version="0.1.0" />
+    <PackageReference Include="KeshavSingh.Core" Version="0.1.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(SkipPrivatePackages)' == 'true'">
@@ -37,6 +38,7 @@
     <ProjectReference Include="..\..\shared-security\src\KeshavSingh.Auth\KeshavSingh.Auth.csproj" />
     <ProjectReference Include="..\..\KeshavSingh-Packages-Nosql\src\KeshavSingh.Mongo.NoSql\KeshavSingh.Mongo.NoSql.csproj" />
     <ProjectReference Include="..\..\KeshavSingh-Packages-Realtime\src\KeshavSingh.Realtime\KeshavSingh.Realtime.csproj" />
+    <ProjectReference Include="..\..\KeshavSingh-Packages-Core\src\KeshavSingh.Core\KeshavSingh.Core.csproj" />
   </ItemGroup>
 
 </Project>
