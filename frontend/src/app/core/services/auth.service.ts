@@ -66,6 +66,10 @@ export class AuthService {
     return this.http.post<void>(`${this.base}/sso/2fa/sms/send`, { twoFactorToken }, { withCredentials: true });
   }
 
+  sendWhatsAppOtp(twoFactorToken: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/sso/2fa/whatsapp/send`, { twoFactorToken }, { withCredentials: true });
+  }
+
   // ---- Session (silent SSO) ----
 
   /** Exchange the shared SSO cookie for a fresh access token. 401 => no active session. */

@@ -58,9 +58,10 @@ public sealed class SsoController : ControllerBase
                 TwoFactorToken: result.TwoFactorToken,
                 EmailFallbackAvailable: result.EmailFallbackAvailable,
                 SmsFallbackAvailable: result.SmsFallbackAvailable,
+                WhatsAppFallbackAvailable: result.WhatsAppFallbackAvailable,
                 Session: null));
 
-        return Ok(new SsoLoginResponse(false, null, false, false, IssueSession(result.Tokens)));
+        return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens)));
     }
 
     /// <summary>Step 2: verify a TOTP, email, SMS, or backup code and establish the session.</summary>
@@ -96,6 +97,16 @@ public sealed class SsoController : ControllerBase
     public async Task<IActionResult> SendSmsOtp(SendSmsOtpRequest request)
     {
         await _auth.SendSmsOtpAsync(request);
+        return Accepted(); // Do not reveal whether a phone number is on file.
+    }
+
+    /// <summary>Sends the WhatsApp-fallback OTP for a pending two-factor session.</summary>
+    [HttpPost("2fa/whatsapp/send")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> SendWhatsAppOtp(SendWhatsAppOtpRequest request)
+    {
+        await _auth.SendWhatsAppOtpAsync(request);
         return Accepted(); // Do not reveal whether a phone number is on file.
     }
 

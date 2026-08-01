@@ -25,10 +25,11 @@ export interface SsoLoginResponse {
   twoFactorToken?: string;
   emailFallbackAvailable: boolean;
   smsFallbackAvailable: boolean;
+  whatsAppFallbackAvailable: boolean;
   session?: SsoSessionResponse;
 }
 
-export type TwoFactorMethod = 'Totp' | 'Email' | 'BackupCode' | 'Sms';
+export type TwoFactorMethod = 'Totp' | 'Email' | 'BackupCode' | 'Sms' | 'WhatsApp';
 
 export interface EnrollStartResponse {
   secret: string;
