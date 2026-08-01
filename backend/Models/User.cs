@@ -21,6 +21,10 @@ public sealed class User
 
     public List<string> Roles { get; set; } = new();
 
+    /// <summary>Custom role keys (see <see cref="CustomRole"/>) assigned directly to this user,
+    /// in addition to any granted via group membership.</summary>
+    public List<string> CustomRoleKeys { get; set; } = new();
+
     // ---- Two-factor (TOTP authenticator, default method) ----
     public bool TwoFactorEnabled { get; set; }
     public string? TotpSecretEncrypted { get; set; }

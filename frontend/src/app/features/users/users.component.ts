@@ -4,7 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { UsersService } from '../../core/services/users.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RbacService } from '../../core/services/rbac.service';
 import { CreateUserRequest, UserListItem } from '../../core/models/user.models';
+import { CustomRoleView, GroupView } from '../../core/models/rbac.models';
 import { Role } from '../../core/models/auth.models';
 
 /**
@@ -82,6 +84,21 @@ import { Role } from '../../core/models/auth.models';
                         }
                         <button class="btn-secondary" type="button" [disabled]="busy()" (click)="saveRoles(u)">Save roles</button>
                       </div>
+                      <div class="roles">
+                        <span class="roles-label">Custom roles:</span>
+                        @for (r of customRoles(); track r.id) {
+                          <label class="chk"><input type="checkbox" [checked]="eCustomRoles.has(r.key)" (change)="toggleCustomRole(r.key)" /> {{ r.name }}</label>
+                        }
+                        @if (!customRoles().length) { <span class="muted-inline">None defined yet — create one on the Roles page.</span> }
+                        <button class="btn-secondary" type="button" [disabled]="busy()" (click)="saveCustomRoles(u)">Save custom roles</button>
+                      </div>
+                      <div class="roles">
+                        <span class="roles-label">Groups:</span>
+                        @for (g of groups(); track g.id) {
+                          <label class="chk"><input type="checkbox" [checked]="eGroups.has(g.id)" (change)="toggleGroup(u, g)" /> {{ g.name }}</label>
+                        }
+                        @if (!groups().length) { <span class="muted-inline">None defined yet — create one on the Groups page.</span> }
+                      </div>
                       <div class="actions">
                         <button class="btn-secondary" type="button" [disabled]="busy()" (click)="toggleActive(u)">
                           {{ u.isActive ? 'Deactivate' : 'Activate' }}
@@ -133,14 +150,18 @@ import { Role } from '../../core/models/auth.models';
     .reset { display: inline-flex; align-items: center; gap: 0.4rem; }
     .banner { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c3; border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
     .banner.ok { background: #e6f4ea; color: #137333; border-color: #b7e1c4; }
+    .muted-inline { font-size: 0.85rem; color: #999; }
   `]
 })
 export class UsersComponent implements OnInit {
   private api = inject(UsersService);
   private auth = inject(AuthService);
+  private rbac = inject(RbacService);
 
   readonly users = signal<UserListItem[]>([]);
   readonly allRoles = signal<Role[]>(['Admin', 'Editor', 'Viewer']);
+  readonly customRoles = signal<CustomRoleView[]>([]);
+  readonly groups = signal<GroupView[]>([]);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
@@ -152,6 +173,8 @@ export class UsersComponent implements OnInit {
 
   readonly editId = signal<string | null>(null);
   readonly eRoles = new Set<Role>();
+  readonly eCustomRoles = new Set<string>();
+  readonly eGroups = new Set<string>();
   resetPw = '';
 
   selfId(): string | undefined { return this.auth.user()?.id; }
@@ -159,6 +182,8 @@ export class UsersComponent implements OnInit {
   ngOnInit(): void {
     this.reload();
     this.api.roles().subscribe({ next: r => this.allRoles.set(r), error: () => {} });
+    this.rbac.listRoles().subscribe({ next: r => this.customRoles.set(r), error: () => {} });
+    this.rbac.listGroups().subscribe({ next: g => this.groups.set(g), error: () => {} });
   }
 
   private reload(): void {
@@ -203,8 +228,40 @@ export class UsersComponent implements OnInit {
     if (this.editId() === u.id) { this.editId.set(null); return; }
     this.eRoles.clear();
     u.roles.forEach(r => this.eRoles.add(r));
+    this.eCustomRoles.clear();
+    u.customRoleKeys.forEach(k => this.eCustomRoles.add(k));
+    this.eGroups.clear();
+    u.groupIds.forEach(id => this.eGroups.add(id));
     this.resetPw = '';
     this.editId.set(u.id);
+  }
+
+  toggleCustomRole(key: string): void {
+    this.eCustomRoles.has(key) ? this.eCustomRoles.delete(key) : this.eCustomRoles.add(key);
+  }
+
+  saveCustomRoles(u: UserListItem): void {
+    this.busy.set(true);
+    this.api.update(u.id, { customRoleKeys: [...this.eCustomRoles] }).subscribe({
+      next: () => { this.busy.set(false); this.succeed('Custom roles updated.'); this.reload(); },
+      error: (err: HttpErrorResponse) => { this.busy.set(false); this.fail(err, 'Could not update custom roles.'); },
+    });
+  }
+
+  toggleGroup(u: UserListItem, g: GroupView): void {
+    this.busy.set(true);
+    const wasMember = this.eGroups.has(g.id);
+    const obs = wasMember ? this.rbac.removeMember(g.id, u.id) : this.rbac.addMember(g.id, u.id);
+    obs.subscribe({
+      next: () => {
+        this.busy.set(false);
+        wasMember ? this.eGroups.delete(g.id) : this.eGroups.add(g.id);
+        this.succeed(wasMember ? 'Removed from group.' : 'Added to group.');
+        this.rbac.listGroups().subscribe({ next: gs => this.groups.set(gs), error: () => {} });
+        this.reload();
+      },
+      error: (err: HttpErrorResponse) => { this.busy.set(false); this.fail(err, 'Could not update group membership.'); },
+    });
   }
 
   saveRoles(u: UserListItem): void {

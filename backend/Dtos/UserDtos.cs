@@ -10,13 +10,15 @@ public sealed record CreateUserRequest(
     [Required, MaxLength(120)] string DisplayName,
     [Phone, MaxLength(20)] string? PhoneNumber,
     [Required, MinLength(12), MaxLength(256)] string Password,
-    List<string>? Roles);
+    List<string>? Roles,
+    List<string>? CustomRoleKeys);
 
 public sealed record UpdateUserRequest(
     [MaxLength(60)] string? Username,
     [MaxLength(120)] string? DisplayName,
     [Phone, MaxLength(20)] string? PhoneNumber,
     List<string>? Roles,
+    List<string>? CustomRoleKeys,
     bool? IsActive);
 
 public sealed record ResetPasswordRequest(
@@ -29,6 +31,8 @@ public sealed record UserListItem(
     string DisplayName,
     string? PhoneNumber,
     IReadOnlyList<string> Roles,
+    IReadOnlyList<string> CustomRoleKeys,
+    IReadOnlyList<string> GroupIds,
     bool IsActive,
     bool TwoFactorEnabled,
     DateTime? LastLoginAt,

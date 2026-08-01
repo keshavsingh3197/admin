@@ -41,6 +41,10 @@ builder.Services.AddSingleton<WebsiteVisitService>();
 builder.Services.AddSingleton<WebsiteContentService>();
 builder.Services.AddSingleton<TwoFactorDeviceService>();
 builder.Services.AddSingleton<SessionRetentionService>();
+builder.Services.AddSingleton<CustomRoleService>();
+builder.Services.AddSingleton<GroupService>();
+builder.Services.AddSingleton<PermissionsService>();
+builder.Services.AddSingleton<SearchService>();
 builder.Services.AddHostedService<SessionRetentionCleanupWorker>();
 builder.Services.AddHttpClient();
 
@@ -190,6 +194,9 @@ await app.Services.GetRequiredService<WebsiteContentService>()
     .EnsureIndexesAsync();
 await app.Services.GetRequiredService<TwoFactorDeviceService>()
     .EnsureIndexesAsync();
+await app.Services.GetRequiredService<CustomRoleService>().EnsureIndexesAsync();
+await app.Services.GetRequiredService<CustomRoleService>().SeedSystemRolesAsync();
+await app.Services.GetRequiredService<GroupService>().EnsureIndexesAsync();
 var publicConfig = app.Services.GetRequiredService<SettingsService>().ToPublicConfig();
 await app.Services.GetRequiredService<WebsiteRegistryService>()
     .SeedDefaultsAsync(publicConfig.BlogUrl, publicConfig.BlogAdminUrl);

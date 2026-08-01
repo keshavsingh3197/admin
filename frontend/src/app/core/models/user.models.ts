@@ -8,6 +8,8 @@ export interface UserListItem {
   displayName: string;
   phoneNumber?: string | null;
   roles: Role[];
+  customRoleKeys: string[];
+  groupIds: string[];
   isActive: boolean;
   twoFactorEnabled: boolean;
   lastLoginAt?: string | null;
@@ -21,6 +23,7 @@ export interface CreateUserRequest {
   phoneNumber?: string | null;
   password: string;
   roles: Role[];
+  customRoleKeys?: string[];
 }
 
 export interface UpdateUserRequest {
@@ -28,5 +31,6 @@ export interface UpdateUserRequest {
   displayName?: string | null;
   phoneNumber?: string | null;
   roles?: Role[];
+  customRoleKeys?: string[];
   isActive?: boolean;
 }

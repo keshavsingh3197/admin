@@ -23,12 +23,14 @@ public sealed class UsersController : ControllerBase
     private readonly IMongoCollection<User> _users;
     private readonly IMongoCollection<RefreshToken> _tokens;
     private readonly PasswordHasher _passwords;
+    private readonly GroupService _groups;
 
-    public UsersController(MongoDbService db, PasswordHasher passwords)
+    public UsersController(MongoDbService db, PasswordHasher passwords, GroupService groups)
     {
         _users = db.GetCollection<User>("users");
         _tokens = db.GetCollection<RefreshToken>("refresh_tokens");
         _passwords = passwords;
+        _groups = groups;
     }
 
     /// <summary>The caller's own profile — available to any authenticated user.</summary>
@@ -36,7 +38,9 @@ public sealed class UsersController : ControllerBase
     public async Task<ActionResult<UserListItem>> Me()
     {
         var user = await _users.Find(u => u.Id == User.GetUserId()).FirstOrDefaultAsync();
-        return user is null ? Unauthorized() : Ok(Map(user));
+        if (user is null) return Unauthorized();
+        var groupIds = (await _groups.ListForUserAsync(user.Id)).Select(g => g.Id).ToList();
+        return Ok(Map(user, groupIds));
     }
 
     [HttpGet]
@@ -44,7 +48,10 @@ public sealed class UsersController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<UserListItem>>> List()
     {
         var users = await _users.Find(u => !u.IsDeleted).SortBy(u => u.Email).ToListAsync();
-        return Ok(users.Select(Map).ToList());
+        var groups = await _groups.ListAsync();
+        var membership = users.ToDictionary(u => u.Id, u => (IReadOnlyList<string>)groups
+            .Where(g => g.MemberUserIds.Contains(u.Id)).Select(g => g.Id).ToList());
+        return Ok(users.Select(u => Map(u, membership[u.Id])).ToList());
     }
 
     [HttpGet("{id}")]
@@ -52,7 +59,9 @@ public sealed class UsersController : ControllerBase
     public async Task<ActionResult<UserListItem>> Get(string id)
     {
         var user = await _users.Find(u => u.Id == id && !u.IsDeleted).FirstOrDefaultAsync();
-        return user is null ? NotFound() : Ok(Map(user));
+        if (user is null) return NotFound();
+        var groupIds = (await _groups.ListForUserAsync(id)).Select(g => g.Id).ToList();
+        return Ok(Map(user, groupIds));
     }
 
     [HttpPost]
@@ -77,12 +86,13 @@ public sealed class UsersController : ControllerBase
             PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
             PasswordHash = _passwords.Hash(request.Password),
             Roles = roles,
+            CustomRoleKeys = (request.CustomRoleKeys ?? new()).Distinct().ToList(),
             // Admin-created accounts start with a temporary password and must change it (and
             // enrol 2FA) on first sign-in.
             MustChangePassword = true,
         };
         await _users.InsertOneAsync(user);
-        return CreatedAtAction(nameof(Get), new { id = user.Id }, Map(user));
+        return CreatedAtAction(nameof(Get), new { id = user.Id }, Map(user, Array.Empty<string>()));
     }
 
     [HttpPut("{id}")]
@@ -114,6 +124,9 @@ public sealed class UsersController : ControllerBase
             update = update.Set(u => u.Roles, roles);
         }
 
+        if (request.CustomRoleKeys is not null)
+            update = update.Set(u => u.CustomRoleKeys, request.CustomRoleKeys.Distinct().ToList());
+
         if (request.IsActive is { } active)
         {
             update = update.Set(u => u.IsActive, active);
@@ -122,7 +135,9 @@ public sealed class UsersController : ControllerBase
 
         var user = await _users.FindOneAndUpdateAsync<User>(u => u.Id == id, update,
             new FindOneAndUpdateOptions<User> { ReturnDocument = ReturnDocument.After });
-        return user is null ? NotFound() : Ok(Map(user));
+        if (user is null) return NotFound();
+        var groupIds = (await _groups.ListForUserAsync(id)).Select(g => g.Id).ToList();
+        return Ok(Map(user, groupIds));
     }
 
     [HttpPost("{id}/reset-password")]
@@ -172,7 +187,7 @@ public sealed class UsersController : ControllerBase
         return normalized.All(Models.Roles.IsValid) ? normalized : null;
     }
 
-    private static UserListItem Map(User u) => new(
-        u.Id, u.Email, u.Username, u.DisplayName, u.PhoneNumber, u.Roles, u.IsActive,
-        u.TwoFactorEnabled, u.LastLoginAt, u.CreatedAt);
+    private static UserListItem Map(User u, IReadOnlyList<string> groupIds) => new(
+        u.Id, u.Email, u.Username, u.DisplayName, u.PhoneNumber, u.Roles, u.CustomRoleKeys, groupIds,
+        u.IsActive, u.TwoFactorEnabled, u.LastLoginAt, u.CreatedAt);
 }

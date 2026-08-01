@@ -38,6 +38,24 @@ export const routes: Routes = [
       import('./features/users/users.component').then((m) => m.UsersComponent),
   },
   {
+    path: 'roles',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/roles/roles.component').then((m) => m.RolesComponent),
+  },
+  {
+    path: 'groups',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/groups/groups.component').then((m) => m.GroupsComponent),
+  },
+  {
+    path: 'search',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/search/search.component').then((m) => m.SearchComponent),
+  },
+  {
     path: 'settings',
     canActivate: [adminGuard],
     loadComponent: () =>
