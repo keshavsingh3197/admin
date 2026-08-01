@@ -71,6 +71,9 @@ builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<IAuthSettings>(sp => sp.GetRequiredService<SettingsService>());
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddSingleton<ISmsSender, LoggingSmsSender>();
+// WhatsApp security alerts (e.g. account lockout) via KeshavSingh.Core's Meta Cloud API notifier.
+builder.Services.AddSingleton<IWhatsAppSettings>(sp => sp.GetRequiredService<SettingsService>());
+builder.Services.AddSingleton<WhatsAppNotifier>();
 builder.Services.AddKeshavAuthEngine();
 builder.Services.AddScoped<AdminSeeder>();
 

@@ -18,6 +18,10 @@ public sealed record SettingsView(
     int MaxFailedLoginAttempts,
     int LockoutMinutes,
     int BackupCodeCount,
+    bool WhatsAppAlertsEnabled,
+    bool WhatsAppAccessTokenSet,
+    string WhatsAppPhoneNumberId,
+    string WhatsAppAlertToNumber,
     DateTime UpdatedAt);
 
 /// <summary>Partial update — only non-null fields are applied.</summary>
@@ -37,7 +41,11 @@ public sealed record UpdateSettingsRequest(
     int? EmailOtpMinutes,
     int? MaxFailedLoginAttempts,
     int? LockoutMinutes,
-    int? BackupCodeCount);
+    int? BackupCodeCount,
+    bool? WhatsAppAlertsEnabled,
+    string? WhatsAppAccessToken,
+    string? WhatsAppPhoneNumberId,
+    string? WhatsAppAlertToNumber);
 
 /// <summary>
 /// The non-secret, shareable config served publicly at <c>GET /api/config</c> for every

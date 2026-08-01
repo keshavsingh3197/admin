@@ -3,6 +3,7 @@ using Admin.Api.Dtos;
 using Admin.Api.Models;
 using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
+using KeshavSingh.Core;
 using KeshavSingh.Security;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -14,20 +15,23 @@ namespace Admin.Api.Services;
 /// it from the "Auth" appsettings/env defaults on first run) and exposes the slice the shared auth
 /// engine reads via <see cref="IAuthSettings"/>. The cache is refreshed on every update.
 /// </summary>
-public sealed class SettingsService : IAuthSettings
+public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
 {
     private readonly IMongoCollection<AppSettings> _col;
     private readonly AuthSettingsOptions _seed;
     private readonly JwtOptions _jwtSeed;
     private readonly PublicConfigOptions _publicSeed;
+    private readonly DataProtector _protector;
     private volatile AppSettings _current = new();
 
-    public SettingsService(MongoDbService db, IOptions<AuthSettingsOptions> seed, IOptions<JwtOptions> jwtSeed, IOptions<PublicConfigOptions> publicSeed)
+    public SettingsService(MongoDbService db, IOptions<AuthSettingsOptions> seed, IOptions<JwtOptions> jwtSeed,
+        IOptions<PublicConfigOptions> publicSeed, DataProtector protector)
     {
         _col = db.GetCollection<AppSettings>("settings");
         _seed = seed.Value;
         _jwtSeed = jwtSeed.Value;
         _publicSeed = publicSeed.Value;
+        _protector = protector;
     }
 
     // ---- IAuthSettings (read by the engine) ----
@@ -44,6 +48,19 @@ public sealed class SettingsService : IAuthSettings
     public int RefreshTokenRetentionDays => _current.RefreshTokenRetentionDays;
     public int AnalyticsRetentionDays => _current.AnalyticsRetentionDays;
     public int LoginAuditRetentionDays => _current.LoginAuditRetentionDays;
+
+    // ---- IWhatsAppSettings (read by WhatsAppNotifier) ----
+    public bool WhatsAppAlertsEnabled => _current.WhatsAppAlertsEnabled;
+    public string WhatsAppAccessToken => Decrypt(_current.WhatsAppAccessTokenEncrypted) ?? string.Empty;
+    public string WhatsAppPhoneNumberId => _current.WhatsAppPhoneNumberId;
+    public string WhatsAppAlertToNumber => _current.WhatsAppAlertToNumber;
+
+    private string? Decrypt(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return null;
+        try { return _protector.Decrypt(value); }
+        catch { return null; } // Wrong/rotated key — fail closed rather than throw.
+    }
 
     public async Task InitAsync()
     {
@@ -82,7 +99,9 @@ public sealed class SettingsService : IAuthSettings
             s.SmsTwoFactorEnabled, s.AccessTokenMinutes, s.RefreshTokenDays, s.TwoFactorTokenMinutes,
             s.EnforceSingleSessionPerUser, s.RefreshTokenRetentionDays, s.AnalyticsRetentionDays,
             s.LoginAuditRetentionDays,
-            s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes, s.BackupCodeCount, s.UpdatedAt);
+            s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes, s.BackupCodeCount,
+            s.WhatsAppAlertsEnabled, !string.IsNullOrEmpty(s.WhatsAppAccessTokenEncrypted),
+            s.WhatsAppPhoneNumberId, s.WhatsAppAlertToNumber, s.UpdatedAt);
     }
 
     /// <summary>The narrow, non-secret projection served publicly to every app.</summary>
@@ -116,6 +135,11 @@ public sealed class SettingsService : IAuthSettings
         if (r.LockoutMinutes is { } lm) s.LockoutMinutes = Math.Clamp(lm, 1, 1440);
         if (r.BackupCodeCount is { } bc) s.BackupCodeCount = Math.Clamp(bc, 5, 20);
 
+        if (r.WhatsAppAlertsEnabled is { } wae) s.WhatsAppAlertsEnabled = wae;
+        if (!string.IsNullOrEmpty(r.WhatsAppAccessToken)) s.WhatsAppAccessTokenEncrypted = _protector.Encrypt(r.WhatsAppAccessToken);
+        if (r.WhatsAppPhoneNumberId is not null) s.WhatsAppPhoneNumberId = r.WhatsAppPhoneNumberId.Trim();
+        if (r.WhatsAppAlertToNumber is not null) s.WhatsAppAlertToNumber = r.WhatsAppAlertToNumber.Trim();
+
         s.UpdatedAt = DateTime.UtcNow;
         await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s,
             new ReplaceOptions { IsUpsert = true });
@@ -135,6 +159,10 @@ public sealed class SettingsService : IAuthSettings
         LoginAuditRetentionDays = s.LoginAuditRetentionDays,
         EmailOtpMinutes = s.EmailOtpMinutes, MaxFailedLoginAttempts = s.MaxFailedLoginAttempts,
         LockoutMinutes = s.LockoutMinutes, BackupCodeCount = s.BackupCodeCount,
+        WhatsAppAlertsEnabled = s.WhatsAppAlertsEnabled,
+        WhatsAppAccessTokenEncrypted = s.WhatsAppAccessTokenEncrypted,
+        WhatsAppPhoneNumberId = s.WhatsAppPhoneNumberId,
+        WhatsAppAlertToNumber = s.WhatsAppAlertToNumber,
     };
 
     /// <summary>
