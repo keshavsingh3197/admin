@@ -129,6 +129,23 @@ interface SettingsImportPayload {
           <label class="chk"><input type="checkbox" name="e2fa" [(ngModel)]="m.emailTwoFactorEnabled" /> Allow email code fallback</label>
           <label class="chk"><input type="checkbox" name="s2fa" [(ngModel)]="m.smsTwoFactorEnabled" /> Allow SMS code fallback</label>
 
+          <h2>WhatsApp security alerts</h2>
+          <p class="hint">Sends a WhatsApp message (via the Meta Cloud API) to the number below whenever an
+             account is locked out from repeated failed logins. Freeform text only delivers within the 24h
+             window after the recipient has messaged the sending number first; otherwise Meta requires a
+             pre-approved template.</p>
+          <label class="chk"><input type="checkbox" name="waEnabled" [(ngModel)]="m.whatsAppAlertsEnabled" /> Enable WhatsApp alerts</label>
+          <div class="grid">
+            <label class="field"><span>Access token {{ m.whatsAppAccessTokenSet ? '(already set — leave blank to keep)' : '' }}</span>
+              <input class="input" type="password" name="waToken" autocomplete="new-password"
+                placeholder="{{ m.whatsAppAccessTokenSet ? '••••••••' : 'Meta Cloud API access token' }}"
+                [(ngModel)]="whatsAppAccessTokenInput" /></label>
+            <label class="field"><span>Phone number ID</span>
+              <input class="input" type="text" name="waPhoneId" [(ngModel)]="m.whatsAppPhoneNumberId" /></label>
+            <label class="field"><span>Alert-to number (E.164, e.g. +15551234567)</span>
+              <input class="input" type="text" name="waTo" [(ngModel)]="m.whatsAppAlertToNumber" /></label>
+          </div>
+
           <h2>First-run checklist</h2>
           <p class="hint">For a fresh deployment, keep bootstrap secrets in env or Key Vault and manage non-secret runtime settings here after sign-in.</p>
           <ul class="checklist">
@@ -248,6 +265,8 @@ export class SettingsComponent implements OnInit {
 
   readonly model = signal<SettingsView | null>(null);
   readonly websites = signal<WebsiteLinkView[]>([]);
+  /** Write-only draft for the WhatsApp access token; blank means "leave the stored token unchanged". */
+  whatsAppAccessTokenInput = '';
   editingWebsiteId: string | null = null;
   websiteDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 100 };
   readonly loading = signal(true);
@@ -267,6 +286,7 @@ export class SettingsComponent implements OnInit {
       next: ({ settings, websites }) => {
         this.model.set(settings);
         this.websites.set(websites);
+        this.whatsAppAccessTokenInput = '';
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -285,6 +305,7 @@ export class SettingsComponent implements OnInit {
       next: s => {
         this.busy.set(false);
         this.model.set(s);
+        this.whatsAppAccessTokenInput = '';
         this.config.refresh(); // Propagate launcher/branding changes to the cached central config.
         this.ok.set(true);
         this.message.set('Settings saved.');
@@ -477,6 +498,10 @@ export class SettingsComponent implements OnInit {
       maxFailedLoginAttempts: Number(m.maxFailedLoginAttempts),
       lockoutMinutes: Number(m.lockoutMinutes),
       backupCodeCount: Number(m.backupCodeCount),
+      whatsAppAlertsEnabled: m.whatsAppAlertsEnabled,
+      whatsAppPhoneNumberId: m.whatsAppPhoneNumberId,
+      whatsAppAlertToNumber: m.whatsAppAlertToNumber,
+      ...(this.whatsAppAccessTokenInput ? { whatsAppAccessToken: this.whatsAppAccessTokenInput } : {}),
     };
   }
 

@@ -16,10 +16,15 @@ export interface SettingsView {
   maxFailedLoginAttempts: number;
   lockoutMinutes: number;
   backupCodeCount: number;
+  whatsAppAlertsEnabled: boolean;
+  whatsAppAccessTokenSet: boolean;
+  whatsAppPhoneNumberId: string;
+  whatsAppAlertToNumber: string;
   updatedAt: string;
 }
 
-export type UpdateSettingsRequest = Partial<Omit<SettingsView, 'updatedAt'>>;
+/** whatsAppAccessTokenSet is read-only (server tells us if a token is stored); write via whatsAppAccessToken instead. */
+export type UpdateSettingsRequest = Partial<Omit<SettingsView, 'updatedAt' | 'whatsAppAccessTokenSet'>> & { whatsAppAccessToken?: string };
 
 export interface WebsiteLinkView {
   id: string;
