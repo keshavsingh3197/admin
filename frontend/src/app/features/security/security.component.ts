@@ -232,9 +232,21 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
     .btn-primary:disabled, .btn-danger:disabled { opacity: 0.6; cursor: default; }
     .btn-danger { padding: 0.6rem 1.1rem; background: #d93025; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
     .btn-danger:hover:not(:disabled) { background: #b3271d; }
-    .banner { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c3; border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; font-size: 0.9rem; }
-    .banner.ok { background: #e6f4ea; color: #137333; border-color: #b7e1c4; }
-    .ok-text { color: #137333; }
+    .banner {
+      background: color-mix(in srgb, #c5221f 16%, var(--surface));
+      color: #f7d8d5;
+      border: 1px solid color-mix(in srgb, #c5221f 45%, var(--border));
+      border-radius: 6px;
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .banner.ok {
+      background: color-mix(in srgb, #137333 16%, var(--surface));
+      color: color-mix(in srgb, #8df0b5 86%, #ffffff);
+      border-color: color-mix(in srgb, #137333 48%, var(--border));
+    }
+    .ok-text { color: color-mix(in srgb, #7fe7ab 90%, var(--text)); }
     .qr { display: block; width: 200px; height: 200px; margin: 0.5rem 0; border: 1px solid #eee; border-radius: 6px; }
     .secret { color: var(--text); }
     .secret code {
@@ -262,13 +274,13 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
     .code-actions { display: flex; gap: 0.5rem; margin: 0.75rem 0 0.5rem; }
     .btn-secondary { padding: 0.5rem 0.9rem; background: #fff; color: #1a73e8; border: 1px solid #1a73e8; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
     .btn-secondary:hover { background: #e8f0fe; }
-    .hint { font-size: 0.8rem; color: #666; margin: 0.25rem 0 0; }
-    .muted { color: #666; font-size: 0.9rem; }
+    .hint { font-size: 0.8rem; color: var(--muted); margin: 0.25rem 0 0; }
+    .muted { color: var(--muted); font-size: 0.9rem; }
     .pk-list { list-style: none; padding: 0; margin: 0 0 1rem; }
     .pk-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; padding: 0.6rem 0; border-bottom: 1px solid #f0f0f0; }
     .pk-icon { font-size: 1.2rem; }
     .pk-meta { display: flex; flex-direction: column; flex: 1; }
-    .pk-meta small { color: #777; font-size: 0.78rem; }
+    .pk-meta small { color: var(--muted); font-size: 0.78rem; }
     .btn-link-danger { background: none; border: none; color: #d93025; cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.4rem; }
     .btn-link-danger:hover:not(:disabled) { text-decoration: underline; }
     .btn-link-danger:disabled { opacity: 0.5; cursor: default; }
@@ -277,12 +289,12 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
     .btn-danger-sm { padding: 0.45rem 0.8rem; background: #d93025; color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
     .btn-danger-sm:hover:not(:disabled) { background: #b3271d; }
     .btn-danger-sm:disabled { opacity: 0.6; cursor: default; }
-    .btn-link { background: none; border: none; color: #666; cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.4rem; }
+    .btn-link { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.4rem; }
     .btn-link:hover:not(:disabled) { text-decoration: underline; }
     .pk-details { flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem;
       margin: 0.5rem 0 0.25rem; padding: 0.6rem 0.75rem; background: #f8f9fa; border-radius: 6px; }
-    .pk-details dt { color: #777; font-size: 0.78rem; }
-    .pk-details dd { margin: 0; font-size: 0.82rem; color: #333; }
+    .pk-details dt { color: var(--muted); font-size: 0.78rem; }
+    .pk-details dd { margin: 0; font-size: 0.82rem; color: var(--text); }
     .pk-details dd.mono { font-family: monospace; }
   `]
 })
