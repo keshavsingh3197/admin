@@ -33,8 +33,8 @@ import { ConfigService } from '../../core/services/config.service';
 
         <a class="card" routerLink="/files">
           <span class="card-icon">🗂️</span>
-          <h2>Files</h2>
-          <p>Your private files — encrypted and visible only to you.</p>
+          <h2>Documents</h2>
+          <p>Private folders &amp; documents — organize, preview, and share by permission.</p>
         </a>
 
         @if (blogAdminUrl()) {

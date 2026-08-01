@@ -43,6 +43,7 @@ builder.Services.AddKeshavMongo(builder.Configuration);
 // appsettings-based source. Defaults to local disk until an admin switches the provider to S3.
 builder.Services.AddSingleton<IStorageSettingsSource>(sp => sp.GetRequiredService<SettingsService>());
 builder.Services.AddKeshavStorage(builder.Configuration);
+builder.Services.AddSingleton<FolderService>();
 builder.Services.AddSingleton<FileService>();
 builder.Services.AddSingleton<NoteService>();
 builder.Services.AddSingleton<AnalyticsService>();
@@ -206,6 +207,8 @@ await app.Services.GetRequiredService<TwoFactorDeviceService>()
 await app.Services.GetRequiredService<CustomRoleService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<CustomRoleService>().SeedSystemRolesAsync();
 await app.Services.GetRequiredService<GroupService>().EnsureIndexesAsync();
+await app.Services.GetRequiredService<FolderService>().EnsureIndexesAsync();
+await app.Services.GetRequiredService<FileService>().EnsureIndexesAsync();
 var publicConfig = app.Services.GetRequiredService<SettingsService>().ToPublicConfig();
 await app.Services.GetRequiredService<WebsiteRegistryService>()
     .SeedDefaultsAsync(publicConfig.BlogUrl, publicConfig.BlogAdminUrl);

@@ -7,4 +7,5 @@ public sealed record UserFileDto(
     string FileName,
     string ContentType,
     long Size,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? FolderId);

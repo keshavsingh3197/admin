@@ -15,9 +15,15 @@ public class UserFile
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
-    /// <summary>The owning user's id (JWT subject). All queries filter on this.</summary>
+    /// <summary>The owning user's id (JWT subject). Root documents (no folder) are private to the owner.</summary>
     [BsonElement("ownerUserId")]
     public string OwnerUserId { get; set; } = string.Empty;
+
+    /// <summary>Containing folder id; null means a private document at the owner's root.
+    /// A document in a folder inherits that folder's access (owner + shares).</summary>
+    [BsonElement("folderId")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? FolderId { get; set; }
 
     /// <summary>Sanitised original filename, for display/download only — never used as a path.</summary>
     [BsonElement("fileName")]

@@ -1,5 +1,4 @@
 using Admin.Api.Dtos;
-using Admin.Api.Models;
 using Admin.Api.Services;
 using KeshavSingh.Auth;
 using KeshavSingh.Core;
@@ -11,30 +10,29 @@ namespace Admin.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // Default-deny: every file is personal data — no anonymous access, ever.
+[Authorize] // Default-deny: every document is personal data. Denials return 404 (never 403) — anti-IDOR.
 public class FilesController : ControllerBase
 {
     private readonly FileService _files;
+    private readonly FolderService _folders;
     private readonly FileUploadOptions _opts;
     private readonly ILogger<FilesController> _logger;
 
-    public FilesController(FileService files, IOptions<FileUploadOptions> opts, ILogger<FilesController> logger)
+    public FilesController(FileService files, FolderService folders, IOptions<FileUploadOptions> opts, ILogger<FilesController> logger)
     {
         _files = files;
+        _folders = folders;
         _opts = opts.Value;
         _logger = logger;
     }
 
-    [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<UserFileDto>>> List()
-    {
-        var files = await _files.ListAsync(User.GetUserId());
-        return Ok(files.Select(Map).ToList());
-    }
+    private Task<Caller> CallerAsync() =>
+        _folders.BuildCallerAsync(User.GetUserId(), User.IsInRole(Roles.Admin));
 
+    /// <summary>Uploads a document into <c>folderId</c> (omitted = the caller's private root).</summary>
     [HttpPost]
     [RequestSizeLimit(15 * 1024 * 1024)]
-    public async Task<ActionResult<UserFileDto>> Upload(IFormFile file)
+    public async Task<ActionResult<UserFileDto>> Upload([FromForm] string? folderId, IFormFile file)
     {
         // Validate at the boundary with an allowlist of type and size.
         if (file is null || file.Length == 0)
@@ -44,49 +42,45 @@ public class FilesController : ControllerBase
         if (!_opts.AllowedContentTypes.Contains(file.ContentType))
             return BadRequest(new { error = "Unsupported file type." });
 
+        var caller = await CallerAsync();
         await using var stream = file.OpenReadStream();
         var saved = await _files.SaveAsync(
-            User.GetUserId(),
-            stream,
-            Path.GetFileName(file.FileName), // Display only; stripped of any path.
-            file.ContentType,
-            file.Length);
+            caller, stream, Path.GetFileName(file.FileName), file.ContentType, file.Length, NormalizeFolderId(folderId));
 
-        _logger.LogInformation("User {UserId} uploaded file {FileId} ({Size} bytes).",
-            User.GetUserId(), saved.Id, saved.Size);
-        return CreatedAtAction(nameof(Download), new { id = saved.Id }, Map(saved));
+        // Null = no Editor rights on the target folder → 404 (don't confirm the folder exists).
+        if (saved is null) return NotFound();
+
+        _logger.LogInformation("User {UserId} uploaded file {FileId} ({Size} bytes) to folder {FolderId}.",
+            caller.UserId, saved.Id, saved.Size, saved.FolderId ?? "(root)");
+        return CreatedAtAction(nameof(Download), new { id = saved.Id }, saved);
     }
 
-    /// <summary>
-    /// Streams the bytes to the owner (or an admin). Returns 404 — not 403 — when the file
-    /// belongs to another user, so the response never confirms someone else's file exists.
-    /// </summary>
+    /// <summary>Streams the bytes to anyone with Viewer+ access; 404 otherwise (anti-IDOR).</summary>
     [HttpGet("{id}/download")]
     public async Task<IActionResult> Download(string id)
     {
-        var file = await _files.GetAccessibleAsync(User.GetUserId(), id, User.IsInRole(Roles.Admin));
+        var file = await _files.GetForReadAsync(id, await CallerAsync());
         if (file is null) return NotFound();
 
         var stream = await _files.OpenAsync(file);
         if (stream is null)
         {
-            // Metadata exists but the blob is gone — fail closed rather than 200 with no body.
             _logger.LogWarning("File {FileId} metadata present but blob missing from store.", id);
             return NotFound();
         }
 
-        // Personal data — keep it out of shared/proxy caches.
-        Response.Headers.CacheControl = "no-store";
+        Response.Headers.CacheControl = "no-store"; // Personal data — keep out of shared/proxy caches.
         return File(stream, file.ContentType, file.FileName);
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id)
-    {
-        var deleted = await _files.DeleteAsync(User.GetUserId(), id, User.IsInRole(Roles.Admin));
-        return deleted ? NoContent() : NotFound();
-    }
+    public async Task<IActionResult> Delete(string id) =>
+        await _files.DeleteAsync(id, await CallerAsync()) ? NoContent() : NotFound();
 
-    private static UserFileDto Map(UserFile f) =>
-        new(f.Id!, f.FileName, f.ContentType, f.Size, f.CreatedAt);
+    [HttpPut("{id}/move")]
+    public async Task<IActionResult> Move(string id, [FromBody] MoveFileRequest req) =>
+        await _files.MoveAsync(id, NormalizeFolderId(req.FolderId), await CallerAsync()) ? NoContent() : NotFound();
+
+    private static string? NormalizeFolderId(string? folderId) =>
+        string.IsNullOrWhiteSpace(folderId) ? null : folderId;
 }
