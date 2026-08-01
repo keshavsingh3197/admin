@@ -30,6 +30,18 @@ export const routes: Routes = [
       import('./features/files/files.component').then((m) => m.FilesComponent),
   },
   {
+    path: 'messages',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/messages/messages.component').then((m) => m.MessagesComponent),
+  },
+  {
+    path: 'messages/moderation',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/messages/moderation.component').then((m) => m.MessagesModerationComponent),
+  },
+  {
     path: 'security',
     canActivate: [authGuard],
     loadComponent: () =>

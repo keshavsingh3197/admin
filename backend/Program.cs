@@ -7,6 +7,7 @@ using Admin.Api.Dtos;
 using Fido2NetLib;
 using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
+using KeshavSingh.Realtime.Chat;
 using KeshavSingh.Security;
 using KeshavSingh.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -45,6 +46,10 @@ builder.Services.AddSingleton<IStorageSettingsSource>(sp => sp.GetRequiredServic
 builder.Services.AddKeshavStorage(builder.Configuration);
 builder.Services.AddSingleton<FolderService>();
 builder.Services.AddSingleton<FileService>();
+// Realtime 1:1 chat — the whole backend lives in the KeshavSingh.Realtime package; admin only
+// supplies the user directory (its own users collection) and the app-side JWT hub-token handler below.
+builder.Services.AddKeshavChat(builder.Configuration);
+builder.Services.AddSingleton<IChatUserDirectory, AdminChatUserDirectory>();
 builder.Services.AddSingleton<NoteService>();
 builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
@@ -107,6 +112,7 @@ builder.Services.AddScoped<SessionMinter>();
 builder.Services
     .AddControllers()
     .AddKeshavAuthControllers()
+    .AddKeshavChatControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 // ---- CORS: allow the SSO family — any keshavsingh.in subdomain (admin, id, git, blog, …)
@@ -121,6 +127,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         options.MapInboundClaims = false; // Keep "sub"/role claims verbatim.
         options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        // WebSockets can't send an Authorization header, so SignalR passes the JWT as the
+        // `access_token` query param. Accept it ONLY for the chat hub path (never for the REST API).
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs/chat"))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            },
+        };
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidIssuer = jwtOptions.Issuer,
@@ -192,6 +210,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapKeshavChatHub(app.Configuration);
 app.MapHealthChecks("/health");
 
 // ---- First-run settings load + admin seed ----

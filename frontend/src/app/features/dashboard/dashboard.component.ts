@@ -31,6 +31,12 @@ import { ConfigService } from '../../core/services/config.service';
           <p>Manage your notes and important information.</p>
         </a>
 
+        <a class="card" routerLink="/messages">
+          <span class="card-icon">💬</span>
+          <h2>Messages</h2>
+          <p>Chat with other users in real time — with requests, presence, and blocking.</p>
+        </a>
+
         <a class="card" routerLink="/files">
           <span class="card-icon">🗂️</span>
           <h2>Documents</h2>

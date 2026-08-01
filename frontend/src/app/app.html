@@ -6,8 +6,10 @@
       <nav class="app-nav">
         <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Dashboard</a>
         <a routerLink="/notes" routerLinkActive="active">Notes</a>
+        <a routerLink="/messages" routerLinkActive="active">Messages</a>
         <a routerLink="/security" routerLinkActive="active">Security</a>
         @if (auth.hasRole('Admin')) {
+          <a routerLink="/messages/moderation" routerLinkActive="active">Chat mod</a>
           <a routerLink="/users" routerLinkActive="active">Users</a>
           <a routerLink="/groups" routerLinkActive="active">Groups</a>
           <a routerLink="/roles" routerLinkActive="active">Roles</a>
