@@ -67,5 +67,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/analytics/analytics.component').then((m) => m.AnalyticsComponent),
   },
+  {
+    path: 'data-retention',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/data-retention/data-retention.component').then((m) => m.DataRetentionComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

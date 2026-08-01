@@ -23,14 +23,17 @@ public sealed class SessionRetentionCleanupWorker : BackgroundService
                 using var scope = _services.CreateScope();
                 var sessionCleanup = scope.ServiceProvider.GetRequiredService<SessionRetentionService>();
                 var visitCleanup = scope.ServiceProvider.GetRequiredService<WebsiteVisitService>();
+                var dataRetention = scope.ServiceProvider.GetRequiredService<DataRetentionService>();
 
                 var sessionDeleted = await sessionCleanup.CleanupAsync(stoppingToken);
                 var visitDeleted = await visitCleanup.CleanupOldAsync(stoppingToken);
+                var auditDeleted = await dataRetention.PurgeExpiredAsync(DataRetentionService.LoginLogsDomain, stoppingToken);
 
-                if (sessionDeleted > 0 || visitDeleted > 0)
+                if (sessionDeleted > 0 || visitDeleted > 0 || auditDeleted > 0)
                 {
-                    _logger.LogInformation("Cleanup removed {SessionDeleted} refresh tokens and {VisitDeleted} visit records.",
-                        sessionDeleted, visitDeleted);
+                    _logger.LogInformation(
+                        "Cleanup removed {SessionDeleted} refresh tokens, {VisitDeleted} visit records, and {AuditDeleted} login audit records.",
+                        sessionDeleted, visitDeleted, auditDeleted);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

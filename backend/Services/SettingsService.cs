@@ -42,6 +42,7 @@ public sealed class SettingsService : IAuthSettings
     public bool EnforceSingleSessionPerUser => _current.EnforceSingleSessionPerUser;
     public int RefreshTokenRetentionDays => _current.RefreshTokenRetentionDays;
     public int AnalyticsRetentionDays => _current.AnalyticsRetentionDays;
+    public int LoginAuditRetentionDays => _current.LoginAuditRetentionDays;
 
     public async Task InitAsync()
     {
@@ -62,6 +63,7 @@ public sealed class SettingsService : IAuthSettings
             EnforceSingleSessionPerUser = true,
             RefreshTokenRetentionDays = 30,
             AnalyticsRetentionDays = 90,
+            LoginAuditRetentionDays = 180,
             EmailOtpMinutes = _seed.EmailOtpMinutes,
             MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
             LockoutMinutes = _seed.LockoutMinutes,
@@ -78,6 +80,7 @@ public sealed class SettingsService : IAuthSettings
         return new SettingsView(s.SiteTitle, s.BlogUrl, s.BlogAdminUrl, s.EmailTwoFactorEnabled,
             s.SmsTwoFactorEnabled, s.AccessTokenMinutes, s.RefreshTokenDays, s.TwoFactorTokenMinutes,
             s.EnforceSingleSessionPerUser, s.RefreshTokenRetentionDays, s.AnalyticsRetentionDays,
+            s.LoginAuditRetentionDays,
             s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes, s.BackupCodeCount, s.UpdatedAt);
     }
 
@@ -105,6 +108,7 @@ public sealed class SettingsService : IAuthSettings
         if (r.EnforceSingleSessionPerUser is { } esp) s.EnforceSingleSessionPerUser = esp;
         if (r.RefreshTokenRetentionDays is { } rtrd) s.RefreshTokenRetentionDays = Math.Clamp(rtrd, 1, 365);
         if (r.AnalyticsRetentionDays is { } ard) s.AnalyticsRetentionDays = Math.Clamp(ard, 1, 3650);
+        if (r.LoginAuditRetentionDays is { } lard) s.LoginAuditRetentionDays = Math.Clamp(lard, 1, 3650);
         // Clamp the security knobs to sane ranges (defence in depth against bad input).
         if (r.EmailOtpMinutes is { } eo) s.EmailOtpMinutes = Math.Clamp(eo, 1, 60);
         if (r.MaxFailedLoginAttempts is { } mfa) s.MaxFailedLoginAttempts = Math.Clamp(mfa, 1, 20);
@@ -127,6 +131,7 @@ public sealed class SettingsService : IAuthSettings
         EnforceSingleSessionPerUser = s.EnforceSingleSessionPerUser,
         RefreshTokenRetentionDays = s.RefreshTokenRetentionDays,
         AnalyticsRetentionDays = s.AnalyticsRetentionDays,
+        LoginAuditRetentionDays = s.LoginAuditRetentionDays,
         EmailOtpMinutes = s.EmailOtpMinutes, MaxFailedLoginAttempts = s.MaxFailedLoginAttempts,
         LockoutMinutes = s.LockoutMinutes, BackupCodeCount = s.BackupCodeCount,
     };

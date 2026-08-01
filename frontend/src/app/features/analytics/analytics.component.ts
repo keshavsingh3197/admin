@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AnalyticsService } from '../../core/services/analytics.service';
 import { WebsiteDashboard, WebsiteOption } from '../../core/models/analytics.models';
@@ -8,6 +9,8 @@ type MetricKey =
   | 'websiteStatus'
   | 'visitsLast24h'
   | 'uniqueVisitorsLast24h';
+
+type Tab = 'website' | 'identity';
 
 @Component({
   selector: 'app-analytics',
@@ -39,94 +42,108 @@ type MetricKey =
         <p class="error">{{ error() }}</p>
       }
 
-      @if (loadingWebsites() || loadingDashboard()) {
-        <p class="loading">Loading dashboard...</p>
+      @if (loadingWebsites() && !dashboard()) {
+        <div class="initial-loading"><span class="spinner"></span> Loading dashboard…</div>
       }
 
       @if (dashboard(); as d) {
-        <section class="site-overview">
-          <h2>{{ d.website.name }}</h2>
-          <a [href]="d.website.url" target="_blank" rel="noopener">{{ d.website.url }}</a>
-          <div class="status" [class.ok]="d.status.isReachable" [class.down]="!d.status.isReachable">
-            {{ d.status.isReachable ? 'Reachable' : 'Unreachable' }}
-            <span>
-              @if (d.status.statusCode !== null) {
-                HTTP {{ d.status.statusCode }}
-              }
-              @if (d.status.responseMs !== null) {
-                • {{ d.status.responseMs }} ms
-              }
-            </span>
-          </div>
-          <small>Checked: {{ d.status.checkedAtUtc | date: 'medium' }}</small>
-        </section>
+        <nav class="tabs">
+          <button type="button" class="tab" [class.active]="activeTab() === 'website'" (click)="selectTab('website')">Website overview</button>
+          <button type="button" class="tab" [class.active]="activeTab() === 'identity'" (click)="selectTab('identity')">Identity platform (global)</button>
+        </nav>
 
-        <section class="cards">
-          <button type="button" class="card" [class.active]="selectedMetric() === 'websiteStatus'" (click)="selectMetric('websiteStatus')"><h3>Website status</h3><strong>{{ d.status.isReachable ? 'Up' : 'Down' }}</strong></button>
-          <button type="button" class="card" [class.active]="selectedMetric() === 'visitsLast24h'" (click)="selectMetric('visitsLast24h')"><h3>Visits (24h)</h3><strong>{{ d.metrics.visitsLast24h }}</strong></button>
-          <button type="button" class="card" [class.active]="selectedMetric() === 'uniqueVisitorsLast24h'" (click)="selectMetric('uniqueVisitorsLast24h')"><h3>Unique visitors (24h)</h3><strong>{{ d.metrics.uniqueVisitorsLast24h }}</strong></button>
-        </section>
-
-        <section class="idp-card">
-          <h3>Identity platform metrics (global)</h3>
-          <p>These values come from the shared identity provider, so they are the same across website selections.</p>
-          <div class="idp-grid">
-            <div><span>Total users</span><strong>{{ d.metrics.totalUsers }}</strong></div>
-            <div><span>Active users</span><strong>{{ d.metrics.activeUsers }}</strong></div>
-            <div><span>Active sessions</span><strong>{{ d.metrics.activeSessions }}</strong></div>
-            <div><span>Notes</span><strong>{{ d.metrics.totalNotes }}</strong></div>
-            <div><span>Successful logins (24h)</span><strong>{{ d.metrics.successfulLoginsLast24h }}</strong></div>
-            <div><span>Failed logins (24h)</span><strong>{{ d.metrics.failedLoginsLast24h }}</strong></div>
-          </div>
-        </section>
-
-        <section class="detail-card">
-          <h3>{{ detailTitle() }}</h3>
-          @if (selectedMetric() === 'visitsLast24h' || selectedMetric() === 'uniqueVisitorsLast24h') {
-            <div class="detail-grid">
-              <div>
-                <h4>Top countries</h4>
-                <ul>
-                  @for (c of d.details.topCountries; track c.country) {
-                    <li><span>{{ c.country }}</span><strong>{{ c.visits }}</strong></li>
-                  }
-                </ul>
-              </div>
-              <div>
-                <h4>Top pages</h4>
-                <ul>
-                  @for (p of d.details.topPages; track p.path) {
-                    <li><span>{{ p.path }}</span><strong>{{ p.visits }}</strong></li>
-                  }
-                </ul>
-              </div>
-            </div>
-
-            <h4>Recent visits</h4>
-            <div class="table-wrap">
-              <table class="tbl">
-                <thead>
-                  <tr><th>Time (UTC)</th><th>Path</th><th>Country</th><th>Referrer</th><th>Visitor</th></tr>
-                </thead>
-                <tbody>
-                  @for (v of d.details.recentVisits; track v.timestamp + v.visitorKey + v.path) {
-                    <tr>
-                      <td>{{ v.timestamp | date:'short' }}</td>
-                      <td>{{ v.path }}</td>
-                      <td>{{ v.country }}</td>
-                      <td>{{ v.referrer || '-' }}</td>
-                      <td>{{ v.visitorKey }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          } @else if (selectedMetric() === 'websiteStatus') {
-            <p class="hint">Availability check for {{ d.website.name }} was executed from the admin server using a direct HTTP request.</p>
-          } @else {
-            <p class="hint">Click Visits or Unique visitors to see geographic and page-level traffic details for this website.</p>
+        <div class="dashboard-body">
+          @if (loadingDashboard()) {
+            <div class="loading-overlay"><span class="spinner"></span> Refreshing…</div>
           }
-        </section>
+
+          @if (activeTab() === 'website') {
+            <section class="site-overview">
+              <h2>{{ d.website.name }}</h2>
+              <a [href]="d.website.url" target="_blank" rel="noopener">{{ d.website.url }}</a>
+              <div class="status" [class.ok]="d.status.isReachable" [class.down]="!d.status.isReachable">
+                {{ d.status.isReachable ? 'Reachable' : 'Unreachable' }}
+                <span>
+                  @if (d.status.statusCode !== null) {
+                    HTTP {{ d.status.statusCode }}
+                  }
+                  @if (d.status.responseMs !== null) {
+                    • {{ d.status.responseMs }} ms
+                  }
+                </span>
+              </div>
+              <small>Checked: {{ d.status.checkedAtUtc | date: 'medium' }}</small>
+            </section>
+
+            <section class="cards">
+              <button type="button" class="card" [class.active]="selectedMetric() === 'websiteStatus'" (click)="selectMetric('websiteStatus')"><h3>Website status</h3><strong>{{ d.status.isReachable ? 'Up' : 'Down' }}</strong></button>
+              <button type="button" class="card" [class.active]="selectedMetric() === 'visitsLast24h'" (click)="selectMetric('visitsLast24h')"><h3>Visits (24h)</h3><strong>{{ d.metrics.visitsLast24h }}</strong></button>
+              <button type="button" class="card" [class.active]="selectedMetric() === 'uniqueVisitorsLast24h'" (click)="selectMetric('uniqueVisitorsLast24h')"><h3>Unique visitors (24h)</h3><strong>{{ d.metrics.uniqueVisitorsLast24h }}</strong></button>
+            </section>
+
+            <section class="detail-card">
+              <h3>{{ detailTitle() }}</h3>
+              @if (selectedMetric() === 'visitsLast24h' || selectedMetric() === 'uniqueVisitorsLast24h') {
+                <div class="detail-grid">
+                  <div>
+                    <h4>Top countries</h4>
+                    <ul>
+                      @for (c of d.details.topCountries; track c.country) {
+                        <li><span>{{ c.country }}</span><strong>{{ c.visits }}</strong></li>
+                      }
+                    </ul>
+                  </div>
+                  <div>
+                    <h4>Top pages</h4>
+                    <ul>
+                      @for (p of d.details.topPages; track p.path) {
+                        <li><span>{{ p.path }}</span><strong>{{ p.visits }}</strong></li>
+                      }
+                    </ul>
+                  </div>
+                </div>
+
+                <h4>Recent visits</h4>
+                <div class="table-wrap">
+                  <table class="tbl">
+                    <thead>
+                      <tr><th>Time (UTC)</th><th>Path</th><th>Country</th><th>Referrer</th><th>Visitor</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (v of d.details.recentVisits; track v.timestamp + v.visitorKey + v.path) {
+                        <tr>
+                          <td>{{ v.timestamp | date:'short' }}</td>
+                          <td>{{ v.path }}</td>
+                          <td>{{ v.country }}</td>
+                          <td>{{ v.referrer || '-' }}</td>
+                          <td>{{ v.visitorKey }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else if (selectedMetric() === 'websiteStatus') {
+                <p class="hint">Availability check for {{ d.website.name }} was executed from the admin server using a direct HTTP request.</p>
+              } @else {
+                <p class="hint">Click Visits or Unique visitors to see geographic and page-level traffic details for this website.</p>
+              }
+            </section>
+          } @else {
+            <section class="idp-card">
+              <h3>Identity platform metrics</h3>
+              <p>These come from the shared identity provider used by every *.keshavsingh.in app, so they're the
+                same no matter which website is selected above. Click a card to manage that area.</p>
+              <div class="idp-grid">
+                <button type="button" class="idp-tile" (click)="goTo('/users')"><span>Total users</span><strong>{{ d.metrics.totalUsers }}</strong></button>
+                <button type="button" class="idp-tile" (click)="goTo('/users')"><span>Active users</span><strong>{{ d.metrics.activeUsers }}</strong></button>
+                <button type="button" class="idp-tile" (click)="goTo('/security')"><span>Active sessions</span><strong>{{ d.metrics.activeSessions }}</strong></button>
+                <button type="button" class="idp-tile" (click)="goTo('/notes')"><span>Notes</span><strong>{{ d.metrics.totalNotes }}</strong></button>
+                <button type="button" class="idp-tile" (click)="goTo('/data-retention')"><span>Successful logins (24h)</span><strong>{{ d.metrics.successfulLoginsLast24h }}</strong></button>
+                <button type="button" class="idp-tile" (click)="goTo('/data-retention')"><span>Failed logins (24h)</span><strong>{{ d.metrics.failedLoginsLast24h }}</strong></button>
+              </div>
+            </section>
+          }
+        </div>
       }
 
       @if (!loadingWebsites() && websites().length === 0) {
@@ -159,6 +176,44 @@ type MetricKey =
       color: #102a43;
     }
     .refresh-btn { cursor: pointer; }
+    .tabs { display: flex; gap: 0.4rem; border-bottom: 1px solid var(--border); }
+    .tab {
+      padding: 0.55rem 0.9rem;
+      border: none;
+      background: none;
+      color: var(--muted);
+      font-size: 0.9rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+    .dashboard-body { position: relative; display: grid; gap: 1rem; }
+    .initial-loading, .loading-overlay {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .initial-loading { padding: 2rem 0; }
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      background: color-mix(in srgb, var(--bg) 65%, transparent);
+      border-radius: 10px;
+      backdrop-filter: blur(1px);
+    }
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--brand);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .site-overview {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -223,6 +278,19 @@ type MetricKey =
       gap: 0.2rem;
       background: color-mix(in srgb, var(--surface) 90%, var(--bg));
     }
+    .idp-tile {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.6rem;
+      display: grid;
+      gap: 0.2rem;
+      text-align: left;
+      background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+    }
+    .idp-tile:hover { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 20%, transparent); }
     .idp-grid span { font-size: 0.8rem; color: var(--muted); }
     .idp-grid strong { font-size: 1.05rem; color: var(--text); }
     .detail-card {
@@ -254,6 +322,7 @@ type MetricKey =
 export class AnalyticsComponent implements OnInit {
   private readonly analytics = inject(AnalyticsService);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   readonly websites = signal<WebsiteOption[]>([]);
   readonly dashboard = signal<WebsiteDashboard | null>(null);
@@ -262,6 +331,7 @@ export class AnalyticsComponent implements OnInit {
   readonly loadingDashboard = signal(false);
   readonly error = signal<string>('');
   readonly selectedMetric = signal<MetricKey>('visitsLast24h');
+  readonly activeTab = signal<Tab>('website');
 
   ngOnInit(): void {
     this.loadWebsites();
@@ -336,6 +406,14 @@ export class AnalyticsComponent implements OnInit {
 
   selectMetric(metric: MetricKey): void {
     this.selectedMetric.set(metric);
+  }
+
+  selectTab(tab: Tab): void {
+    this.activeTab.set(tab);
+  }
+
+  goTo(route: string): void {
+    this.router.navigateByUrl(route);
   }
 
   detailTitle(): string {

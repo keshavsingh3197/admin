@@ -11,6 +11,7 @@ export interface SettingsView {
   enforceSingleSessionPerUser: boolean;
   refreshTokenRetentionDays: number;
   analyticsRetentionDays: number;
+  loginAuditRetentionDays: number;
   emailOtpMinutes: number;
   maxFailedLoginAttempts: number;
   lockoutMinutes: number;

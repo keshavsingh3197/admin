@@ -38,6 +38,7 @@ public sealed class AppSettings
     public bool EnforceSingleSessionPerUser { get; set; } = true;
     public int RefreshTokenRetentionDays { get; set; } = 30;
     public int AnalyticsRetentionDays { get; set; } = 90;
+    public int LoginAuditRetentionDays { get; set; } = 180;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

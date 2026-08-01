@@ -45,6 +45,7 @@ builder.Services.AddSingleton<CustomRoleService>();
 builder.Services.AddSingleton<GroupService>();
 builder.Services.AddSingleton<PermissionsService>();
 builder.Services.AddSingleton<SearchService>();
+builder.Services.AddSingleton<DataRetentionService>();
 builder.Services.AddHostedService<SessionRetentionCleanupWorker>();
 builder.Services.AddHttpClient();
 

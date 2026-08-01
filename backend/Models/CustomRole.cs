@@ -9,6 +9,7 @@ namespace Admin.Api.Models;
 /// authorization mechanism. Custom roles gate pages/features in the UI and can be assigned
 /// directly to a user or via a <see cref="Group"/>.
 /// </summary>
+[BsonIgnoreExtraElements]
 public sealed class CustomRole
 {
     [BsonId]

@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
@@ -17,7 +18,7 @@ interface SettingsImportPayload {
  */
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <div class="set-wrap">
       <div class="head">
@@ -104,7 +105,10 @@ interface SettingsImportPayload {
               <input class="input" type="number" min="1" max="365" name="rtr" [(ngModel)]="m.refreshTokenRetentionDays" /></label>
             <label class="field"><span>Analytics retention (days)</span>
               <input class="input" type="number" min="1" max="3650" name="ar" [(ngModel)]="m.analyticsRetentionDays" /></label>
+            <label class="field"><span>Login audit log retention (days)</span>
+              <input class="input" type="number" min="1" max="3650" name="lar" [(ngModel)]="m.loginAuditRetentionDays" /></label>
           </div>
+          <p class="hint">These retention windows are enforced automatically every 30 minutes. Use <a routerLink="/data-retention">Data retention</a> to clear a specific date range on demand.</p>
           <label class="chk"><input type="checkbox" name="singleSession" [(ngModel)]="m.enforceSingleSessionPerUser" /> Enforce single active session per user (new login closes others)</label>
 
           <h2>Sign-in security</h2>
@@ -468,6 +472,7 @@ export class SettingsComponent implements OnInit {
       enforceSingleSessionPerUser: m.enforceSingleSessionPerUser,
       refreshTokenRetentionDays: Number(m.refreshTokenRetentionDays),
       analyticsRetentionDays: Number(m.analyticsRetentionDays),
+      loginAuditRetentionDays: Number(m.loginAuditRetentionDays),
       emailOtpMinutes: Number(m.emailOtpMinutes),
       maxFailedLoginAttempts: Number(m.maxFailedLoginAttempts),
       lockoutMinutes: Number(m.lockoutMinutes),

@@ -22,10 +22,13 @@ public sealed class CustomRoleService
             cancellationToken: ct);
     }
 
+    /// <summary>
+    /// Upserts the built-in system roles by key so they always match the definitions below — this
+    /// also self-heals roles seeded under an older shape (e.g. before the per-website grants
+    /// redesign) instead of leaving stale/incompatible documents behind.
+    /// </summary>
     public async Task SeedSystemRolesAsync(CancellationToken ct = default)
     {
-        if (await _roles.Find(x => x.IsSystem).AnyAsync(ct)) return;
-
         var seeded = new List<CustomRole>
         {
             new()
@@ -66,7 +69,18 @@ public sealed class CustomRoleService
             },
         };
 
-        await _roles.InsertManyAsync(seeded, cancellationToken: ct);
+        foreach (var role in seeded)
+        {
+            // Reuse the existing _id/CreatedAt if this system role was already seeded — MongoDB
+            // disallows changing _id on a matched replace, and it keeps history stable.
+            var existing = await _roles.Find(x => x.Key == role.Key && x.IsSystem).FirstOrDefaultAsync(ct);
+            if (existing is not null)
+            {
+                role.Id = existing.Id;
+                role.CreatedAt = existing.CreatedAt;
+            }
+            await _roles.ReplaceOneAsync(x => x.Id == role.Id, role, new ReplaceOptions { IsUpsert = true }, ct);
+        }
     }
 
     public async Task<IReadOnlyList<CustomRoleView>> ListAsync(CancellationToken ct = default)
