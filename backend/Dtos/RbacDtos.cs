@@ -7,16 +7,18 @@ public sealed record PermissionCatalogItemDto(string Key, string Category, strin
 public sealed record WebsiteAccessOptionDto(string Key, string Name);
 
 public sealed record PermissionCatalogResponse(
-    IReadOnlyList<PermissionCatalogItemDto> Permissions,
+    IReadOnlyList<PermissionCatalogItemDto> AdminPermissions,
+    IReadOnlyList<PermissionCatalogItemDto> SiteActions,
     IReadOnlyList<WebsiteAccessOptionDto> Websites);
+
+public sealed record WebsiteGrantDto(string WebsiteKey, IReadOnlyList<string> Permissions);
 
 public sealed record CustomRoleView(
     string Id,
     string Key,
     string Name,
     string? Description,
-    IReadOnlyList<string> Permissions,
-    IReadOnlyList<string> WebsiteAccess,
+    IReadOnlyList<WebsiteGrantDto> WebsiteGrants,
     bool IsSystem,
     DateTime UpdatedAt);
 
@@ -24,8 +26,7 @@ public sealed record UpsertCustomRoleRequest(
     string Key,
     string Name,
     string? Description,
-    List<string> Permissions,
-    List<string> WebsiteAccess);
+    List<WebsiteGrantDto> WebsiteGrants);
 
 public sealed record GroupView(
     string Id,
@@ -42,10 +43,12 @@ public sealed record UpsertGroupRequest(
 
 public sealed record GroupMemberRequest(string UserId);
 
+public sealed record SiteAccessDto(string WebsiteKey, IReadOnlyList<string> Permissions);
+
 public sealed record EffectiveAccessDto(
-    IReadOnlyList<string> Permissions,
-    IReadOnlyList<string> WebsiteAccess,
-    bool HasFullWebsiteAccess,
+    IReadOnlyList<string> AdminPermissions,
+    IReadOnlyList<SiteAccessDto> SiteAccess,
+    bool HasWildcardSiteAccess,
     IReadOnlyList<string> RoleKeys);
 
 public sealed record SearchResultDto(string Type, string Id, string Title, string? Subtitle, string Route);

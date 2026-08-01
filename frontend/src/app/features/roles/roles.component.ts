@@ -8,12 +8,17 @@ import {
   PermissionCatalogItem,
   UpsertCustomRoleRequest,
   WebsiteAccessOption,
+  WebsiteGrant,
 } from '../../core/models/rbac.models';
 
+const ALL_WEBSITES_KEY = '*';
+const ADMIN_WEBSITE_KEY = 'admin';
+
 /**
- * Custom role management (Admin only). A role bundles page/action permissions plus website
- * access; roles are assigned to users directly or via groups. The fixed Admin/Editor/Viewer
- * roles remain the actual API authorization boundary — these roles gate pages/UI on top of that.
+ * Custom role management (Admin only). Every website — including this admin app itself — gets
+ * its own configurable set of pages/actions: pick a site, choose what it grants, add it to the
+ * role. The fixed Admin/Editor/Viewer roles remain the actual API authorization boundary; these
+ * roles gate pages/UI and per-site access on top of that.
  */
 @Component({
   selector: 'app-roles',
@@ -40,37 +45,68 @@ import {
               <input class="input" type="text" name="fDesc" [(ngModel)]="fDesc" /></label>
           </div>
 
-          <div class="section">
-            <span class="section-label">Pages</span>
-            <div class="chips">
-              @for (p of pagePermissions(); track p.key) {
-                <label class="chk" [title]="p.description">
-                  <input type="checkbox" [checked]="fPermissions.has(p.key)" (change)="togglePermission(p.key)" /> {{ p.label }}
-                </label>
-              }
-            </div>
-          </div>
-
-          <div class="section">
-            <span class="section-label">Actions</span>
-            <div class="chips">
-              @for (p of actionPermissions(); track p.key) {
-                <label class="chk" [title]="p.description">
-                  <input type="checkbox" [checked]="fPermissions.has(p.key)" (change)="togglePermission(p.key)" /> {{ p.label }}
-                </label>
-              }
-            </div>
-          </div>
-
-          <div class="section">
-            <span class="section-label">Website access</span>
-            <div class="chips">
-              <label class="chk"><input type="checkbox" [checked]="fAllWebsites()" (change)="toggleAllWebsites()" /> All websites</label>
-              @if (!fAllWebsites()) {
-                @for (w of websites(); track w.key) {
-                  <label class="chk"><input type="checkbox" [checked]="fWebsiteAccess.has(w.key)" (change)="toggleWebsite(w.key)" /> {{ w.name }}</label>
+          <div class="configurator">
+            <span class="section-label">Configure a website</span>
+            <div class="picker">
+              <select class="input" name="siteKey" [(ngModel)]="pickedSite" (ngModelChange)="onPickSite($event)">
+                <option value="">Search &amp; select a website…</option>
+                @for (w of websiteOptions(); track w.key) {
+                  <option [value]="w.key">{{ w.name }}</option>
                 }
+              </select>
+            </div>
+
+            @if (pickedSite) {
+              <div class="site-perms">
+                @if (pickedSite === adminKey) {
+                  <div class="chips">
+                    <span class="mini-label">Pages</span>
+                    @for (p of adminPages(); track p.key) {
+                      <label class="chk" [title]="p.description">
+                        <input type="checkbox" [checked]="pickedPermissions.has(p.key)" (change)="togglePermission(p.key)" /> {{ p.label }}
+                      </label>
+                    }
+                  </div>
+                  <div class="chips">
+                    <span class="mini-label">Actions</span>
+                    @for (p of adminActions(); track p.key) {
+                      <label class="chk" [title]="p.description">
+                        <input type="checkbox" [checked]="pickedPermissions.has(p.key)" (change)="togglePermission(p.key)" /> {{ p.label }}
+                      </label>
+                    }
+                  </div>
+                } @else {
+                  <div class="chips">
+                    @for (p of siteActions(); track p.key) {
+                      <label class="chk" [title]="p.description">
+                        <input type="checkbox" [checked]="pickedPermissions.has(p.key)" (change)="togglePermission(p.key)" /> {{ p.label }}
+                      </label>
+                    }
+                  </div>
+                }
+                <button class="btn-secondary" type="button" [disabled]="!pickedPermissions.size" (click)="addGrant()">
+                  {{ fGrants.has(pickedSite) ? 'Update this site' : 'Add this site' }}
+                </button>
+              </div>
+            }
+          </div>
+
+          <div class="section">
+            <span class="section-label">Configured websites</span>
+            <div class="grant-list">
+              @for (g of fGrantList(); track g.websiteKey) {
+                <div class="grant-card">
+                  <div class="grant-head">
+                    <strong>{{ siteName(g.websiteKey) }}</strong>
+                    <button class="linkish" type="button" (click)="editGrant(g)">Edit</button>
+                    <button class="linkish danger" type="button" (click)="removeGrant(g.websiteKey)">Remove</button>
+                  </div>
+                  <div class="grant-perms">
+                    @for (p of g.permissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
+                  </div>
+                </div>
               }
+              @if (!fGrantList().length) { <span class="muted-inline">No websites configured yet — pick one above.</span> }
             </div>
           </div>
 
@@ -89,25 +125,40 @@ import {
         <div class="table-scroll">
           <table class="tbl">
             <thead>
-              <tr><th>Name</th><th>Key</th><th>Permissions</th><th>Websites</th><th>Updated</th><th></th></tr>
+              <tr><th>Name</th><th>Key</th><th>Websites configured</th><th>Updated</th><th></th></tr>
             </thead>
             <tbody>
               @for (r of roles(); track r.id) {
                 <tr>
                   <td>{{ r.name }} @if (r.isSystem) { <span class="badge sys">System</span> }</td>
                   <td><code>{{ r.key }}</code></td>
-                  <td>{{ r.permissions.length }}</td>
-                  <td>{{ r.websiteAccess.includes('*') ? 'All' : r.websiteAccess.length }}</td>
+                  <td>{{ r.websiteGrants.length }}</td>
                   <td>{{ r.updatedAt | date:'short' }}</td>
                   <td>
+                    <button class="linkish" type="button" (click)="toggleView(r)">{{ viewId() === r.id ? 'Hide' : 'View' }}</button>
                     @if (!r.isSystem) {
                       <button class="linkish" type="button" (click)="startEdit(r)">Edit</button>
                       <button class="linkish danger" type="button" (click)="remove(r)">Delete</button>
                     }
                   </td>
                 </tr>
+                @if (viewId() === r.id) {
+                  <tr class="view-row"><td colspan="5">
+                    <div class="view-panel">
+                      @for (g of r.websiteGrants; track g.websiteKey) {
+                        <div class="grant-card">
+                          <strong>{{ siteName(g.websiteKey) }}</strong>
+                          <div class="grant-perms">
+                            @for (p of g.permissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
+                          </div>
+                        </div>
+                      }
+                      @if (!r.websiteGrants.length) { <span class="muted-inline">No website access configured.</span> }
+                    </div>
+                  </td></tr>
+                }
               }
-              @if (!roles().length) { <tr><td colspan="6">No roles.</td></tr> }
+              @if (!roles().length) { <tr><td colspan="5">No roles.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -124,10 +175,19 @@ import {
     .field span { display: block; margin-bottom: 0.3rem; font-size: 0.8rem; color: var(--muted); }
     .input { width: 100%; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; background: var(--bg); color: var(--text); }
     .input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 25%, transparent); }
+    .configurator { margin: 1.1rem 0; padding: 0.9rem; border: 1px dashed var(--border); border-radius: 8px; background: var(--bg); }
+    .picker { max-width: 360px; }
+    .site-perms { margin-top: 0.9rem; display: flex; flex-direction: column; gap: 0.7rem; }
+    .mini-label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.3rem; width: 100%; }
     .section { margin: 1rem 0; }
-    .section-label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
-    .chips { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; }
+    .section-label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: center; }
     .chk { font-size: 0.9rem; color: var(--text); display: inline-flex; align-items: center; gap: 0.3rem; }
+    .grant-list { display: flex; flex-direction: column; gap: 0.6rem; }
+    .grant-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem; }
+    .grant-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+    .grant-head strong { color: var(--text); font-size: 0.92rem; }
+    .grant-perms { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .form-actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
     .btn-primary { padding: 0.5rem 1rem; background: var(--brand); color: var(--brand-text); border: none; border-radius: 6px; cursor: pointer; }
     .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.55; cursor: default; }
@@ -136,38 +196,58 @@ import {
     .tbl { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
     .tbl th, .tbl td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--text); }
     .tbl th { background: var(--bg); font-weight: 600; }
-    .badge.sys { display: inline-block; background: color-mix(in srgb, var(--brand) 18%, var(--surface)); color: var(--brand); border-radius: 10px; padding: 0.1rem 0.5rem; font-size: 0.72rem; margin-left: 0.4rem; }
+    .badge { display: inline-block; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.78rem; }
+    .badge.sys { background: color-mix(in srgb, var(--brand) 18%, var(--surface)); color: var(--brand); margin-left: 0.4rem; font-size: 0.72rem; }
     .linkish { background: none; border: none; color: var(--brand); cursor: pointer; padding: 0 0.3rem; }
     .linkish.danger { color: #d93025; }
+    .view-row td { background: var(--bg); }
+    .view-panel { display: flex; flex-direction: column; gap: 0.6rem; }
+    .muted-inline { font-size: 0.85rem; color: var(--muted); }
     .banner { background: color-mix(in srgb, #d93025 12%, var(--surface)); color: #c5221f; border: 1px solid color-mix(in srgb, #d93025 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
     .banner.ok { background: color-mix(in srgb, #137333 12%, var(--surface)); color: #137333; border-color: color-mix(in srgb, #137333 30%, var(--border)); }
   `]
 })
 export class RolesComponent implements OnInit {
   private api = inject(RbacService);
+  readonly adminKey = ADMIN_WEBSITE_KEY;
 
   readonly roles = signal<CustomRoleView[]>([]);
-  readonly catalogItems = signal<PermissionCatalogItem[]>([]);
+  readonly adminPermItems = signal<PermissionCatalogItem[]>([]);
+  readonly siteActionItems = signal<PermissionCatalogItem[]>([]);
   readonly websites = signal<WebsiteAccessOption[]>([]);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
   readonly ok = signal(false);
+  readonly viewId = signal<string | null>(null);
 
   readonly showForm = signal(false);
   readonly editId = signal<string | null>(null);
   fKey = ''; fName = ''; fDesc = '';
-  readonly fPermissions = new Set<string>();
-  readonly fWebsiteAccess = new Set<string>();
+  /** Working set of website grants being built up for the form, keyed by website key. */
+  fGrants = new Map<string, WebsiteGrant>();
 
-  pagePermissions(): PermissionCatalogItem[] { return this.catalogItems().filter(p => p.category === 'Pages'); }
-  actionPermissions(): PermissionCatalogItem[] { return this.catalogItems().filter(p => p.category === 'Actions'); }
-  fAllWebsites(): boolean { return this.fWebsiteAccess.has('*'); }
+  pickedSite = '';
+  readonly pickedPermissions = new Set<string>();
+
+  adminPages(): PermissionCatalogItem[] { return this.adminPermItems().filter(p => p.category === 'Pages'); }
+  adminActions(): PermissionCatalogItem[] { return this.adminPermItems().filter(p => p.category === 'Actions'); }
+  siteActions(): PermissionCatalogItem[] { return this.siteActionItems(); }
+
+  websiteOptions(): WebsiteAccessOption[] {
+    return [{ key: ALL_WEBSITES_KEY, name: 'All other websites' }, ...this.websites()];
+  }
+
+  fGrantList(): WebsiteGrant[] { return [...this.fGrants.values()]; }
 
   ngOnInit(): void {
     this.reload();
     this.api.catalog().subscribe({
-      next: c => { this.catalogItems.set(c.permissions); this.websites.set(c.websites); },
+      next: c => {
+        this.adminPermItems.set(c.adminPermissions);
+        this.siteActionItems.set(c.siteActions);
+        this.websites.set(c.websites.filter(w => w.key !== ADMIN_WEBSITE_KEY));
+      },
       error: () => {},
     });
   }
@@ -180,26 +260,63 @@ export class RolesComponent implements OnInit {
     });
   }
 
-  togglePermission(key: string): void { this.fPermissions.has(key) ? this.fPermissions.delete(key) : this.fPermissions.add(key); }
-  toggleWebsite(key: string): void { this.fWebsiteAccess.has(key) ? this.fWebsiteAccess.delete(key) : this.fWebsiteAccess.add(key); }
-  toggleAllWebsites(): void {
-    this.fWebsiteAccess.clear();
-    if (!this.fAllWebsites()) this.fWebsiteAccess.add('*');
+  siteName(key: string): string {
+    if (key === ADMIN_WEBSITE_KEY) return 'Admin (this app)';
+    if (key === ALL_WEBSITES_KEY) return 'All other websites';
+    return this.websites().find(w => w.key === key)?.name ?? key;
   }
+
+  permissionLabel(key: string): string {
+    return this.adminPermItems().find(p => p.key === key)?.label
+      ?? this.siteActionItems().find(p => p.key === key)?.label
+      ?? key;
+  }
+
+  onPickSite(key: string): void {
+    this.pickedPermissions.clear();
+    if (!key) return;
+    const existing = this.fGrants.get(key);
+    existing?.permissions.forEach(p => this.pickedPermissions.add(p));
+  }
+
+  togglePermission(key: string): void {
+    this.pickedPermissions.has(key) ? this.pickedPermissions.delete(key) : this.pickedPermissions.add(key);
+  }
+
+  addGrant(): void {
+    if (!this.pickedSite || !this.pickedPermissions.size) return;
+    this.fGrants.set(this.pickedSite, { websiteKey: this.pickedSite, permissions: [...this.pickedPermissions] });
+    this.pickedSite = '';
+    this.pickedPermissions.clear();
+  }
+
+  editGrant(g: WebsiteGrant): void {
+    this.pickedSite = g.websiteKey;
+    this.pickedPermissions.clear();
+    g.permissions.forEach(p => this.pickedPermissions.add(p));
+  }
+
+  removeGrant(websiteKey: string): void {
+    this.fGrants.delete(websiteKey);
+    if (this.pickedSite === websiteKey) { this.pickedSite = ''; this.pickedPermissions.clear(); }
+  }
+
+  toggleView(r: CustomRoleView): void { this.viewId.set(this.viewId() === r.id ? null : r.id); }
 
   startCreate(): void {
     if (this.showForm() && !this.editId()) { this.showForm.set(false); return; }
     this.editId.set(null);
     this.fKey = ''; this.fName = ''; this.fDesc = '';
-    this.fPermissions.clear(); this.fWebsiteAccess.clear();
+    this.fGrants = new Map();
+    this.pickedSite = ''; this.pickedPermissions.clear();
     this.showForm.set(true);
   }
 
   startEdit(r: CustomRoleView): void {
     this.editId.set(r.id);
     this.fKey = r.key; this.fName = r.name; this.fDesc = r.description ?? '';
-    this.fPermissions.clear(); r.permissions.forEach(p => this.fPermissions.add(p));
-    this.fWebsiteAccess.clear(); r.websiteAccess.forEach(w => this.fWebsiteAccess.add(w));
+    this.fGrants = new Map(r.websiteGrants.map(g => [g.websiteKey, { websiteKey: g.websiteKey, permissions: [...g.permissions] }]));
+    this.pickedSite = ''; this.pickedPermissions.clear();
     this.showForm.set(true);
   }
 
@@ -211,8 +328,7 @@ export class RolesComponent implements OnInit {
       key: this.fKey.trim(),
       name: this.fName.trim(),
       description: this.fDesc.trim() || null,
-      permissions: [...this.fPermissions],
-      websiteAccess: [...this.fWebsiteAccess],
+      websiteGrants: this.fGrantList(),
     };
     this.busy.set(true);
     const obs = this.editId() ? this.api.updateRole(this.editId()!, req) : this.api.createRole(req);
@@ -237,3 +353,4 @@ export class RolesComponent implements OnInit {
     this.message.set(typeof err.error?.error === 'string' ? err.error.error : fallback);
   }
 }
+

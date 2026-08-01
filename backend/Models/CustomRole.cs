@@ -20,11 +20,11 @@ public sealed class CustomRole
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
 
-    /// <summary>Keys from <see cref="PermissionCatalog"/>.</summary>
-    public List<string> Permissions { get; set; } = new();
-
-    /// <summary>Website registry keys this role can access, or ["*"] for all websites.</summary>
-    public List<string> WebsiteAccess { get; set; } = new();
+    /// <summary>
+    /// Per-website permission grants. WebsiteKey is "admin" for this app's own pages/actions,
+    /// "*" for every external website, or a specific website registry key.
+    /// </summary>
+    public List<WebsiteGrant> WebsiteGrants { get; set; } = new();
 
     /// <summary>Seeded built-in role (admin/editor/viewer) — read-only via the API.</summary>
     public bool IsSystem { get; set; }

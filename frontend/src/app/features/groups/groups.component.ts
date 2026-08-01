@@ -3,7 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RbacService } from '../../core/services/rbac.service';
 import { UsersService } from '../../core/services/users.service';
-import { CustomRoleView, GroupView, UpsertGroupRequest } from '../../core/models/rbac.models';
+import {
+  CustomRoleView,
+  EffectiveAccess,
+  GroupView,
+  PermissionCatalogItem,
+  UpsertGroupRequest,
+  WebsiteAccessOption,
+} from '../../core/models/rbac.models';
 import { UserListItem } from '../../core/models/user.models';
 
 /**
@@ -64,11 +71,38 @@ import { UserListItem } from '../../core/models/user.models';
                   <td>@for (k of g.roleKeys; track k) { <span class="badge">{{ k }}</span> }</td>
                   <td>{{ g.memberUserIds.length }}</td>
                   <td>
+                    <button class="linkish" type="button" (click)="toggleAccess(g)">{{ accessId() === g.id ? 'Hide access' : 'View access' }}</button>
                     <button class="linkish" type="button" (click)="toggleMembers(g)">Members</button>
                     <button class="linkish" type="button" (click)="startEdit(g)">Edit</button>
                     <button class="linkish danger" type="button" (click)="remove(g)">Delete</button>
                   </td>
                 </tr>
+                @if (accessId() === g.id) {
+                  <tr class="view-row"><td colspan="4">
+                    <div class="view-panel">
+                      @if (previewLoading()) {
+                        <span class="muted">Loading access…</span>
+                      } @else if (preview()) {
+                        <div class="grant-card">
+                          <strong>Admin (this app)</strong>
+                          <div class="grant-perms">
+                            @for (p of preview()!.adminPermissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
+                            @if (!preview()!.adminPermissions.length) { <span class="muted">No admin app access.</span> }
+                          </div>
+                        </div>
+                        @for (s of preview()!.siteAccess; track s.websiteKey) {
+                          <div class="grant-card">
+                            <strong>{{ siteName(s.websiteKey) }}</strong>
+                            <div class="grant-perms">
+                              @for (p of s.permissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
+                            </div>
+                          </div>
+                        }
+                        @if (!preview()!.siteAccess.length) { <span class="muted">No other website access.</span> }
+                      }
+                    </div>
+                  </td></tr>
+                }
                 @if (membersId() === g.id) {
                   <tr class="edit-row"><td colspan="4">
                     <div class="edit-panel">
@@ -130,6 +164,11 @@ import { UserListItem } from '../../core/models/user.models';
     .linkish.danger { color: #d93025; }
     .edit-row td { background: var(--bg); }
     .edit-panel { display: flex; flex-direction: column; gap: 0.75rem; }
+    .view-row td { background: var(--bg); }
+    .view-panel { display: flex; flex-direction: column; gap: 0.6rem; }
+    .grant-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem; }
+    .grant-card strong { display: block; color: var(--text); font-size: 0.88rem; margin-bottom: 0.35rem; }
+    .grant-perms { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .add-member { display: flex; align-items: center; gap: 0.5rem; }
     .muted { color: var(--muted); font-size: 0.85rem; }
     .banner { background: color-mix(in srgb, #d93025 12%, var(--surface)); color: #c5221f; border: 1px solid color-mix(in srgb, #d93025 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
@@ -143,6 +182,9 @@ export class GroupsComponent implements OnInit {
   readonly groups = signal<GroupView[]>([]);
   readonly roles = signal<CustomRoleView[]>([]);
   readonly users = signal<UserListItem[]>([]);
+  readonly adminPermItems = signal<PermissionCatalogItem[]>([]);
+  readonly siteActionItems = signal<PermissionCatalogItem[]>([]);
+  readonly websites = signal<WebsiteAccessOption[]>([]);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
@@ -151,6 +193,9 @@ export class GroupsComponent implements OnInit {
   readonly showForm = signal(false);
   readonly editId = signal<string | null>(null);
   readonly membersId = signal<string | null>(null);
+  readonly accessId = signal<string | null>(null);
+  readonly preview = signal<EffectiveAccess | null>(null);
+  readonly previewLoading = signal(false);
   addUserId = '';
   fName = ''; fDesc = '';
   readonly fRoleKeys = new Set<string>();
@@ -159,6 +204,10 @@ export class GroupsComponent implements OnInit {
     this.reload();
     this.api.listRoles().subscribe({ next: r => this.roles.set(r), error: () => {} });
     this.usersApi.list().subscribe({ next: u => this.users.set(u), error: () => {} });
+    this.api.catalog().subscribe({
+      next: c => { this.adminPermItems.set(c.adminPermissions); this.siteActionItems.set(c.siteActions); this.websites.set(c.websites); },
+      error: () => {},
+    });
   }
 
   private reload(): void {
@@ -171,6 +220,27 @@ export class GroupsComponent implements OnInit {
 
   userName(id: string): string {
     return this.users().find(u => u.id === id)?.displayName ?? id;
+  }
+
+  siteName(key: string): string {
+    return this.websites().find(w => w.key === key)?.name ?? key;
+  }
+
+  permissionLabel(key: string): string {
+    return this.adminPermItems().find(p => p.key === key)?.label
+      ?? this.siteActionItems().find(p => p.key === key)?.label
+      ?? key;
+  }
+
+  toggleAccess(g: GroupView): void {
+    if (this.accessId() === g.id) { this.accessId.set(null); return; }
+    this.accessId.set(g.id);
+    this.preview.set(null);
+    this.previewLoading.set(true);
+    this.api.previewAccess(g.roleKeys).subscribe({
+      next: p => { this.previewLoading.set(false); this.preview.set(p); },
+      error: () => { this.previewLoading.set(false); },
+    });
   }
 
   availableUsers(g: GroupView): UserListItem[] {

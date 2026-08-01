@@ -38,6 +38,18 @@ public sealed class RbacController : ControllerBase
     public async Task<ActionResult<PermissionCatalogResponse>> Catalog(CancellationToken ct) =>
         Ok(await _permissions.GetCatalogAsync(ct));
 
+    /// <summary>Previews the merged page/website access a set of role keys would grant — used by
+    /// the Groups UI to show what a group currently gives its members.</summary>
+    [HttpGet("permissions/preview")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<EffectiveAccessDto>> Preview([FromQuery] string roleKeys, CancellationToken ct)
+    {
+        var keys = (roleKeys ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal);
+        return Ok(await _permissions.ComputeAccessAsync(keys, isAdmin: false, ct));
+    }
+
     // ---- Roles ----
 
     [HttpGet("roles")]

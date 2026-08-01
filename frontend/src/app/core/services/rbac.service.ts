@@ -26,6 +26,10 @@ export class RbacService {
     return this.http.get<PermissionCatalogResponse>(`${this.base}/rbac/permissions/catalog`);
   }
 
+  previewAccess(roleKeys: string[]): Observable<EffectiveAccess> {
+    return this.http.get<EffectiveAccess>(`${this.base}/rbac/permissions/preview`, { params: { roleKeys: roleKeys.join(',') } });
+  }
+
   listRoles(): Observable<CustomRoleView[]> {
     return this.http.get<CustomRoleView[]>(`${this.base}/rbac/roles`);
   }

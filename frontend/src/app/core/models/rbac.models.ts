@@ -14,8 +14,14 @@ export interface WebsiteAccessOption {
 }
 
 export interface PermissionCatalogResponse {
-  permissions: PermissionCatalogItem[];
+  adminPermissions: PermissionCatalogItem[];
+  siteActions: PermissionCatalogItem[];
   websites: WebsiteAccessOption[];
+}
+
+export interface WebsiteGrant {
+  websiteKey: string;
+  permissions: string[];
 }
 
 export interface CustomRoleView {
@@ -23,8 +29,7 @@ export interface CustomRoleView {
   key: string;
   name: string;
   description?: string | null;
-  permissions: string[];
-  websiteAccess: string[];
+  websiteGrants: WebsiteGrant[];
   isSystem: boolean;
   updatedAt: string;
 }
@@ -33,8 +38,7 @@ export interface UpsertCustomRoleRequest {
   key: string;
   name: string;
   description?: string | null;
-  permissions: string[];
-  websiteAccess: string[];
+  websiteGrants: WebsiteGrant[];
 }
 
 export interface GroupView {
@@ -52,10 +56,15 @@ export interface UpsertGroupRequest {
   roleKeys: string[];
 }
 
-export interface EffectiveAccess {
+export interface SiteAccess {
+  websiteKey: string;
   permissions: string[];
-  websiteAccess: string[];
-  hasFullWebsiteAccess: boolean;
+}
+
+export interface EffectiveAccess {
+  adminPermissions: string[];
+  siteAccess: SiteAccess[];
+  hasWildcardSiteAccess: boolean;
   roleKeys: string[];
 }
 
