@@ -3,6 +3,7 @@ using Admin.Api.Dtos;
 using Admin.Api.Models;
 using Fido2NetLib;
 using Fido2NetLib.Objects;
+using KeshavSingh.Auth;
 using KeshavSingh.Security;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;

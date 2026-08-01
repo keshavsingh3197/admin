@@ -1,4 +1,5 @@
 using Admin.Api.Models;
+using KeshavSingh.Auth;
 using KeshavSingh.Security;
 using MongoDB.Driver;
 

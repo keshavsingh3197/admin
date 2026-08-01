@@ -1,6 +1,7 @@
 using Admin.Api.Auth;
 using Admin.Api.Dtos;
 using Admin.Api.Models;
+using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Security;
 using Microsoft.Extensions.Options;
