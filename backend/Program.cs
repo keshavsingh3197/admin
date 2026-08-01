@@ -3,10 +3,12 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Admin.Api.Auth;
 using Admin.Api.Services;
+using Admin.Api.Dtos;
 using Fido2NetLib;
 using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Security;
+using KeshavSingh.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
@@ -29,11 +31,19 @@ builder.Services.Configure<PublicConfigOptions>(builder.Configuration.GetSection
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.Section));
 builder.Services.Configure<SsoCookieOptions>(builder.Configuration.GetSection(SsoCookieOptions.Section));
 builder.Services.Configure<WebAuthnOptions>(builder.Configuration.GetSection(WebAuthnOptions.Section));
+builder.Services.Configure<FileUploadOptions>(builder.Configuration.GetSection(FileUploadOptions.Section));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.Section).Get<JwtOptions>() ?? new JwtOptions();
 
 // ---- Data + domain services ----
 builder.Services.AddKeshavMongo(builder.Configuration);
+// Private per-user file storage (KeshavSingh.Storage). The provider + R2 credentials are managed
+// at runtime on the admin Settings screen (stored in Mongo, secret AES-encrypted), so SettingsService
+// is the live settings source — registered BEFORE AddKeshavStorage so it overrides the default
+// appsettings-based source. Defaults to local disk until an admin switches the provider to S3.
+builder.Services.AddSingleton<IStorageSettingsSource>(sp => sp.GetRequiredService<SettingsService>());
+builder.Services.AddKeshavStorage(builder.Configuration);
+builder.Services.AddSingleton<FileService>();
 builder.Services.AddSingleton<NoteService>();
 builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();

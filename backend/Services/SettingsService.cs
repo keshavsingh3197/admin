@@ -5,6 +5,7 @@ using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Core;
 using KeshavSingh.Security;
+using KeshavSingh.Storage;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -14,23 +15,27 @@ namespace Admin.Api.Services;
 /// DB-backed auth settings. Loads a cached singleton <see cref="AppSettings"/> from Mongo (seeding
 /// it from the "Auth" appsettings/env defaults on first run) and exposes the slice the shared auth
 /// engine reads via <see cref="IAuthSettings"/>. The cache is refreshed on every update.
+/// Also the runtime <see cref="IStorageSettingsSource"/> so the file-storage backend picks up
+/// provider/credential changes made here without a restart.
 /// </summary>
-public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
+public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorageSettingsSource
 {
     private readonly IMongoCollection<AppSettings> _col;
     private readonly AuthSettingsOptions _seed;
     private readonly JwtOptions _jwtSeed;
     private readonly PublicConfigOptions _publicSeed;
+    private readonly StorageOptions _storageSeed;
     private readonly DataProtector _protector;
     private volatile AppSettings _current = new();
 
     public SettingsService(MongoDbService db, IOptions<AuthSettingsOptions> seed, IOptions<JwtOptions> jwtSeed,
-        IOptions<PublicConfigOptions> publicSeed, DataProtector protector)
+        IOptions<PublicConfigOptions> publicSeed, IOptions<StorageOptions> storageSeed, DataProtector protector)
     {
         _col = db.GetCollection<AppSettings>("settings");
         _seed = seed.Value;
         _jwtSeed = jwtSeed.Value;
         _publicSeed = publicSeed.Value;
+        _storageSeed = storageSeed.Value;
         _protector = protector;
     }
 
@@ -55,6 +60,18 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
     public string WhatsAppAccessToken => Decrypt(_current.WhatsAppAccessTokenEncrypted) ?? string.Empty;
     public string WhatsAppPhoneNumberId => _current.WhatsAppPhoneNumberId;
     public string WhatsAppAlertToNumber => _current.WhatsAppAlertToNumber;
+
+    // ---- IStorageSettingsSource (read by the file-storage backend, live) ----
+    // LocalRoot stays a deploy-time setting (dev only); the S3 secret is decrypted here in memory only.
+    public ResolvedStorageSettings GetStorageSettings() => new()
+    {
+        Provider = _current.StorageProvider,
+        LocalRoot = _storageSeed.LocalRoot,
+        ServiceUrl = _current.StorageS3ServiceUrl,
+        Bucket = _current.StorageS3Bucket,
+        AccessKeyId = _current.StorageS3AccessKeyId,
+        SecretAccessKey = Decrypt(_current.StorageS3SecretAccessKeyEncrypted) ?? string.Empty,
+    };
 
     private string? Decrypt(string? value)
     {
@@ -88,6 +105,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
             MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
             LockoutMinutes = _seed.LockoutMinutes,
             BackupCodeCount = _seed.BackupCodeCount,
+            StorageProvider = _storageSeed.Provider,
         };
         await _col.ReplaceOneAsync(s => s.Id == AppSettings.SingletonId, seeded,
             new ReplaceOptions { IsUpsert = true });
@@ -103,7 +121,10 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
             s.LoginAuditRetentionDays,
             s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes, s.BackupCodeCount,
             s.WhatsAppAlertsEnabled, !string.IsNullOrEmpty(s.WhatsAppAccessTokenEncrypted),
-            s.WhatsAppPhoneNumberId, s.WhatsAppAlertToNumber, s.UpdatedAt);
+            s.WhatsAppPhoneNumberId, s.WhatsAppAlertToNumber,
+            s.StorageProvider, s.StorageS3ServiceUrl, s.StorageS3Bucket, s.StorageS3AccessKeyId,
+            !string.IsNullOrEmpty(s.StorageS3SecretAccessKeyEncrypted),
+            s.UpdatedAt);
     }
 
     /// <summary>The narrow, non-secret projection served publicly to every app.</summary>
@@ -143,6 +164,15 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
         if (r.WhatsAppPhoneNumberId is not null) s.WhatsAppPhoneNumberId = r.WhatsAppPhoneNumberId.Trim();
         if (r.WhatsAppAlertToNumber is not null) s.WhatsAppAlertToNumber = r.WhatsAppAlertToNumber.Trim();
 
+        // File storage backend. Provider is allow-listed; the S3 endpoint must be an absolute https URL.
+        // The secret key is write-only: a non-empty value replaces it (encrypted), blank keeps the stored one.
+        if (r.StorageProvider is not null) s.StorageProvider = ValidateStorageProvider(r.StorageProvider);
+        if (r.StorageS3ServiceUrl is not null) s.StorageS3ServiceUrl = ValidateS3ServiceUrl(r.StorageS3ServiceUrl);
+        if (r.StorageS3Bucket is not null) s.StorageS3Bucket = r.StorageS3Bucket.Trim();
+        if (r.StorageS3AccessKeyId is not null) s.StorageS3AccessKeyId = r.StorageS3AccessKeyId.Trim();
+        if (!string.IsNullOrEmpty(r.StorageS3SecretAccessKey))
+            s.StorageS3SecretAccessKeyEncrypted = _protector.Encrypt(r.StorageS3SecretAccessKey);
+
         s.UpdatedAt = DateTime.UtcNow;
         await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s,
             new ReplaceOptions { IsUpsert = true });
@@ -167,7 +197,34 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
         WhatsAppAccessTokenEncrypted = s.WhatsAppAccessTokenEncrypted,
         WhatsAppPhoneNumberId = s.WhatsAppPhoneNumberId,
         WhatsAppAlertToNumber = s.WhatsAppAlertToNumber,
+        StorageProvider = s.StorageProvider,
+        StorageS3ServiceUrl = s.StorageS3ServiceUrl,
+        StorageS3Bucket = s.StorageS3Bucket,
+        StorageS3AccessKeyId = s.StorageS3AccessKeyId,
+        StorageS3SecretAccessKeyEncrypted = s.StorageS3SecretAccessKeyEncrypted,
     };
+
+    /// <summary>Storage provider is an allowlist: only "Local" or "S3" (mapped to 400 otherwise).</summary>
+    private static string ValidateStorageProvider(string value)
+    {
+        var v = value.Trim();
+        if (v.Equals("Local", StringComparison.OrdinalIgnoreCase)) return "Local";
+        if (v.Equals("S3", StringComparison.OrdinalIgnoreCase)) return "S3";
+        throw new ArgumentException("Storage provider must be 'Local' or 'S3'.");
+    }
+
+    /// <summary>
+    /// The S3/R2 endpoint. Empty is allowed (clears it); otherwise it must be an absolute https URL
+    /// (e.g. https://&lt;account-id&gt;.r2.cloudflarestorage.com). Allowlist on scheme, at the boundary.
+    /// </summary>
+    private static string ValidateS3ServiceUrl(string value)
+    {
+        var url = value.Trim();
+        if (url.Length == 0) return string.Empty;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps)
+            throw new ArgumentException("Storage S3 service URL must be an absolute https URL.");
+        return u.GetLeftPart(UriPartial.Authority);
+    }
 
     /// <summary>
     /// Validates a launcher URL at the trust boundary: it must be an absolute https URL (http only

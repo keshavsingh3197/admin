@@ -31,6 +31,12 @@ import { ConfigService } from '../../core/services/config.service';
           <p>Manage your notes and important information.</p>
         </a>
 
+        <a class="card" routerLink="/files">
+          <span class="card-icon">🗂️</span>
+          <h2>Files</h2>
+          <p>Your private files — encrypted and visible only to you.</p>
+        </a>
+
         @if (blogAdminUrl()) {
           <a class="card" [href]="blogAdminUrl()" target="_blank" rel="noopener">
             <span class="card-icon">✍️</span>

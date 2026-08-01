@@ -24,6 +24,12 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'files',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/files/files.component').then((m) => m.FilesComponent),
+  },
+  {
     path: 'security',
     canActivate: [authGuard],
     loadComponent: () =>

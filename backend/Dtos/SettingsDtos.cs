@@ -23,6 +23,11 @@ public sealed record SettingsView(
     bool WhatsAppAccessTokenSet,
     string WhatsAppPhoneNumberId,
     string WhatsAppAlertToNumber,
+    string StorageProvider,
+    string StorageS3ServiceUrl,
+    string StorageS3Bucket,
+    string StorageS3AccessKeyId,
+    bool StorageS3SecretAccessKeySet,
     DateTime UpdatedAt);
 
 /// <summary>Partial update — only non-null fields are applied.</summary>
@@ -47,7 +52,12 @@ public sealed record UpdateSettingsRequest(
     bool? WhatsAppAlertsEnabled,
     string? WhatsAppAccessToken,
     string? WhatsAppPhoneNumberId,
-    string? WhatsAppAlertToNumber);
+    string? WhatsAppAlertToNumber,
+    string? StorageProvider,
+    string? StorageS3ServiceUrl,
+    string? StorageS3Bucket,
+    string? StorageS3AccessKeyId,
+    string? StorageS3SecretAccessKey);
 
 /// <summary>
 /// The non-secret, shareable config served publicly at <c>GET /api/config</c> for every

@@ -47,5 +47,14 @@ public sealed class AppSettings
     public string WhatsAppPhoneNumberId { get; set; } = string.Empty;
     public string WhatsAppAlertToNumber { get; set; } = string.Empty;
 
+    // ---- Private file storage backend (KeshavSingh.Storage), managed on the Settings screen ----
+    // Provider "Local" keeps files on disk; "S3" uses an S3-compatible bucket (Cloudflare R2). The
+    // access key is an identifier (stored as-is); the secret is AES-encrypted like the WhatsApp token.
+    public string StorageProvider { get; set; } = "Local";       // "Local" | "S3"
+    public string StorageS3ServiceUrl { get; set; } = string.Empty;
+    public string StorageS3Bucket { get; set; } = string.Empty;
+    public string StorageS3AccessKeyId { get; set; } = string.Empty;
+    public string? StorageS3SecretAccessKeyEncrypted { get; set; }   // 🔒 AES-encrypted.
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

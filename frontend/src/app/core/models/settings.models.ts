@@ -21,11 +21,21 @@ export interface SettingsView {
   whatsAppAccessTokenSet: boolean;
   whatsAppPhoneNumberId: string;
   whatsAppAlertToNumber: string;
+  storageProvider: string;            // 'Local' | 'S3'
+  storageS3ServiceUrl: string;
+  storageS3Bucket: string;
+  storageS3AccessKeyId: string;
+  storageS3SecretAccessKeySet: boolean;
   updatedAt: string;
 }
 
-/** whatsAppAccessTokenSet is read-only (server tells us if a token is stored); write via whatsAppAccessToken instead. */
-export type UpdateSettingsRequest = Partial<Omit<SettingsView, 'updatedAt' | 'whatsAppAccessTokenSet'>> & { whatsAppAccessToken?: string };
+/**
+ * The *Set booleans are read-only (server tells us whether a secret is stored); write the secrets
+ * via whatsAppAccessToken / storageS3SecretAccessKey instead — a blank value keeps the stored one.
+ */
+export type UpdateSettingsRequest =
+  Partial<Omit<SettingsView, 'updatedAt' | 'whatsAppAccessTokenSet' | 'storageS3SecretAccessKeySet'>>
+  & { whatsAppAccessToken?: string; storageS3SecretAccessKey?: string };
 
 export interface WebsiteLinkView {
   id: string;

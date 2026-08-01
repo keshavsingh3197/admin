@@ -147,6 +147,35 @@ interface SettingsImportPayload {
               <input class="input" type="text" name="waTo" [(ngModel)]="m.whatsAppAlertToNumber" /></label>
           </div>
 
+          <h2>File storage</h2>
+          <p class="hint">Where private user files are stored. <strong>Local</strong> keeps them on the server's
+             disk (fine for dev; wiped on redeploy of an ephemeral host). <strong>Cloudflare R2</strong>
+             stores them in a private, S3-compatible bucket (encrypted at rest). The secret key is stored
+             encrypted and is never shown again — leave it blank to keep the current one.</p>
+          <div class="grid">
+            <label class="field"><span>Provider</span>
+              <select class="input" name="storageProvider" [(ngModel)]="m.storageProvider">
+                <option value="Local">Local disk</option>
+                <option value="S3">Cloudflare R2 (S3)</option>
+              </select></label>
+          </div>
+          @if (m.storageProvider === 'S3') {
+            <div class="grid">
+              <label class="field"><span>Endpoint URL (https://&lt;account-id&gt;.r2.cloudflarestorage.com)</span>
+                <input class="input" type="text" name="s3Url" placeholder="https://….r2.cloudflarestorage.com"
+                  [(ngModel)]="m.storageS3ServiceUrl" /></label>
+              <label class="field"><span>Bucket name</span>
+                <input class="input" type="text" name="s3Bucket" [(ngModel)]="m.storageS3Bucket" /></label>
+              <label class="field"><span>Access Key ID</span>
+                <input class="input" type="text" name="s3KeyId" autocomplete="off"
+                  [(ngModel)]="m.storageS3AccessKeyId" /></label>
+              <label class="field"><span>Secret Access Key {{ m.storageS3SecretAccessKeySet ? '(already set — leave blank to keep)' : '' }}</span>
+                <input class="input" type="password" name="s3Secret" autocomplete="new-password"
+                  placeholder="{{ m.storageS3SecretAccessKeySet ? '••••••••' : 'R2 secret access key' }}"
+                  [(ngModel)]="storageS3SecretInput" /></label>
+            </div>
+          }
+
           <h2>First-run checklist</h2>
           <p class="hint">For a fresh deployment, keep bootstrap secrets in env or Key Vault and manage non-secret runtime settings here after sign-in.</p>
           <ul class="checklist">
@@ -268,6 +297,8 @@ export class SettingsComponent implements OnInit {
   readonly websites = signal<WebsiteLinkView[]>([]);
   /** Write-only draft for the WhatsApp access token; blank means "leave the stored token unchanged". */
   whatsAppAccessTokenInput = '';
+  /** Write-only draft for the R2 secret access key; blank means "leave the stored secret unchanged". */
+  storageS3SecretInput = '';
   editingWebsiteId: string | null = null;
   websiteDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 100 };
   readonly loading = signal(true);
@@ -288,6 +319,7 @@ export class SettingsComponent implements OnInit {
         this.model.set(settings);
         this.websites.set(websites);
         this.whatsAppAccessTokenInput = '';
+        this.storageS3SecretInput = '';
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -307,6 +339,7 @@ export class SettingsComponent implements OnInit {
         this.busy.set(false);
         this.model.set(s);
         this.whatsAppAccessTokenInput = '';
+        this.storageS3SecretInput = '';
         this.config.refresh(); // Propagate launcher/branding changes to the cached central config.
         this.ok.set(true);
         this.message.set('Settings saved.');
@@ -504,6 +537,11 @@ export class SettingsComponent implements OnInit {
       whatsAppPhoneNumberId: m.whatsAppPhoneNumberId,
       whatsAppAlertToNumber: m.whatsAppAlertToNumber,
       ...(this.whatsAppAccessTokenInput ? { whatsAppAccessToken: this.whatsAppAccessTokenInput } : {}),
+      storageProvider: m.storageProvider,
+      storageS3ServiceUrl: m.storageS3ServiceUrl,
+      storageS3Bucket: m.storageS3Bucket,
+      storageS3AccessKeyId: m.storageS3AccessKeyId,
+      ...(this.storageS3SecretInput ? { storageS3SecretAccessKey: this.storageS3SecretInput } : {}),
     };
   }
 
