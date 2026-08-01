@@ -23,10 +23,11 @@ public sealed class AppSettings
     public string BlogUrl { get; set; } = "https://blog.keshavsingh.in";
     public string BlogAdminUrl { get; set; } = "https://blog.keshavsingh.in/admin";
 
-    // Email/SMS second-factor toggles. Admin uses logging notification stubs, so these stay off
-    // unless real senders are wired; TOTP (authenticator) 2FA works regardless via /security.
+    // Email/SMS/WhatsApp second-factor toggles. Admin uses logging notification stubs, so these
+    // stay off unless real senders are wired; TOTP (authenticator) 2FA works regardless via /security.
     public bool EmailTwoFactorEnabled { get; set; }
     public bool SmsTwoFactorEnabled { get; set; }
+    public bool WhatsAppTwoFactorEnabled { get; set; }
 
     public int EmailOtpMinutes { get; set; } = 5;
     public int MaxFailedLoginAttempts { get; set; } = 5;

@@ -37,6 +37,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
     // ---- IAuthSettings (read by the engine) ----
     public bool EmailTwoFactorEnabled => _current.EmailTwoFactorEnabled;
     public bool SmsTwoFactorEnabled => _current.SmsTwoFactorEnabled;
+    public bool WhatsAppTwoFactorEnabled => _current.WhatsAppTwoFactorEnabled;
     public int EmailOtpMinutes => _current.EmailOtpMinutes;
     public int MaxFailedLoginAttempts => _current.MaxFailedLoginAttempts;
     public int LockoutMinutes => _current.LockoutMinutes;
@@ -75,6 +76,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
             BlogAdminUrl = _publicSeed.BlogAdminUrl,
             EmailTwoFactorEnabled = _seed.EmailTwoFactorEnabled,
             SmsTwoFactorEnabled = _seed.SmsTwoFactorEnabled,
+            WhatsAppTwoFactorEnabled = _seed.WhatsAppTwoFactorEnabled,
             AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
             RefreshTokenDays = _jwtSeed.RefreshTokenDays,
             TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
@@ -96,7 +98,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
     {
         var s = _current;
         return new SettingsView(s.SiteTitle, s.BlogUrl, s.BlogAdminUrl, s.EmailTwoFactorEnabled,
-            s.SmsTwoFactorEnabled, s.AccessTokenMinutes, s.RefreshTokenDays, s.TwoFactorTokenMinutes,
+            s.SmsTwoFactorEnabled, s.WhatsAppTwoFactorEnabled, s.AccessTokenMinutes, s.RefreshTokenDays, s.TwoFactorTokenMinutes,
             s.EnforceSingleSessionPerUser, s.RefreshTokenRetentionDays, s.AnalyticsRetentionDays,
             s.LoginAuditRetentionDays,
             s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes, s.BackupCodeCount,
@@ -122,6 +124,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
         if (r.BlogAdminUrl is not null) s.BlogAdminUrl = ValidateLauncherUrl(r.BlogAdminUrl, nameof(r.BlogAdminUrl));
         if (r.EmailTwoFactorEnabled is { } e) s.EmailTwoFactorEnabled = e;
         if (r.SmsTwoFactorEnabled is { } sm) s.SmsTwoFactorEnabled = sm;
+        if (r.WhatsAppTwoFactorEnabled is { } wa2fa) s.WhatsAppTwoFactorEnabled = wa2fa;
         if (r.AccessTokenMinutes is { } atm) s.AccessTokenMinutes = Math.Clamp(atm, 1, 240);
         if (r.RefreshTokenDays is { } rtd) s.RefreshTokenDays = Math.Clamp(rtd, 1, 90);
         if (r.TwoFactorTokenMinutes is { } tft) s.TwoFactorTokenMinutes = Math.Clamp(tft, 1, 30);
@@ -151,6 +154,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings
     {
         Id = s.Id, SiteTitle = s.SiteTitle, BlogUrl = s.BlogUrl, BlogAdminUrl = s.BlogAdminUrl,
         EmailTwoFactorEnabled = s.EmailTwoFactorEnabled, SmsTwoFactorEnabled = s.SmsTwoFactorEnabled,
+        WhatsAppTwoFactorEnabled = s.WhatsAppTwoFactorEnabled,
         AccessTokenMinutes = s.AccessTokenMinutes, RefreshTokenDays = s.RefreshTokenDays,
         TwoFactorTokenMinutes = s.TwoFactorTokenMinutes,
         EnforceSingleSessionPerUser = s.EnforceSingleSessionPerUser,

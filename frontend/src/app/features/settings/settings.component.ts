@@ -124,10 +124,11 @@ interface SettingsImportPayload {
           </div>
 
           <h2>Two-factor fallback</h2>
-          <p class="hint">Authenticator (TOTP) 2FA always works. Email/SMS fallback only delivers once real
-             email/SMS senders are configured for this service.</p>
+          <p class="hint">Authenticator (TOTP) 2FA always works. Email/SMS/WhatsApp fallback only delivers once real
+             email/SMS/WhatsApp senders are configured for this service.</p>
           <label class="chk"><input type="checkbox" name="e2fa" [(ngModel)]="m.emailTwoFactorEnabled" /> Allow email code fallback</label>
           <label class="chk"><input type="checkbox" name="s2fa" [(ngModel)]="m.smsTwoFactorEnabled" /> Allow SMS code fallback</label>
+          <label class="chk"><input type="checkbox" name="wa2fa" [(ngModel)]="m.whatsAppTwoFactorEnabled" /> Allow WhatsApp code fallback</label>
 
           <h2>WhatsApp security alerts</h2>
           <p class="hint">Sends a WhatsApp message (via the Meta Cloud API) to the number below whenever an
@@ -487,6 +488,7 @@ export class SettingsComponent implements OnInit {
       blogAdminUrl: m.blogAdminUrl,
       emailTwoFactorEnabled: m.emailTwoFactorEnabled,
       smsTwoFactorEnabled: m.smsTwoFactorEnabled,
+      whatsAppTwoFactorEnabled: m.whatsAppTwoFactorEnabled,
       accessTokenMinutes: Number(m.accessTokenMinutes),
       refreshTokenDays: Number(m.refreshTokenDays),
       twoFactorTokenMinutes: Number(m.twoFactorTokenMinutes),

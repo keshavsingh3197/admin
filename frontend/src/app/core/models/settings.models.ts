@@ -5,6 +5,7 @@ export interface SettingsView {
   blogAdminUrl: string;
   emailTwoFactorEnabled: boolean;
   smsTwoFactorEnabled: boolean;
+  whatsAppTwoFactorEnabled: boolean;
   accessTokenMinutes: number;
   refreshTokenDays: number;
   twoFactorTokenMinutes: number;
