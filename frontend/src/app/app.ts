@@ -3,6 +3,7 @@ import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/rou
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from './core/services/auth.service';
+import { AnalyticsService } from './core/services/analytics.service';
 
 @Component({
   selector: 'app-root',
@@ -14,6 +15,7 @@ export class App {
   protected readonly auth = inject(AuthService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
+  private analytics = inject(AnalyticsService);
 
   readonly routeLoading = signal(false);
   readonly theme = signal<'light' | 'dark' | 'brand'>(this.detectInitialTheme());
@@ -38,6 +40,13 @@ export class App {
           event instanceof NavigationError
         ) {
           this.routeLoading.set(false);
+        }
+
+        // Track this admin app itself as a website in Analytics, same as the external sites.
+        if (event instanceof NavigationEnd) {
+          this.analytics
+            .trackVisit({ websiteKey: 'admin', path: event.urlAfterRedirects })
+            .subscribe({ error: () => {} });
         }
       });
   }

@@ -73,5 +73,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/data-retention/data-retention.component').then((m) => m.DataRetentionComponent),
   },
+  {
+    path: 'health',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/health/health.component').then((m) => m.HealthComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

@@ -27,6 +27,7 @@ public static class PermissionCatalog
         new("page.roles", "Pages", "Roles & Permissions", "Access role management."),
         new("page.groups", "Pages", "Groups", "Access group management."),
         new("page.search", "Pages", "Search", "Use the global search."),
+        new("page.health", "Pages", "System Health", "View diagnostic checks for data and configuration integrity."),
         new("action.users.manage", "Actions", "Manage users", "Create, edit, deactivate, delete users."),
         new("action.roles.manage", "Actions", "Manage roles", "Create, edit, delete custom roles."),
         new("action.groups.manage", "Actions", "Manage groups", "Create, edit, delete groups and membership."),
