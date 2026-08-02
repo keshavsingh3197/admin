@@ -3,7 +3,22 @@
     <a class="brand" routerLink="/">🛡️ Admin</a>
 
     @if (auth.isAuthenticated()) {
-      <nav class="app-nav">
+      <button
+        class="nav-toggle"
+        type="button"
+        [class.open]="navOpen()"
+        (click)="toggleNav()"
+        [attr.aria-expanded]="navOpen()"
+        aria-controls="app-nav"
+        aria-label="Toggle navigation menu">
+        <span class="hamburger" aria-hidden="true"></span>
+      </button>
+
+      @if (navOpen()) {
+        <div class="nav-backdrop" (click)="closeNav()"></div>
+      }
+
+      <nav class="app-nav" id="app-nav" [class.open]="navOpen()" (click)="closeNav()">
         <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Dashboard</a>
         <a routerLink="/notes" routerLinkActive="active">Notes</a>
         <a routerLink="/messages" routerLinkActive="active">Messages</a>

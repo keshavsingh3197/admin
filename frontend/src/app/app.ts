@@ -18,6 +18,7 @@ export class App {
   private analytics = inject(AnalyticsService);
 
   readonly routeLoading = signal(false);
+  readonly navOpen = signal(false);
   readonly theme = signal<'light' | 'dark' | 'brand'>(this.detectInitialTheme());
 
   constructor() {
@@ -40,6 +41,7 @@ export class App {
           event instanceof NavigationError
         ) {
           this.routeLoading.set(false);
+          this.navOpen.set(false);
         }
 
         // Track this admin app itself as a website in Analytics, same as the external sites.
@@ -53,6 +55,14 @@ export class App {
 
   logout(): void {
     this.auth.logout().subscribe({ next: () => this.router.navigate(['/login']) });
+  }
+
+  toggleNav(): void {
+    this.navOpen.update((open) => !open);
+  }
+
+  closeNav(): void {
+    this.navOpen.set(false);
   }
 
   toggleTheme(): void {
