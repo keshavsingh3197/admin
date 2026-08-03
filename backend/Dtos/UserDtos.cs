@@ -24,6 +24,9 @@ public sealed record UpdateUserRequest(
 public sealed record ResetPasswordRequest(
     [Required, MinLength(12), MaxLength(256)] string NewPassword);
 
+/// <summary>Self-service: who can see the caller in the chat directory. "everyone" or "family".</summary>
+public sealed record UpdateChatVisibilityRequest([Required] string Visibility);
+
 public sealed record UserListItem(
     string Id,
     string Email,
@@ -33,6 +36,7 @@ public sealed record UserListItem(
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> CustomRoleKeys,
     IReadOnlyList<string> GroupIds,
+    string ChatVisibility,
     bool IsActive,
     bool TwoFactorEnabled,
     DateTime? LastLoginAt,

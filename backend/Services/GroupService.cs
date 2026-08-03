@@ -30,6 +30,18 @@ public sealed class GroupService
     public async Task<IReadOnlyList<Group>> ListForUserAsync(string userId, CancellationToken ct = default) =>
         await _groups.Find(x => x.MemberUserIds.Contains(userId)).ToListAsync(ct);
 
+    /// <summary>
+    /// Every other user who shares a family-circle group with <paramref name="userId"/> (used to
+    /// resolve chat visibility set to "family" — see <see cref="Admin.Api.Services.AdminChatUserDirectory"/>).
+    /// </summary>
+    public async Task<HashSet<string>> FamilyMemberIdsAsync(string userId, CancellationToken ct = default)
+    {
+        var groups = await _groups.Find(x => x.IsFamilyCircle && x.MemberUserIds.Contains(userId)).ToListAsync(ct);
+        var ids = new HashSet<string>(groups.SelectMany(g => g.MemberUserIds));
+        ids.Remove(userId);
+        return ids;
+    }
+
     public async Task<GroupView> CreateAsync(UpsertGroupRequest request, CancellationToken ct = default)
     {
         var entity = new Group
@@ -37,6 +49,7 @@ public sealed class GroupService
             Name = request.Name.Trim(),
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
             RoleKeys = (request.RoleKeys ?? new()).Distinct().ToList(),
+            IsFamilyCircle = request.IsFamilyCircle,
         };
         await _groups.InsertOneAsync(entity, cancellationToken: ct);
         return Map(entity);
@@ -48,6 +61,7 @@ public sealed class GroupService
             .Set(x => x.Name, request.Name.Trim())
             .Set(x => x.Description, string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim())
             .Set(x => x.RoleKeys, (request.RoleKeys ?? new()).Distinct().ToList())
+            .Set(x => x.IsFamilyCircle, request.IsFamilyCircle)
             .Set(x => x.UpdatedAt, DateTime.UtcNow);
 
         var updated = await _groups.FindOneAndUpdateAsync(x => x.Id == id, update,
@@ -75,5 +89,5 @@ public sealed class GroupService
     }
 
     private static GroupView Map(Group x) =>
-        new(x.Id, x.Name, x.Description, x.RoleKeys, x.MemberUserIds, x.UpdatedAt);
+        new(x.Id, x.Name, x.Description, x.RoleKeys, x.MemberUserIds, x.IsFamilyCircle, x.UpdatedAt);
 }

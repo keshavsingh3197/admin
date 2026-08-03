@@ -36,6 +36,7 @@ export interface Message {
   sentAt: string;
   readAt: string | null;
   deleted: boolean;
+  forwarded: boolean;
 }
 
 export interface AdminConversation {
@@ -52,4 +53,11 @@ export interface AdminBlock {
   blockedName: string;
   reason: string;
   createdAt: string;
+}
+
+export type ChatVisibility = 'everyone' | 'family';
+
+export interface ShareLink {
+  token: string;
+  expiresAt: string;
 }

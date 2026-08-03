@@ -43,6 +43,23 @@ public sealed class UsersController : ControllerBase
         return Ok(Map(user, groupIds));
     }
 
+    /// <summary>Self-service: choose who can find the caller in the chat directory — "everyone" or "family".</summary>
+    [HttpPut("me/chat-visibility")]
+    public async Task<ActionResult<UserListItem>> UpdateChatVisibility(UpdateChatVisibilityRequest request)
+    {
+        var visibility = request.Visibility.Trim().ToLowerInvariant();
+        if (visibility is not ("everyone" or "family"))
+            return BadRequest(new { error = "Visibility must be 'everyone' or 'family'." });
+
+        var userId = User.GetUserId();
+        var user = await _users.FindOneAndUpdateAsync<User>(u => u.Id == userId,
+            Builders<User>.Update.Set(u => u.ChatVisibility, visibility).Set(u => u.UpdatedAt, DateTime.UtcNow),
+            new FindOneAndUpdateOptions<User> { ReturnDocument = ReturnDocument.After });
+        if (user is null) return Unauthorized();
+        var groupIds = (await _groups.ListForUserAsync(userId)).Select(g => g.Id).ToList();
+        return Ok(Map(user, groupIds));
+    }
+
     [HttpGet]
     [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<IReadOnlyList<UserListItem>>> List()
@@ -189,5 +206,5 @@ public sealed class UsersController : ControllerBase
 
     private static UserListItem Map(User u, IReadOnlyList<string> groupIds) => new(
         u.Id, u.Email, u.Username, u.DisplayName, u.PhoneNumber, u.Roles, u.CustomRoleKeys, groupIds,
-        u.IsActive, u.TwoFactorEnabled, u.LastLoginAt, u.CreatedAt);
+        u.ChatVisibility, u.IsActive, u.TwoFactorEnabled, u.LastLoginAt, u.CreatedAt);
 }

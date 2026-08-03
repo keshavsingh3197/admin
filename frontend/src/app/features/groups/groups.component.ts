@@ -47,6 +47,10 @@ import { UserListItem } from '../../core/models/user.models';
               }
             </div>
           </div>
+          <div class="section">
+            <label class="chk"><input type="checkbox" name="fFamilyCircle" [(ngModel)]="fFamilyCircle" /> Family circle
+              <span class="hint">Members can find each other in chat even when set to "Family only" visibility.</span></label>
+          </div>
           <div class="form-actions">
             <button class="btn-primary" type="submit" [disabled]="busy() || !fName">
               {{ busy() ? 'Saving…' : (editId() ? 'Save group' : 'Create group') }}
@@ -62,7 +66,7 @@ import { UserListItem } from '../../core/models/user.models';
         <div class="table-scroll">
           <table class="tbl">
             <thead>
-              <tr><th>Name</th><th>Roles</th><th>Members</th><th></th></tr>
+              <tr><th>Name</th><th>Roles</th><th>Members</th><th>Family</th><th></th></tr>
             </thead>
             <tbody>
               @for (g of groups(); track g.id) {
@@ -70,6 +74,7 @@ import { UserListItem } from '../../core/models/user.models';
                   <td>{{ g.name }}</td>
                   <td>@for (k of g.roleKeys; track k) { <span class="badge">{{ k }}</span> }</td>
                   <td>{{ g.memberUserIds.length }}</td>
+                  <td>@if (g.isFamilyCircle) { <span class="badge">Family circle</span> }</td>
                   <td>
                     <button class="linkish" type="button" (click)="toggleAccess(g)">{{ accessId() === g.id ? 'Hide access' : 'View access' }}</button>
                     <button class="linkish" type="button" (click)="toggleMembers(g)">Members</button>
@@ -78,7 +83,7 @@ import { UserListItem } from '../../core/models/user.models';
                   </td>
                 </tr>
                 @if (accessId() === g.id) {
-                  <tr class="view-row"><td colspan="4">
+                  <tr class="view-row"><td colspan="5">
                     <div class="view-panel">
                       @if (previewLoading()) {
                         <span class="muted">Loading access…</span>
@@ -104,7 +109,7 @@ import { UserListItem } from '../../core/models/user.models';
                   </td></tr>
                 }
                 @if (membersId() === g.id) {
-                  <tr class="edit-row"><td colspan="4">
+                  <tr class="edit-row"><td colspan="5">
                     <div class="edit-panel">
                       <div class="chips">
                         @for (uid of g.memberUserIds; track uid) {
@@ -128,7 +133,7 @@ import { UserListItem } from '../../core/models/user.models';
                   </td></tr>
                 }
               }
-              @if (!groups().length) { <tr><td colspan="4">No groups.</td></tr> }
+              @if (!groups().length) { <tr><td colspan="5">No groups.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -149,6 +154,7 @@ import { UserListItem } from '../../core/models/user.models';
     .section-label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
     .chips { display: flex; flex-wrap: wrap; gap: 0.6rem 0.6rem; }
     .chk { font-size: 0.9rem; color: var(--text); display: inline-flex; align-items: center; gap: 0.3rem; }
+    .chk .hint { font-size: 0.78rem; color: var(--muted); font-weight: normal; }
     .form-actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
     .btn-primary { padding: 0.5rem 1rem; background: var(--brand); color: var(--brand-text); border: none; border-radius: 6px; cursor: pointer; }
     .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.55; cursor: default; }
@@ -197,7 +203,7 @@ export class GroupsComponent implements OnInit {
   readonly preview = signal<EffectiveAccess | null>(null);
   readonly previewLoading = signal(false);
   addUserId = '';
-  fName = ''; fDesc = '';
+  fName = ''; fDesc = ''; fFamilyCircle = false;
   readonly fRoleKeys = new Set<string>();
 
   ngOnInit(): void {
@@ -252,13 +258,13 @@ export class GroupsComponent implements OnInit {
   startCreate(): void {
     if (this.showForm() && !this.editId()) { this.showForm.set(false); return; }
     this.editId.set(null);
-    this.fName = ''; this.fDesc = ''; this.fRoleKeys.clear();
+    this.fName = ''; this.fDesc = ''; this.fFamilyCircle = false; this.fRoleKeys.clear();
     this.showForm.set(true);
   }
 
   startEdit(g: GroupView): void {
     this.editId.set(g.id);
-    this.fName = g.name; this.fDesc = g.description ?? '';
+    this.fName = g.name; this.fDesc = g.description ?? ''; this.fFamilyCircle = g.isFamilyCircle;
     this.fRoleKeys.clear(); g.roleKeys.forEach(k => this.fRoleKeys.add(k));
     this.showForm.set(true);
   }
@@ -271,6 +277,7 @@ export class GroupsComponent implements OnInit {
       name: this.fName.trim(),
       description: this.fDesc.trim() || null,
       roleKeys: [...this.fRoleKeys],
+      isFamilyCircle: this.fFamilyCircle,
     };
     this.busy.set(true);
     const obs = this.editId() ? this.api.updateGroup(this.editId()!, req) : this.api.createGroup(req);

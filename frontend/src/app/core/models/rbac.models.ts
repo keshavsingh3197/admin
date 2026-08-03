@@ -47,6 +47,7 @@ export interface GroupView {
   description?: string | null;
   roleKeys: string[];
   memberUserIds: string[];
+  isFamilyCircle: boolean;
   updatedAt: string;
 }
 
@@ -54,6 +55,7 @@ export interface UpsertGroupRequest {
   name: string;
   description?: string | null;
   roleKeys: string[];
+  isFamilyCircle: boolean;
 }
 
 export interface SiteAccess {

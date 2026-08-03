@@ -21,6 +21,10 @@ public sealed class User
 
     public List<string> Roles { get; set; } = new();
 
+    /// <summary>Who can see this user in the chat directory/search: "everyone" or "family" (only users
+    /// sharing a family-circle <see cref="Group"/> with them). Defaults to open for backward compat.</summary>
+    public string ChatVisibility { get; set; } = "everyone";
+
     /// <summary>Custom role keys (see <see cref="CustomRole"/>) assigned directly to this user,
     /// in addition to any granted via group membership.</summary>
     public List<string> CustomRoleKeys { get; set; } = new();

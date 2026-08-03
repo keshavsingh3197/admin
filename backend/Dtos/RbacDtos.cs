@@ -34,12 +34,14 @@ public sealed record GroupView(
     string? Description,
     IReadOnlyList<string> RoleKeys,
     IReadOnlyList<string> MemberUserIds,
+    bool IsFamilyCircle,
     DateTime UpdatedAt);
 
 public sealed record UpsertGroupRequest(
     string Name,
     string? Description,
-    List<string> RoleKeys);
+    List<string> RoleKeys,
+    bool IsFamilyCircle = false);
 
 public sealed record GroupMemberRequest(string UserId);
 

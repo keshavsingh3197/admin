@@ -7,18 +7,28 @@ namespace Admin.Api.Services;
 /// <summary>
 /// Bridges the chat package (<see cref="IChatUserDirectory"/>) to admin's own user store (the
 /// <c>users</c> collection). Excludes inactive/deleted users; display name falls back to email.
+/// Also applies each user's <see cref="User.ChatVisibility"/>: a user set to "family" is only
+/// listed for callers who share a family-circle <see cref="Group"/> with them.
 /// </summary>
 public sealed class AdminChatUserDirectory : IChatUserDirectory
 {
     private readonly IMongoCollection<User> _users;
+    private readonly GroupService _groups;
 
-    public AdminChatUserDirectory(MongoDbService db) => _users = db.GetCollection<User>("users");
+    public AdminChatUserDirectory(MongoDbService db, GroupService groups)
+    {
+        _users = db.GetCollection<User>("users");
+        _groups = groups;
+    }
 
     public async Task<IReadOnlyList<ChatDirectoryEntry>> ListActiveAsync(string excludeUserId, CancellationToken ct = default)
     {
         var users = await _users.Find(u => !u.IsDeleted && u.IsActive && u.Id != excludeUserId)
             .SortBy(u => u.DisplayName).ToListAsync(ct);
-        return users.Select(u => new ChatDirectoryEntry(u.Id, DisplayOf(u))).ToList();
+
+        var familyIds = await _groups.FamilyMemberIdsAsync(excludeUserId, ct);
+        var visible = users.Where(u => u.ChatVisibility != "family" || familyIds.Contains(u.Id));
+        return visible.Select(u => new ChatDirectoryEntry(u.Id, DisplayOf(u))).ToList();
     }
 
     public async Task<IReadOnlyDictionary<string, string>> DisplayNamesAsync(IEnumerable<string> ids, CancellationToken ct = default)

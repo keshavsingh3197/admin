@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
-import { AdminBlock, AdminConversation, Conversation, DirectoryUser, Message, PresenceState } from '../models/chat.models';
+import { AdminBlock, AdminConversation, Conversation, DirectoryUser, Message, PresenceState, ShareLink } from '../models/chat.models';
 
 /**
  * Owns the single SignalR chat connection (presence + live message push) and the REST calls for
@@ -91,6 +91,19 @@ export class ChatService {
 
   downloadAttachment(messageId: string): Observable<Blob> {
     return this.http.get(`${this.base}/chat/attachments/${messageId}`, { responseType: 'blob' });
+  }
+
+  forward(messageId: string, targetConversationId: string): Observable<Message> {
+    return this.http.post<Message>(`${this.base}/chat/messages/${messageId}/forward`, { targetConversationId });
+  }
+
+  createShareLink(messageId: string): Observable<ShareLink> {
+    return this.http.post<ShareLink>(`${this.base}/chat/messages/${messageId}/share-link`, {});
+  }
+
+  /** Public URL for a share link token — no auth needed, safe to copy/share outside the app. */
+  shareLinkUrl(token: string): string {
+    return `${this.base}/chat/share/${token}`;
   }
 
   // ---- Admin moderation ----

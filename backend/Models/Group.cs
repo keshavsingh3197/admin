@@ -22,6 +22,13 @@ public sealed class Group
 
     public List<string> MemberUserIds { get; set; } = new();
 
+    /// <summary>
+    /// When true, members can see each other in the chat directory even if their individual
+    /// <c>ChatVisibility</c> is set to "family" (as opposed to "everyone"). A user may belong to more
+    /// than one family-circle group; sharing membership in any one of them is enough.
+    /// </summary>
+    public bool IsFamilyCircle { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

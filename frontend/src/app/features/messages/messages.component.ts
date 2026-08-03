@@ -1,5 +1,5 @@
 import {
-  AfterViewChecked, ChangeDetectionStrategy, Component, ElementRef, ViewChild,
+  AfterViewChecked, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, ViewChild,
   computed, effect, inject, signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -8,7 +8,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/models/chat.models';
+import { UsersService } from '../../core/services/users.service';
+import { Attachment, ChatVisibility, Conversation, DirectoryUser, Message, PresenceState } from '../../core/models/chat.models';
 
 @Component({
   selector: 'app-messages',
@@ -21,6 +22,10 @@ import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/
       <aside class="side">
         <div class="side-head">
           <h1>Messages</h1>
+          <div class="vis-toggle" title="Who can find you when searching the chat directory">
+            <button type="button" class="vis-btn" [class.active]="visibility() === 'everyone'" (click)="setVisibility('everyone')">🌐 Everyone</button>
+            <button type="button" class="vis-btn" [class.active]="visibility() === 'family'" (click)="setVisibility('family')">👪 Family</button>
+          </div>
           <button class="btn primary sm" (click)="openDirectory()">＋ New</button>
         </div>
 
@@ -76,9 +81,26 @@ import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/
                 <div class="bubble" [class.mine]="isMine(m)">
                   @if (m.deleted) { <em class="deleted">message removed</em> }
                   @else {
+                    @if (m.forwarded) { <span class="fwd-tag">↪ Forwarded</span> }
                     @if (m.body) { <span class="body">{{ m.body }}</span> }
-                    @if (m.attachment) {
-                      <button class="attach" (click)="downloadAttachment(m)">📎 {{ m.attachment.fileName }}</button>
+                    @if (m.attachment; as att) {
+                      @if (isImage(att)) {
+                        <img class="att-img" [src]="mediaUrl(m)" (click)="downloadAttachment(m)" alt="{{ att.fileName }}" />
+                      } @else if (isAudio(att)) {
+                        <audio class="att-audio" [src]="mediaUrl(m)" controls></audio>
+                      } @else if (isVideo(att)) {
+                        <video class="att-video" [src]="mediaUrl(m)" controls></video>
+                      } @else {
+                        <button class="attach" (click)="downloadAttachment(m)">📎 {{ att.fileName }}</button>
+                      }
+                      <div class="msg-tools">
+                        <button class="mini-btn" type="button" (click)="openForward(m)" title="Forward">↪</button>
+                        <button class="mini-btn" type="button" (click)="shareAttachment(m)" title="Copy share link">🔗</button>
+                      </div>
+                    } @else {
+                      <div class="msg-tools">
+                        <button class="mini-btn" type="button" (click)="openForward(m)" title="Forward">↪</button>
+                      </div>
                     }
                   }
                   <span class="time">{{ m.sentAt | date:'shortTime' }}@if (isMine(m)) { <span class="rcpt">{{ m.readAt ? '✓✓' : '✓' }}</span> }</span>
@@ -99,8 +121,9 @@ import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/
           } @else {
             <form class="composer" (ngSubmit)="sendMessage()">
               @if (file()) { <span class="file-chip">📎 {{ file()!.name }} <button type="button" (click)="clearFile()">✕</button></span> }
-              <button type="button" class="icon-btn" (click)="attach.click()" title="Attach">📎</button>
+              <button type="button" class="icon-btn" (click)="attach.click()" title="Attach a file or video">📎</button>
               <input #attach type="file" hidden (change)="onFile($event)">
+              <button type="button" class="icon-btn" [class.recording]="recording()" (click)="toggleVoice()" title="Record a voice message">{{ recording() ? '⏹️' : '🎙️' }}</button>
               <input class="input" placeholder="Type a message…" [(ngModel)]="draft" name="draft" autocomplete="off" />
               <button class="btn primary" type="submit" [disabled]="!draft.trim() && !file()">Send</button>
             </form>
@@ -115,6 +138,7 @@ import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/
     </div>
 
     @if (error()) { <div class="toast">{{ error() }}</div> }
+    @if (notice()) { <div class="toast info">{{ notice() }}</div> }
 
     <!-- Directory picker -->
     @if (directoryOpen()) {
@@ -133,12 +157,32 @@ import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/
         </div>
       </div>
     }
+
+    @if (forwardTarget(); as fm) {
+      <div class="overlay" (click)="forwardTarget.set(null)">
+        <div class="panel" (click)="$event.stopPropagation()">
+          <header class="p-head"><span class="p-title">Forward to…</span>
+            <button class="icon-btn" (click)="forwardTarget.set(null)">✕</button></header>
+          <div class="p-body">
+            @for (c of threads(); track c.id) {
+              <button class="dir-row" (click)="forwardTo(c)">
+                <span class="dot" [class]="presenceOf(c)"></span>{{ c.partnerName }}
+              </button>
+            }
+            @if (!threads().length) { <p class="muted pad">No other conversations to forward to.</p> }
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     .chat { display: grid; grid-template-columns: 300px 1fr; gap: 1rem; height: calc(100vh - 120px); padding: 1.5rem; }
     .side { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
-    .side-head { display: flex; align-items: center; justify-content: space-between; padding: .75rem 1rem; border-bottom: 1px solid var(--border); }
+    .side-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .75rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
     .side-head h1 { margin: 0; font-size: 1.1rem; }
+    .vis-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 99px; overflow: hidden; }
+    .vis-btn { border: none; background: var(--bg); color: var(--muted); padding: .3rem .6rem; font-size: .75rem; cursor: pointer; }
+    .vis-btn.active { background: var(--brand); color: var(--brand-text); }
     .reqs { padding: .5rem; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
     .reqs-title { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: .1rem .25rem .4rem; }
     .req { display: flex; flex-direction: column; gap: .35rem; padding: .4rem; }
@@ -166,6 +210,14 @@ import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/
     .bubble.mine { background: var(--brand); color: var(--brand-text); border-color: transparent; }
     .body { white-space: pre-wrap; word-break: break-word; font-size: .9rem; }
     .attach { background: color-mix(in srgb, #000 6%, transparent); border: none; border-radius: 6px; padding: .25rem .5rem; cursor: pointer; font-size: .82rem; color: inherit; text-align: left; }
+    .att-img { max-width: 100%; max-height: 220px; border-radius: 8px; cursor: pointer; display: block; }
+    .att-audio { max-width: 100%; }
+    .att-video { max-width: 100%; max-height: 260px; border-radius: 8px; display: block; }
+    .fwd-tag { font-size: .72rem; opacity: .75; font-style: italic; }
+    .msg-tools { display: flex; gap: .3rem; }
+    .mini-btn { background: none; border: none; cursor: pointer; font-size: .78rem; opacity: .7; padding: 0 .15rem; color: inherit; }
+    .mini-btn:hover { opacity: 1; }
+    .icon-btn.recording { background: #d93025; color: #fff; }
     .time { font-size: .68rem; opacity: .7; align-self: flex-end; }
     .rcpt { margin-left: .25rem; }
     .deleted { opacity: .7; }
@@ -186,6 +238,7 @@ import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/
     .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); }
     .muted { color: var(--muted); } .muted.sm { font-size: .82rem; } .pad { padding: 1rem; }
     .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 8px; padding: .6rem 1rem; z-index: 50; }
+    .toast.info { background: #e6f4ea; color: #137333; border-color: #b7dfc0; }
     .overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, #0a1020 55%, transparent); backdrop-filter: blur(2px); }
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: min(420px, 92%); max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
     .p-head { display: flex; align-items: center; justify-content: space-between; padding: .75rem 1rem; border-bottom: 1px solid var(--border); }
@@ -196,9 +249,10 @@ import { Conversation, DirectoryUser, Message, PresenceState } from '../../core/
     @media (max-width: 720px) { .chat { grid-template-columns: 1fr; height: auto; } }
   `],
 })
-export class MessagesComponent implements AfterViewChecked {
+export class MessagesComponent implements AfterViewChecked, OnDestroy {
   chat = inject(ChatService);
   private auth = inject(AuthService);
+  private usersApi = inject(UsersService);
   @ViewChild('thread') threadEl?: ElementRef<HTMLElement>;
 
   conversations = signal<Conversation[]>([]);
@@ -207,10 +261,17 @@ export class MessagesComponent implements AfterViewChecked {
   directory = signal<DirectoryUser[]>([]);
   directoryOpen = signal(false);
   error = signal<string | null>(null);
+  notice = signal<string | null>(null);
   draft = '';
   file = signal<File | null>(null);
+  visibility = signal<ChatVisibility>('everyone');
+  mediaUrls = signal<Record<string, string>>({});
+  recording = signal(false);
+  forwardTarget = signal<Message | null>(null);
 
   private shouldScroll = false;
+  private mediaRecorder: MediaRecorder | null = null;
+  private recordedChunks: Blob[] = [];
 
   readonly myId = computed(() => this.auth.user()?.id ?? '');
   readonly active = computed(() => this.conversations().find(c => c.id === this.activeId()) ?? null);
@@ -219,10 +280,16 @@ export class MessagesComponent implements AfterViewChecked {
 
   constructor() {
     this.chat.connect();
+    this.usersApi.me().subscribe({ next: u => this.visibility.set(u.chatVisibility), error: () => {} });
     // Refresh the list whenever the server signals a change (also runs once on init).
     effect(() => { this.chat.conversationsDirty(); this.loadConversations(); });
     // Append a pushed message to the open thread.
     effect(() => { const m = this.chat.incoming(); if (m) this.onIncoming(m); });
+  }
+
+  ngOnDestroy(): void {
+    for (const url of Object.values(this.mediaUrls())) URL.revokeObjectURL(url);
+    this.mediaRecorder?.stream?.getTracks().forEach(t => t.stop());
   }
 
   ngAfterViewChecked(): void {
@@ -248,7 +315,7 @@ export class MessagesComponent implements AfterViewChecked {
   openConversation(c: Conversation): void {
     this.activeId.set(c.id);
     this.chat.messages(c.id).subscribe({
-      next: ms => { this.messages.set(ms); this.shouldScroll = true; },
+      next: ms => { this.messages.set(ms); this.shouldScroll = true; this.ensureMediaUrls(ms); },
       error: () => this.error.set('Could not load this conversation.'),
     });
     if (c.unreadCount) this.chat.markRead(c.id).subscribe({ next: () => this.loadConversations(), error: () => {} });
@@ -258,6 +325,7 @@ export class MessagesComponent implements AfterViewChecked {
     if (m.conversationId === this.activeId()) {
       this.messages.update(list => list.some(x => x.id === m.id) ? list : [...list, m]);
       this.shouldScroll = true;
+      this.ensureMediaUrls([m]);
       if (!this.isMine(m)) this.chat.markRead(m.conversationId).subscribe({ next: () => {}, error: () => {} });
     }
   }
@@ -271,6 +339,7 @@ export class MessagesComponent implements AfterViewChecked {
         this.draft = ''; this.file.set(null);
         this.messages.update(list => list.some(x => x.id === m.id) ? list : [...list, m]);
         this.shouldScroll = true;
+        this.ensureMediaUrls([m]);
       },
       error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not send the message.'),
     });
@@ -320,6 +389,96 @@ export class MessagesComponent implements AfterViewChecked {
         URL.revokeObjectURL(url);
       },
       error: () => this.error.set('Could not download the attachment.'),
+    });
+  }
+
+  setVisibility(v: ChatVisibility): void {
+    if (this.visibility() === v) return;
+    this.usersApi.updateChatVisibility(v).subscribe({
+      next: () => this.visibility.set(v),
+      error: () => this.error.set('Could not update your visibility.'),
+    });
+  }
+
+  isImage(a: Attachment): boolean { return a.contentType.startsWith('image/'); }
+  isAudio(a: Attachment): boolean { return a.contentType.startsWith('audio/'); }
+  isVideo(a: Attachment): boolean { return a.contentType.startsWith('video/'); }
+
+  mediaUrl(m: Message): string | null {
+    return m.attachment ? this.mediaUrls()[m.id] ?? null : null;
+  }
+
+  private ensureMediaUrls(list: Message[]): void {
+    for (const m of list) {
+      if (!m.attachment || m.deleted || this.mediaUrls()[m.id]) continue;
+      if (!this.isImage(m.attachment) && !this.isAudio(m.attachment) && !this.isVideo(m.attachment)) continue;
+      this.chat.downloadAttachment(m.id).subscribe({
+        next: blob => {
+          const url = URL.createObjectURL(blob);
+          this.mediaUrls.update(map => ({ ...map, [m.id]: url }));
+        },
+        error: () => {},
+      });
+    }
+  }
+
+  async toggleVoice(): Promise<void> {
+    if (this.recording()) { this.mediaRecorder?.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      this.recordedChunks = [];
+      recorder.ondataavailable = e => { if (e.data.size) this.recordedChunks.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(this.recordedChunks, { type: recorder.mimeType || 'audio/webm' });
+        const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type });
+        this.recording.set(false);
+        this.sendVoice(file);
+      };
+      this.mediaRecorder = recorder;
+      recorder.start();
+      this.recording.set(true);
+    } catch {
+      this.error.set('Microphone access was denied or is unavailable.');
+    }
+  }
+
+  private sendVoice(file: File): void {
+    const id = this.activeId();
+    if (!id) return;
+    this.chat.send(id, '', file).subscribe({
+      next: m => {
+        this.messages.update(list => list.some(x => x.id === m.id) ? list : [...list, m]);
+        this.shouldScroll = true;
+        this.ensureMediaUrls([m]);
+      },
+      error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not send the voice message.'),
+    });
+  }
+
+  openForward(m: Message): void { this.forwardTarget.set(m); }
+
+  forwardTo(c: Conversation): void {
+    const m = this.forwardTarget();
+    if (!m) return;
+    this.forwardTarget.set(null);
+    this.chat.forward(m.id, c.id).subscribe({
+      next: () => { if (c.id === this.activeId()) this.openConversation(c); },
+      error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not forward the message.'),
+    });
+  }
+
+  shareAttachment(m: Message): void {
+    this.chat.createShareLink(m.id).subscribe({
+      next: link => {
+        const url = this.chat.shareLinkUrl(link.token);
+        navigator.clipboard?.writeText(url).catch(() => {});
+        this.notice.set('Share link copied — expires ' + new Date(link.expiresAt).toLocaleDateString());
+        setTimeout(() => this.notice.set(null), 4000);
+      },
+      error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not create a share link.'),
     });
   }
 }

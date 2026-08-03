@@ -1,4 +1,5 @@
 import { Role } from './auth.models';
+import { ChatVisibility } from './chat.models';
 
 /** A managed user as returned by GET /api/users. Mirrors the backend UserListItem DTO. */
 export interface UserListItem {
@@ -10,6 +11,7 @@ export interface UserListItem {
   roles: Role[];
   customRoleKeys: string[];
   groupIds: string[];
+  chatVisibility: ChatVisibility;
   isActive: boolean;
   twoFactorEnabled: boolean;
   lastLoginAt?: string | null;

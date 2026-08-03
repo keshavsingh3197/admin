@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { CreateUserRequest, UpdateUserRequest, UserListItem } from '../models/user.models';
+import { ChatVisibility } from '../models/chat.models';
 import { Role } from '../models/auth.models';
 
 /** Client for the identity provider's user & role management API (/api/users, /api/roles). */
@@ -10,6 +11,14 @@ import { Role } from '../models/auth.models';
 export class UsersService {
   private http = inject(HttpClient);
   private readonly base = environment.apiUrl;
+
+  me(): Observable<UserListItem> {
+    return this.http.get<UserListItem>(`${this.base}/users/me`);
+  }
+
+  updateChatVisibility(visibility: ChatVisibility): Observable<UserListItem> {
+    return this.http.put<UserListItem>(`${this.base}/users/me/chat-visibility`, { visibility });
+  }
 
   list(): Observable<UserListItem[]> {
     return this.http.get<UserListItem[]>(`${this.base}/users`);
