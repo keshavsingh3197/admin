@@ -90,15 +90,28 @@ import { Advisory, AdvisorySeverity, FinanceOverview, HouseholdMetrics } from '.
                 @if (m.allocation.length === 0) {
                   <p class="muted">No investments recorded.</p>
                 } @else {
-                  @for (s of m.allocation; track s.assetClass) {
-                    <div class="meter-row">
-                      <div class="meter-top">
-                        <span><span class="dot" [class]="s.assetClass.toLowerCase()"></span>{{ s.assetClass }}</span>
-                        <span class="muted">{{ s.pct }}% · {{ money(s.value) }}</span>
-                      </div>
-                      <div class="meter"><span class="meter-fill" [class]="s.assetClass.toLowerCase()" [style.width.%]="s.pct"></span></div>
-                    </div>
-                  }
+                  <div class="alloc">
+                    <svg viewBox="0 0 42 42" class="donut" role="img" aria-label="Asset allocation by class">
+                      <circle class="donut-track" cx="21" cy="21" r="15.915" fill="none" stroke-width="5"></circle>
+                      <g transform="rotate(-90 21 21)">
+                        @for (seg of donut(); track seg.cls) {
+                          <circle class="donut-seg" [class]="seg.cls" cx="21" cy="21" r="15.915" fill="none" stroke-width="5"
+                            [attr.stroke-dasharray]="seg.dash + ' ' + (100 - seg.dash)" [attr.stroke-dashoffset]="seg.offset"></circle>
+                        }
+                      </g>
+                      <text x="21" y="20.5" class="donut-center">{{ money(m.totalAssets) }}</text>
+                      <text x="21" y="25" class="donut-sub">assets</text>
+                    </svg>
+                    <ul class="legend">
+                      @for (s of m.allocation; track s.assetClass) {
+                        <li>
+                          <span class="dot" [class]="s.assetClass.toLowerCase()"></span>
+                          <span class="legend-name">{{ s.assetClass }}</span>
+                          <span class="muted">{{ s.pct }}% · {{ money(s.value) }}</span>
+                        </li>
+                      }
+                    </ul>
+                  </div>
                 }
               </section>
 
@@ -133,55 +146,64 @@ import { Advisory, AdvisorySeverity, FinanceOverview, HouseholdMetrics } from '.
     </div>
   `,
   styles: [`
-    .finance { padding: 2rem; --v-blue:#2a78d6; --v-orange:#eb6834; --v-aqua:#1baf7a; --v-yellow:#eda100;
-      --v-magenta:#e87ba4; --v-green:#008300; --v-violet:#4a3aa7; --st-info:#2a78d6; --st-warning:#fab219;
-      --st-critical:#d03b3b; --st-good:#0ca30c; }
+    .finance { padding: 2rem;
+      /* Validated categorical hues (light defaults); dark steps applied below via the themed body. */
+      --v-blue:#2a78d6; --v-aqua:#1baf7a; --v-yellow:#eda100; --v-orange:#eb6834;
+      --v-green:#0a9d5a; --v-magenta:#e87ba4; --v-violet:#6d5ce0;
+      --st-warning:#fab219; --st-critical:#d03b3b; --st-good:#0ca30c; }
+    :host-context(body[data-theme='dark']) .finance {
+      --v-blue:#3987e5; --v-aqua:#199e70; --v-yellow:#c98500; --v-orange:#d95926;
+      --v-green:#12a866; --v-magenta:#d55181; --v-violet:#9085e9; }
     .fin-head { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; margin-bottom:1.5rem; }
-    .subtitle { color:#666; margin:0.25rem 0 0; }
-    .loading { color:#666; }
-    .btn-primary { background:#1a73e8; color:#fff; border:none; padding:0.55rem 1.1rem; border-radius:4px;
-      cursor:pointer; text-decoration:none; font-size:0.95rem; display:inline-block; }
-    .error-banner { background:#fce8e6; color:#c5221f; border:1px solid #f5c6c6; border-radius:4px; padding:0.75rem 1rem; }
-    .empty-card { text-align:center; padding:3rem 1.5rem; border:1px solid #e0e0e0; border-radius:8px; background:#fff; }
-    .empty-icon { font-size:2.5rem; } .empty-card h2 { margin:0.75rem 0 0.4rem; }
-    .empty-card p { color:#666; max-width:40ch; margin:0 auto 1.2rem; }
+    .subtitle { color:var(--muted); margin:0.25rem 0 0; }
+    .loading { color:var(--muted); }
+    .btn-primary { background:var(--brand); color:var(--brand-text); border:none; padding:0.55rem 1.1rem;
+      border-radius:6px; cursor:pointer; text-decoration:none; font-size:0.95rem; display:inline-block; font-weight:600; }
+    .error-banner { background:color-mix(in srgb, var(--st-critical) 14%, var(--surface)); color:var(--st-critical);
+      border:1px solid color-mix(in srgb, var(--st-critical) 40%, var(--surface)); border-radius:6px; padding:0.75rem 1rem; }
+    .empty-card { text-align:center; padding:3rem 1.5rem; border:1px solid var(--border); border-radius:12px;
+      background:var(--surface); box-shadow:var(--shadow-sm); }
+    .empty-icon { font-size:2.5rem; } .empty-card h2 { margin:0.75rem 0 0.4rem; color:var(--text); }
+    .empty-card p { color:var(--muted); max-width:40ch; margin:0 auto 1.2rem; }
 
     .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1.5rem; }
-    .kpi { background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:1rem 1.1rem; display:flex; flex-direction:column; gap:0.25rem; }
-    .kpi-label { font-size:0.75rem; color:#888; text-transform:uppercase; letter-spacing:0.04em; }
-    .kpi-value { font-size:1.55rem; font-weight:700; color:#1a1a1a; line-height:1.1; }
+    .kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1rem 1.1rem;
+      display:flex; flex-direction:column; gap:0.25rem; box-shadow:var(--shadow-sm); }
+    .kpi-label { font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+    .kpi-value { font-size:1.55rem; font-weight:700; color:var(--text); line-height:1.1; }
     .kpi-value.pos { color:var(--st-good); } .kpi-value.neg { color:var(--st-critical); }
-    .kpi-sub { font-size:0.78rem; color:#666; }
+    .kpi-sub { font-size:0.78rem; color:var(--muted); }
 
     .fin-cols { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:1.25rem; align-items:start; }
     @media (max-width:900px){ .fin-cols{ grid-template-columns:1fr; } }
     .fin-side { display:flex; flex-direction:column; gap:1.25rem; }
-    .card { background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:1.25rem; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.25rem; box-shadow:var(--shadow-sm); }
     .card-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.9rem; }
-    .card-head h2 { margin:0; font-size:1.05rem; }
-    .muted { color:#888; font-size:0.88rem; }
+    .card-head h2 { margin:0; font-size:1.05rem; color:var(--text); }
+    .muted { color:var(--muted); font-size:0.88rem; }
 
-    .advis { display:flex; gap:0.7rem; padding:0.8rem 0.9rem; border:1px solid #e0e0e0; border-left-width:4px;
-      border-radius:6px; margin-bottom:0.7rem; background:#fafafa; }
+    .advis { display:flex; gap:0.7rem; padding:0.8rem 0.9rem; border:1px solid var(--border); border-left-width:4px;
+      border-radius:8px; margin-bottom:0.7rem; background:color-mix(in srgb, var(--text) 4%, var(--surface)); }
     .advis:last-child { margin-bottom:0; }
     .advis.sev-critical { border-left-color:var(--st-critical); }
     .advis.sev-warning { border-left-color:var(--st-warning); }
-    .advis.sev-info { border-left-color:var(--st-info); }
+    .advis.sev-info { border-left-color:var(--brand); }
     .advis-icon { font-size:1.05rem; } .advis-body { flex:1; min-width:0; }
     .advis-top { display:flex; justify-content:space-between; align-items:center; gap:0.5rem; }
-    .advis-msg { margin:0.25rem 0 0; font-size:0.86rem; color:#555; }
-    .advis-action { margin:0.4rem 0 0; font-size:0.82rem; color:#222; font-weight:500; }
+    .advis-top strong { color:var(--text); }
+    .advis-msg { margin:0.25rem 0 0; font-size:0.86rem; color:var(--muted); }
+    .advis-action { margin:0.4rem 0 0; font-size:0.82rem; color:var(--text); font-weight:500; }
     .sev-tag { font-size:0.66rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;
       padding:0.1rem 0.45rem; border-radius:99px; color:#fff; flex-shrink:0; }
     .sev-tag.sev-critical { background:var(--st-critical); }
     .sev-tag.sev-warning { background:var(--st-warning); color:#3a2c00; }
-    .sev-tag.sev-info { background:var(--st-info); }
+    .sev-tag.sev-info { background:var(--brand); color:var(--brand-text); }
 
     .meter-row { margin-bottom:0.85rem; } .meter-row:last-child { margin-bottom:0; }
-    .meter-top { display:flex; justify-content:space-between; font-size:0.84rem; margin-bottom:0.35rem; }
+    .meter-top { display:flex; justify-content:space-between; font-size:0.84rem; margin-bottom:0.35rem; color:var(--text); }
     .meter-top .dot { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:0.45rem; vertical-align:middle; }
-    .meter { height:8px; border-radius:4px; background:#eee; overflow:hidden; }
-    .meter-fill { display:block; height:100%; border-radius:4px; background:#1a73e8; }
+    .meter { height:8px; border-radius:4px; background:color-mix(in srgb, var(--text) 12%, transparent); overflow:hidden; }
+    .meter-fill { display:block; height:100%; border-radius:4px; background:var(--brand); }
     .meter-fill.goal { background:var(--v-blue); } .meter-fill.member { background:var(--v-aqua); }
     .meter-note { display:block; font-size:0.76rem; margin-top:0.3rem; }
 
@@ -189,6 +211,19 @@ import { Advisory, AdvisorySeverity, FinanceOverview, HouseholdMetrics } from '.
     .dot.gold,.meter-fill.gold{background:var(--v-yellow);} .dot.realestate,.meter-fill.realestate{background:var(--v-orange);}
     .dot.cash,.meter-fill.cash{background:var(--v-green);} .dot.crypto,.meter-fill.crypto{background:var(--v-magenta);}
     .dot.other,.meter-fill.other{background:var(--v-violet);}
+
+    .alloc { display:flex; gap:1.25rem; align-items:center; flex-wrap:wrap; }
+    .donut { width:150px; height:150px; flex-shrink:0; }
+    .donut-track { stroke:color-mix(in srgb, var(--text) 12%, transparent); }
+    .donut-center { font-size:4px; font-weight:700; fill:var(--text); text-anchor:middle; }
+    .donut-sub { font-size:2.6px; fill:var(--muted); text-anchor:middle; text-transform:uppercase; letter-spacing:0.05em; }
+    .legend { list-style:none; margin:0; padding:0; flex:1; min-width:150px; display:flex; flex-direction:column; gap:0.4rem; }
+    .legend li { display:flex; align-items:center; gap:0.5rem; font-size:0.86rem; color:var(--text); }
+    .legend-name { flex:1; } .legend .muted { flex:none; }
+    .donut-seg.equity{stroke:var(--v-blue);} .donut-seg.debt{stroke:var(--v-aqua);}
+    .donut-seg.gold{stroke:var(--v-yellow);} .donut-seg.realestate{stroke:var(--v-orange);}
+    .donut-seg.cash{stroke:var(--v-green);} .donut-seg.crypto{stroke:var(--v-magenta);}
+    .donut-seg.other{stroke:var(--v-violet);}
   `],
 })
 export class FinanceDashboardComponent implements OnInit {
@@ -205,6 +240,17 @@ export class FinanceDashboardComponent implements OnInit {
     const m = this.metrics();
     return !!m && (m.monthlyIncome > 0 || m.totalAssets > 0 || m.totalLiabilities > 0
       || m.monthlyExpenses > 0 || m.goals.length > 0);
+  });
+
+  // Donut segments: pathLength is 100 (r=15.915), so dash length == percent; offset is the
+  // negative running total so each arc starts where the previous ended.
+  donut = computed(() => {
+    let acc = 0;
+    return (this.metrics()?.allocation ?? []).map(s => {
+      const seg = { cls: s.assetClass.toLowerCase(), dash: s.pct, offset: -acc };
+      acc += s.pct;
+      return seg;
+    });
   });
 
   ngOnInit(): void {

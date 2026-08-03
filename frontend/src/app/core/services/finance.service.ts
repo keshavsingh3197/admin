@@ -4,7 +4,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   Expense, FamilyMember, FinanceOverview, FinancialGoal, Household,
-  IncomeSource, Investment, Liability,
+  ImportResult, ImportTransactionsRequest, IncomeSource, Investment, Liability,
+  PagedResult, Transaction,
 } from '../models/finance.models';
 
 /** Family-finance API. Everything is owner-scoped server-side; no logic lives here. */
@@ -50,4 +51,18 @@ export class FinanceService {
   createGoal(b: Partial<FinancialGoal>) { return this.http.post<FinancialGoal>(`${this.f}/goals`, b); }
   updateGoal(id: string, b: Partial<FinancialGoal>) { return this.http.put<FinancialGoal>(`${this.f}/goals/${id}`, b); }
   deleteGoal(id: string) { return this.http.delete<void>(`${this.f}/goals/${id}`); }
+
+  listTransactions(skip: number, limit: number): Observable<PagedResult<Transaction>> {
+    return this.http.get<PagedResult<Transaction>>(`${this.f}/transactions?skip=${skip}&limit=${limit}`);
+  }
+  createTransaction(b: Partial<Transaction>) { return this.http.post<Transaction>(`${this.f}/transactions`, b); }
+  updateTransaction(id: string, b: Partial<Transaction>) { return this.http.put<Transaction>(`${this.f}/transactions/${id}`, b); }
+  deleteTransaction(id: string) { return this.http.delete<void>(`${this.f}/transactions/${id}`); }
+  importTransactions(b: ImportTransactionsRequest): Observable<ImportResult> {
+    return this.http.post<ImportResult>(`${this.f}/transactions/import`, b);
+  }
+
+  exportXlsx(): Observable<Blob> {
+    return this.http.get(`${this.f}/export`, { responseType: 'blob' });
+  }
 }

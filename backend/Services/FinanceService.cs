@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using MongoDB.Driver;
 
 namespace Admin.Api.Services;
@@ -17,6 +18,7 @@ public class FinanceService
     private readonly IMongoCollection<Investment> _investments;
     private readonly IMongoCollection<Liability> _liabilities;
     private readonly IMongoCollection<FinancialGoal> _goals;
+    private readonly IMongoCollection<Transaction> _transactions;
 
     public FinanceService(MongoDbService db)
     {
@@ -27,6 +29,7 @@ public class FinanceService
         _investments = db.GetCollection<Investment>("finance_investments");
         _liabilities = db.GetCollection<Liability>("finance_liabilities");
         _goals = db.GetCollection<FinancialGoal>("finance_goals");
+        _transactions = db.GetCollection<Transaction>("finance_transactions");
         EnsureIndexes();
     }
 
@@ -37,7 +40,12 @@ public class FinanceService
             Builders<Household>.IndexKeys.Ascending(h => h.OwnerUserId),
             new CreateIndexOptions { Unique = true, Name = "ux_finance_household_owner" }));
         Index(_members); Index(_income); Index(_expenses);
-        Index(_investments); Index(_liabilities); Index(_goals);
+        Index(_investments); Index(_liabilities); Index(_goals); Index(_transactions);
+
+        // Transactions are listed newest-first and can grow large: compound owner+date index.
+        _transactions.Indexes.CreateOne(new CreateIndexModel<Transaction>(
+            Builders<Transaction>.IndexKeys.Ascending(t => t.OwnerUserId).Descending(t => t.Date),
+            new CreateIndexOptions { Name = "ix_owner_date" }));
 
         static void Index<T>(IMongoCollection<T> col) where T : IOwnedRecord =>
             col.Indexes.CreateOne(new CreateIndexModel<T>(
@@ -129,9 +137,113 @@ public class FinanceService
             var t when t == typeof(Investment) => _investments,
             var t when t == typeof(Liability) => _liabilities,
             var t when t == typeof(FinancialGoal) => _goals,
+            var t when t == typeof(Transaction) => _transactions,
             var t when t == typeof(Household) => _households,
             _ => throw new InvalidOperationException($"No finance collection for {typeof(T).Name}."),
         };
         return (IMongoCollection<T>)col;
+    }
+
+    // ---- Transactions (ledger; paginated, newest first) ----
+
+    public async Task<(List<Transaction> Items, long Total)> ListTransactionsAsync(string owner, int skip, int limit)
+    {
+        var filter = Builders<Transaction>.Filter.Eq(t => t.OwnerUserId, owner);
+        var total = await _transactions.CountDocumentsAsync(filter);
+        var items = await _transactions.Find(filter)
+            .SortByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt)
+            .Skip(Math.Max(0, skip)).Limit(Math.Clamp(limit, 1, 200))
+            .ToListAsync();
+        return (items, total);
+    }
+
+    /// <summary>Imports a bank statement CSV using the package's pure parser. Returns counts.</summary>
+    public async Task<(int Imported, int Skipped)> ImportTransactionsAsync(string owner, string csv, BankCsvMapping map)
+    {
+        var result = BankStatementParser.ParseCsv(csv, map);
+        if (result.Transactions.Count == 0) return (0, result.SkippedRows);
+
+        var docs = result.Transactions.Select(p => new Transaction
+        {
+            OwnerUserId = owner,
+            Date = p.Date.ToDateTime(TimeOnly.MinValue),
+            Description = p.Description,
+            Amount = p.Amount,
+            Direction = p.Direction,
+            Category = p.Category,
+            Account = p.Account,
+        }).ToList();
+
+        await _transactions.InsertManyAsync(docs);
+        return (docs.Count, result.SkippedRows);
+    }
+
+    // ---- Excel (.xlsx) export of everything the owner has ----
+
+    public async Task<byte[]> ExportWorkbookAsync(string owner)
+    {
+        var s = await BuildSnapshotAsync(owner);
+        var (tx, _) = await ListTransactionsAsync(owner, 0, 200);
+        var m = HouseholdAnalytics.Compute(s, DateOnly.FromDateTime(DateTime.UtcNow));
+        var names = s.Members.ToDictionary(x => x.Id, x => x.Name);
+        string Member(string? id) => id is not null && names.TryGetValue(id, out var n) ? n : "Household";
+
+        using var wb = new XLWorkbook();
+
+        WriteSheet(wb, "Summary", ["Metric", "Value"],
+        [
+            ["Currency", m.Currency],
+            ["Net worth", m.NetWorth], ["Total assets", m.TotalAssets], ["Total liabilities", m.TotalLiabilities],
+            ["Monthly income", m.MonthlyIncome], ["Monthly outflow", m.MonthlyOutflow], ["Monthly surplus", m.MonthlySurplus],
+            ["Savings rate %", m.SavingsRatePct], ["Emergency fund (months)", m.EmergencyFundMonths],
+            ["Debt-to-income %", m.DebtToIncomePct], ["Monthly SIP", m.TotalSipMonthly],
+        ]);
+        WriteSheet(wb, "Members", ["Name", "Relation", "Date of birth", "Earning"],
+            s.Members.Select(x => new object?[] { x.Name, x.Relation, x.DateOfBirth, x.IsEarning }));
+        WriteSheet(wb, "Income", ["Label", "Member", "Type", "Frequency", "Amount", "Active"],
+            s.Income.Select(x => new object?[] { x.Label, Member(x.MemberId), x.Type.ToString(), x.Frequency.ToString(), x.Amount, x.IsActive }));
+        WriteSheet(wb, "Expenses", ["Label", "Member", "Category", "Frequency", "Amount", "Essential"],
+            s.Expenses.Select(x => new object?[] { x.Label, Member(x.MemberId), x.Category.ToString(), x.Frequency.ToString(), x.Amount, x.IsEssential }));
+        WriteSheet(wb, "Investments", ["Name", "Member", "Kind", "Asset class", "Account", "Invested", "Current value", "Monthly SIP"],
+            s.Investments.Select(x => new object?[] { x.Name, Member(x.MemberId), x.Kind.ToString(), x.AssetClass.ToString(), x.AccountType.ToString(), x.InvestedAmount, x.CurrentValue, x.SipMonthly }));
+        WriteSheet(wb, "Debts", ["Name", "Member", "Type", "Outstanding", "Rate %", "Monthly EMI"],
+            s.Liabilities.Select(x => new object?[] { x.Name, Member(x.MemberId), x.Type.ToString(), x.Outstanding, x.InterestRatePct, x.EmiMonthly }));
+        WriteSheet(wb, "Goals", ["Name", "Target", "Saved", "Target date", "Priority"],
+            s.Goals.Select(x => new object?[] { x.Name, x.TargetAmount, x.CurrentSavings, x.TargetDate, x.Priority.ToString() }));
+        WriteSheet(wb, "Transactions", ["Date", "Description", "Direction", "Amount", "Category", "Account"],
+            tx.Select(x => new object?[] { x.Date, x.Description, x.Direction.ToString(), x.Amount, x.Category, x.Account }));
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return ms.ToArray();
+    }
+
+    private static void WriteSheet(XLWorkbook wb, string name, string[] headers, IEnumerable<object?[]> rows)
+    {
+        var ws = wb.Worksheets.Add(name);
+        for (var c = 0; c < headers.Length; c++) ws.Cell(1, c + 1).Value = headers[c];
+        ws.Row(1).Style.Font.Bold = true;
+
+        var r = 2;
+        foreach (var row in rows)
+        {
+            for (var c = 0; c < row.Length; c++)
+            {
+                var cell = ws.Cell(r, c + 1);
+                switch (row[c])
+                {
+                    case null: break;
+                    case string sv: cell.Value = sv; break;
+                    case bool bv: cell.Value = bv; break;
+                    case DateTime dv: cell.Value = dv; cell.Style.DateFormat.Format = "yyyy-mm-dd"; break;
+                    case decimal mv: cell.Value = (double)mv; break;
+                    case double dbv: cell.Value = dbv; break;
+                    case int iv: cell.Value = iv; break;
+                    default: cell.Value = row[c]!.ToString(); break;
+                }
+            }
+            r++;
+        }
+        ws.Columns().AdjustToContents();
     }
 }

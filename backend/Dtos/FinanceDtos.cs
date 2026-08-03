@@ -106,3 +106,40 @@ public sealed record UpdateGoalRequest(
     GoalPriority? Priority);
 
 public sealed record OverviewResponse(HouseholdMetrics Metrics, IReadOnlyList<Advisory> Advisories);
+
+// ---- Transactions (ledger) ----
+
+public sealed record CreateTransactionRequest(
+    [Required] DateTime Date,
+    [Required, MaxLength(250)] string Description,
+    [Range(0, 1_000_000_000_000)] decimal Amount,
+    TransactionDirection Direction,
+    [MaxLength(60)] string? Category,
+    [MaxLength(80)] string? Account,
+    [MaxLength(40)] string? MemberId);
+
+public sealed record UpdateTransactionRequest(
+    DateTime? Date,
+    [MaxLength(250)] string? Description,
+    [Range(0, 1_000_000_000_000)] decimal? Amount,
+    TransactionDirection? Direction,
+    [MaxLength(60)] string? Category,
+    [MaxLength(80)] string? Account,
+    [MaxLength(40)] string? MemberId);
+
+/// <summary>Zero-based column mapping for a bank-statement CSV import.</summary>
+public sealed record ImportTransactionsRequest(
+    [Required, MaxLength(5_000_000)] string CsvText,
+    [Range(0, 200)] int DateColumn,
+    [Range(0, 200)] int DescriptionColumn,
+    [Range(0, 200)] int? AmountColumn,
+    [Range(0, 200)] int? DebitColumn,
+    [Range(0, 200)] int? CreditColumn,
+    [MaxLength(40)] string? DateFormat,
+    bool HasHeader,
+    [MaxLength(80)] string? Account,
+    [MaxLength(60)] string? Category);
+
+public sealed record ImportResult(int Imported, int Skipped);
+
+public sealed record PagedResult<T>(IReadOnlyList<T> Items, long Total);

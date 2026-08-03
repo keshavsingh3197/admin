@@ -238,5 +238,75 @@ public class FinanceController : ControllerBase
     public async Task<IActionResult> DeleteGoal(string id) =>
         await _finance.DeleteAsync<FinancialGoal>(Owner, id) ? NoContent() : NotFound();
 
+    // ---- Transactions (ledger) ----
+
+    [HttpGet("transactions")]
+    public async Task<ActionResult<PagedResult<Transaction>>> ListTransactions([FromQuery] int skip = 0, [FromQuery] int limit = 25)
+    {
+        var (items, total) = await _finance.ListTransactionsAsync(Owner, skip, limit);
+        return Ok(new PagedResult<Transaction>(items, total));
+    }
+
+    [HttpPost("transactions")]
+    public async Task<ActionResult<Transaction>> CreateTransaction(CreateTransactionRequest r) =>
+        Ok(await _finance.CreateAsync(Owner, new Transaction
+        {
+            Date = r.Date, Description = r.Description.Trim(), Amount = r.Amount, Direction = r.Direction,
+            Category = Clean(r.Category), Account = Clean(r.Account), MemberId = Clean(r.MemberId),
+        }));
+
+    [HttpPut("transactions/{id}")]
+    public async Task<ActionResult<Transaction>> UpdateTransaction(string id, UpdateTransactionRequest r)
+    {
+        var doc = await _finance.UpdateAsync<Transaction>(Owner, id, t =>
+        {
+            if (r.Date is { } d) t.Date = d;
+            if (!string.IsNullOrWhiteSpace(r.Description)) t.Description = r.Description.Trim();
+            if (r.Amount is { } a) t.Amount = a;
+            if (r.Direction is { } dir) t.Direction = dir;
+            if (r.Category is not null) t.Category = Clean(r.Category);
+            if (r.Account is not null) t.Account = Clean(r.Account);
+            if (r.MemberId is not null) t.MemberId = Clean(r.MemberId);
+        });
+        return doc is null ? NotFound() : Ok(doc);
+    }
+
+    [HttpDelete("transactions/{id}")]
+    public async Task<IActionResult> DeleteTransaction(string id) =>
+        await _finance.DeleteAsync<Transaction>(Owner, id) ? NoContent() : NotFound();
+
+    [HttpPost("transactions/import")]
+    public async Task<ActionResult<ImportResult>> ImportTransactions(ImportTransactionsRequest r)
+    {
+        if (r.AmountColumn is null && r.DebitColumn is null && r.CreditColumn is null)
+            return BadRequest(new { error = "Map either an amount column, or debit/credit columns." });
+
+        var map = new BankCsvMapping
+        {
+            DateColumn = r.DateColumn,
+            DescriptionColumn = r.DescriptionColumn,
+            AmountColumn = r.AmountColumn,
+            DebitColumn = r.DebitColumn,
+            CreditColumn = r.CreditColumn,
+            DateFormat = Clean(r.DateFormat),
+            HasHeader = r.HasHeader,
+            Account = Clean(r.Account),
+            DefaultCategory = Clean(r.Category),
+        };
+        var (imported, skipped) = await _finance.ImportTransactionsAsync(Owner, r.CsvText, map);
+        return Ok(new ImportResult(imported, skipped));
+    }
+
+    // ---- Export ----
+
+    [HttpGet("export")]
+    public async Task<IActionResult> Export()
+    {
+        var bytes = await _finance.ExportWorkbookAsync(Owner);
+        return File(bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "finance-export.xlsx");
+    }
+
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

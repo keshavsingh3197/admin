@@ -7,9 +7,13 @@ export type ExpenseCategory =
   'Housing' | 'Utilities' | 'Groceries' | 'Transport' | 'Healthcare' | 'Education' | 'Insurance' | 'Lifestyle' | 'Other';
 export type AssetClass = 'Equity' | 'Debt' | 'Gold' | 'RealEstate' | 'Cash' | 'Crypto' | 'Other';
 export type AccountType = 'Taxable' | 'Retirement' | 'TaxAdvantaged';
-export type DebtType = 'Home' | 'Auto' | 'Personal' | 'CreditCard' | 'Education' | 'Other';
+export type InstrumentKind =
+  'Other' | 'MutualFund' | 'Stock' | 'ProvidentFund' | 'Nps' | 'FixedDeposit' | 'RecurringDeposit'
+  | 'Bond' | 'GoldPhysical' | 'GoldDigital' | 'InsurancePolicy' | 'RealEstate' | 'Crypto' | 'Cash';
+export type DebtType = 'Home' | 'Auto' | 'Personal' | 'CreditCard' | 'Education' | 'Gold' | 'Business' | 'Other';
 export type GoalPriority = 'Low' | 'Medium' | 'High';
 export type AdvisorySeverity = 'Info' | 'Warning' | 'Critical';
+export type TransactionDirection = 'Debit' | 'Credit';
 
 export interface Household {
   id: string;
@@ -50,6 +54,7 @@ export interface Investment {
   id: string;
   name: string;
   assetClass: AssetClass;
+  kind: InstrumentKind;
   accountType: AccountType;
   investedAmount: number;
   currentValue: number;
@@ -125,4 +130,32 @@ export interface Advisory {
 export interface FinanceOverview {
   metrics: HouseholdMetrics;
   advisories: Advisory[];
+}
+
+export interface Transaction {
+  id: string;
+  memberId?: string | null;
+  date: string;
+  description: string;
+  amount: number;
+  direction: TransactionDirection;
+  category?: string | null;
+  account?: string | null;
+}
+
+export interface PagedResult<T> { items: T[]; total: number; }
+export interface ImportResult { imported: number; skipped: number; }
+
+/** Zero-based column mapping posted to the CSV import endpoint. */
+export interface ImportTransactionsRequest {
+  csvText: string;
+  dateColumn: number;
+  descriptionColumn: number;
+  amountColumn?: number | null;
+  debitColumn?: number | null;
+  creditColumn?: number | null;
+  dateFormat?: string | null;
+  hasHeader: boolean;
+  account?: string | null;
+  category?: string | null;
 }
