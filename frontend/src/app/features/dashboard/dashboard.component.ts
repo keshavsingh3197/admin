@@ -43,6 +43,12 @@ import { ConfigService } from '../../core/services/config.service';
           <p>Private folders &amp; documents — organize, preview, and share by permission.</p>
         </a>
 
+        <a class="card" routerLink="/finance">
+          <span class="card-icon">💰</span>
+          <h2>Finance</h2>
+          <p>Household income, investments &amp; goals — with suggestions to improve them.</p>
+        </a>
+
         @if (blogAdminUrl()) {
           <a class="card" [href]="blogAdminUrl()" target="_blank" rel="noopener">
             <span class="card-icon">✍️</span>

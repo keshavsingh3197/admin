@@ -51,6 +51,9 @@ builder.Services.AddSingleton<FileService>();
 builder.Services.AddKeshavChat(builder.Configuration);
 builder.Services.AddSingleton<IChatUserDirectory, AdminChatUserDirectory>();
 builder.Services.AddSingleton<NoteService>();
+// Family finance: persistence + the KeshavSingh.Finance advisory engine (pure, no secrets/I-O).
+builder.Services.AddSingleton<FinanceService>();
+builder.Services.AddKeshavFinance();
 builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
 builder.Services.AddSingleton<WebsiteVisitService>();

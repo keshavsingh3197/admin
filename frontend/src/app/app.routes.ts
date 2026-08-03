@@ -30,6 +30,18 @@ export const routes: Routes = [
       import('./features/files/files.component').then((m) => m.FilesComponent),
   },
   {
+    path: 'finance',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/finance/finance-dashboard.component').then((m) => m.FinanceDashboardComponent),
+  },
+  {
+    path: 'finance/manage',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/finance/finance-manage.component').then((m) => m.FinanceManageComponent),
+  },
+  {
     path: 'messages',
     canActivate: [authGuard],
     loadComponent: () =>

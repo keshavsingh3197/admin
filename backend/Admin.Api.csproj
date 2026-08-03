@@ -32,6 +32,7 @@
     <PackageReference Include="KeshavSingh.Realtime" Version="0.3.0" />
     <PackageReference Include="KeshavSingh.Core" Version="0.3.0" />
     <PackageReference Include="KeshavSingh.Storage" Version="0.2.1" />
+    <PackageReference Include="KeshavSingh.Finance" Version="0.1.1" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(SkipPrivatePackages)' == 'true'">
@@ -41,6 +42,7 @@
     <ProjectReference Include="..\..\KeshavSingh-Packages-Realtime\src\KeshavSingh.Realtime\KeshavSingh.Realtime.csproj" />
     <ProjectReference Include="..\..\KeshavSingh-Packages-Core\src\KeshavSingh.Core\KeshavSingh.Core.csproj" />
     <ProjectReference Include="..\..\KeshavSingh-Packages-Files\src\KeshavSingh.Storage\KeshavSingh.Storage.csproj" />
+    <ProjectReference Include="..\..\KeshavSingh-Packages-Finance\src\KeshavSingh.Finance\KeshavSingh.Finance.csproj" />
   </ItemGroup>
 
 </Project>
