@@ -1,69 +1,105 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { SrcObjectDirective } from '../../core/directives/src-object.directive';
 import { CallService, formatDuration } from '../../core/services/call.service';
+import { ChatService } from '../../core/services/chat.service';
+import { DirectoryUser } from '../../core/models/chat.models';
+import { PeerView } from '../../core/models/call.models';
 
 /**
- * The call card: ring / answer, audio + video tiles, and the controls that matter when something is
- * wrong — volume, output device, microphone, and a live "sending / receiving" readout so a one-way
- * audio problem is visible rather than guesswork.
+ * The call card: ring / answer, the roster (who's on, who's still ringing), video tiles for everyone,
+ * add-someone-by-search, and the controls that matter when something is wrong — volume, output device,
+ * microphone, and a per-person "sending / receiving" readout so one-way audio is visible, not guesswork.
  *
- * Mounted by the app shell (not the Messages page) so a call can ring, connect and be hung up from
- * anywhere in admin. Audio playback itself lives in CallService; this is only UI.
+ * Mounted by the app shell (not the Messages page) so a call rings and can be run from anywhere in
+ * admin. Audio playback itself lives in CallService; this is only UI.
  */
 @Component({
   selector: 'app-call-overlay',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SrcObjectDirective],
+  imports: [FormsModule, SrcObjectDirective],
   template: `
     @if (call.busy()) {
       <div class="call-card" [class.wide]="showVideo()" role="dialog" aria-label="Call">
         <div class="who">
           <span class="avatar" aria-hidden="true">{{ initials() }}</span>
           <span class="meta">
-            <strong class="name">{{ call.partnerName() || 'Unknown' }}</strong>
+            <strong class="name">{{ call.title() || 'Call' }}</strong>
             <span class="status" aria-live="polite">{{ status() }}</span>
           </span>
           @if (call.onCall()) {
-            <span class="net" [title]="netTitle()">{{ call.stats()?.transport === 'relayed' ? '🛰️' : '🔗' }}</span>
+            <button class="cbtn icon" type="button" (click)="rosterOpen.set(!rosterOpen())"
+                    [title]="'Participants: ' + call.joinedCount()">👥 {{ call.joinedCount() }}</button>
           }
         </div>
 
+        @if (rosterOpen() && call.onCall()) {
+          <ul class="roster">
+            @for (p of call.roster(); track p.userId) {
+              <li>
+                <span class="dot" [class.on]="p.state === 'joined'" [class.ring]="p.state === 'invited'"></span>
+                {{ p.displayName }}
+                @if (p.isOwner) { <em class="tag">host</em> }
+                <span class="pstate">{{ p.state === 'invited' ? 'ringing…' : p.state }}</span>
+              </li>
+            }
+          </ul>
+          <div class="add">
+            <input class="search" type="search" placeholder="Add someone…" [(ngModel)]="query"
+                   (focus)="loadDirectory()" (ngModelChange)="query = $event" aria-label="Search people to add" />
+            @if (matches().length) {
+              <ul class="results">
+                @for (u of matches(); track u.id) {
+                  <li><button type="button" (click)="add(u)">
+                    <span class="dot" [class.on]="u.presence === 'online'"></span>{{ u.displayName }}</button></li>
+                }
+              </ul>
+            }
+          </div>
+        }
+
         @if (showVideo()) {
-          <div class="tiles" [class.gallery]="call.layout() === 'gallery'">
-            <div class="tile remote">
-              @if (call.remoteVideo() && call.remoteVideoLive()) {
-                <video [appSrcObject]="call.remoteVideo()" autoplay playsinline muted></video>
-              } @else {
-                <div class="camoff"><span class="avatar big" aria-hidden="true">{{ initials() }}</span>
-                  <small>{{ call.onCall() ? 'Camera off' : 'Waiting for video…' }}</small></div>
-              }
-            </div>
+          <div class="tiles" [class.gallery]="call.layout() === 'gallery'"
+               [style.--cols]="gridColumns()">
+            @for (peer of call.peers(); track peer.userId) {
+              <div class="tile">
+                @if (peer.video && peer.videoLive) {
+                  <video [appSrcObject]="peer.video" autoplay playsinline muted></video>
+                } @else {
+                  <div class="camoff"><span class="avatar big" aria-hidden="true">{{ nameInitials(peer.displayName) }}</span>
+                    <small>{{ peer.connected ? 'Camera off' : 'Connecting…' }}</small></div>
+                }
+                <span class="label">{{ peer.displayName }}
+                  @if (peer.stats && !peer.stats.receiving) { <em class="warn" title="No audio arriving">⚠</em> }
+                  @if (peer.stats?.transport === 'relayed') { <em title="Relayed through TURN">🛰️</em> }
+                </span>
+              </div>
+            }
             <div class="tile local">
               @if (call.localPreview() && call.cameraOn()) {
                 <video [appSrcObject]="call.localPreview()" autoplay playsinline muted></video>
               } @else {
                 <div class="camoff"><small>Your camera is off</small></div>
               }
+              <span class="label">You</span>
             </div>
           </div>
         }
 
         @if (call.onCall()) {
-          <!-- Level meters make the usual culprits obvious: no mic bar = we're sending silence,
-               no "them" bar = nothing is arriving, bar but no sound = wrong output device. -->
+          <!-- Level meters make the usual culprits obvious: no mic bar = we're sending silence, no
+               "them" bar = nothing is arriving, bar but no sound = wrong output device. -->
           <div class="meters">
             <span class="meter" title="Your microphone level">🎙️
               <i class="bar"><b [style.width.%]="micPercent()"></b></i>
             </span>
-            <span class="meter" title="Level of the audio arriving from them">🔊
-              <i class="bar"><b [style.width.%]="remotePercent()"></b></i>
+            <span class="meter" title="Loudest incoming audio">🔊
+              <i class="bar"><b [style.width.%]="loudestPeerPercent()"></b></i>
             </span>
-            @if (call.stats(); as s) {
-              <span class="flags">
-                <span [class.bad]="!s.sending" title="Are your packets going out?">out {{ s.sending ? '✓' : '✕' }}</span>
-                <span [class.bad]="!s.receiving" title="Are their packets coming in?">in {{ s.receiving ? '✓' : '✕' }}</span>
-              </span>
+            @if (silentPeers().length) {
+              <span class="flags"><span class="bad" [title]="silentPeers().join(', ')">
+                no audio from {{ silentPeers().length }}</span></span>
             }
           </div>
 
@@ -123,11 +159,11 @@ import { CallService, formatDuration } from '../../core/services/call.service';
                         [title]="call.cameraOn() ? 'Turn camera off' : 'Turn camera on'">📹</button>
                 @if (showVideo()) {
                   <button class="cbtn plain" type="button" (click)="call.toggleLayout()"
-                          [title]="call.layout() === 'pip' ? 'Gallery view' : 'Picture-in-picture'">
+                          [title]="call.layout() === 'pip' ? 'Gallery view' : 'Spotlight view'">
                     {{ call.layout() === 'pip' ? '▦' : '◲' }}</button>
                 }
               }
-              <button class="cbtn end" type="button" (click)="call.hangUp()" title="Hang up">✕ Hang up</button>
+              <button class="cbtn end" type="button" (click)="call.hangUp()" title="Leave the call">✕ Leave</button>
             }
           }
         </div>
@@ -140,36 +176,60 @@ import { CallService, formatDuration } from '../../core/services/call.service';
       display: flex; flex-direction: column; gap: .7rem; padding: .9rem 1rem;
       background: var(--surface); color: var(--text); border: 1px solid var(--border);
       border-radius: 14px; box-shadow: 0 10px 30px color-mix(in srgb, #0a1020 25%, transparent);
+      max-height: calc(100vh - 2rem); overflow: auto;
     }
-    .call-card.wide { width: min(560px, calc(100vw - 2rem)); }
+    .call-card.wide { width: min(680px, calc(100vw - 2rem)); }
     .who { display: flex; align-items: center; gap: .7rem; min-width: 0; }
     .avatar {
       width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center;
       background: var(--brand); color: var(--brand-text); font-weight: 600; font-size: .9rem;
     }
-    .avatar.big { width: 56px; height: 56px; font-size: 1.1rem; }
+    .avatar.big { width: 52px; height: 52px; font-size: 1rem; }
     .meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
     .name { font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .status { color: var(--muted); font-size: .8rem; }
-    .net { font-size: .9rem; }
 
-    .tiles { display: grid; gap: .4rem; grid-template-columns: 1fr; position: relative; }
-    .tiles.gallery { grid-template-columns: 1fr 1fr; }
+    .roster { list-style: none; margin: 0; padding: .4rem .5rem; display: flex; flex-direction: column; gap: .25rem;
+              background: var(--bg); border: 1px solid var(--border); border-radius: 8px; font-size: .82rem; }
+    .roster li { display: flex; align-items: center; gap: .4rem; }
+    .roster .pstate { margin-left: auto; color: var(--muted); font-size: .74rem; }
+    .tag { font-size: .68rem; background: var(--surface); border: 1px solid var(--border);
+           border-radius: 99px; padding: 0 .35rem; font-style: normal; color: var(--muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #9aa5b1; }
+    .dot.on { background: #2ecc71; } .dot.ring { background: #f1c40f; }
+
+    .add { position: relative; }
+    .search { width: 100%; box-sizing: border-box; padding: .35rem .5rem; font-size: .82rem;
+              background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; }
+    .results { list-style: none; margin: .25rem 0 0; padding: 0; max-height: 140px; overflow: auto;
+               border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .results button { display: flex; align-items: center; gap: .4rem; width: 100%; text-align: left;
+                      background: none; border: none; border-bottom: 1px solid var(--border);
+                      padding: .35rem .5rem; font-size: .82rem; color: var(--text); cursor: pointer; }
+    .results button:hover { background: var(--bg); }
+
+    .tiles { display: grid; gap: .4rem; grid-template-columns: repeat(var(--cols, 1), 1fr); position: relative; }
     .tile { position: relative; background: #0b1020; border-radius: 10px; overflow: hidden; aspect-ratio: 4 / 3; }
     .tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
     .tile.local video { transform: scaleX(-1); } /* mirror our own preview, like every other call app */
+    .tile .label { position: absolute; left: .35rem; bottom: .3rem; font-size: .7rem; color: #e7ecf5;
+                   background: color-mix(in srgb, #0b1020 65%, transparent); border-radius: 6px; padding: 0 .35rem;
+                   max-width: calc(100% - .7rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tile .warn { color: #ffb4a9; font-style: normal; }
+    /* Spotlight: first remote tile fills the row, ours floats in the corner. */
+    .tiles:not(.gallery) { grid-template-columns: 1fr; }
     .tiles:not(.gallery) .tile.local {
-      position: absolute; right: .5rem; bottom: .5rem; width: 32%; aspect-ratio: 4 / 3;
+      position: absolute; right: .5rem; bottom: .5rem; width: 28%; aspect-ratio: 4 / 3;
       border: 1px solid color-mix(in srgb, #fff 25%, transparent); border-radius: 8px;
     }
-    .camoff { position: absolute; inset: 0; display: grid; place-items: center; gap: .4rem; color: #cbd5e1; }
-    .camoff small { font-size: .74rem; }
+    .camoff { position: absolute; inset: 0; display: grid; place-items: center; gap: .3rem; color: #cbd5e1; }
+    .camoff small { font-size: .72rem; }
 
     .meters { display: flex; align-items: center; gap: .6rem; font-size: .78rem; color: var(--muted); }
     .meter { display: inline-flex; align-items: center; gap: .3rem; }
     .bar { display: inline-block; width: 54px; height: 6px; border-radius: 99px; background: var(--border); overflow: hidden; }
     .bar b { display: block; height: 100%; background: #2ecc71; transition: width .2s linear; }
-    .flags { display: inline-flex; gap: .4rem; margin-left: auto; }
+    .flags { margin-left: auto; }
     .flags .bad { color: #d93025; font-weight: 600; }
 
     .unlock { background: #fef7e0; color: #8a5b00; border: 1px solid #f5d98a; border-radius: 8px;
@@ -187,7 +247,7 @@ import { CallService, formatDuration } from '../../core/services/call.service';
     .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
     .cbtn { border: 1px solid var(--border); background: var(--bg); color: var(--text);
             border-radius: 8px; padding: .4rem .7rem; font-size: .82rem; cursor: pointer; }
-    .cbtn.icon { width: 28px; padding: .2rem 0; }
+    .cbtn.icon { padding: .2rem .5rem; }
     .cbtn.accept { background: #137333; border-color: transparent; color: #fff; }
     .cbtn.end { background: transparent; color: #d93025; border-color: color-mix(in srgb, #d93025 40%, transparent); }
     .cbtn.plain.on { background: var(--brand); color: var(--brand-text); border-color: transparent; }
@@ -199,39 +259,74 @@ import { CallService, formatDuration } from '../../core/services/call.service';
 })
 export class CallOverlayComponent {
   readonly call = inject(CallService);
+  private chat = inject(ChatService);
+
+  readonly rosterOpen = signal(false);
+  readonly directory = signal<DirectoryUser[]>([]);
+  query = '';
 
   readonly showVideo = computed(() =>
     this.call.isVideo() && this.call.phase() !== 'incoming' && this.call.phase() !== 'ended');
 
-  readonly initials = computed(() => {
-    const name = this.call.partnerName().trim();
-    if (!name) return '?';
-    return name.split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
+  /** One column for a spotlight, otherwise a square-ish grid that fits everyone including us. */
+  readonly gridColumns = computed(() => {
+    if (this.call.layout() === 'pip') return 1;
+    const tiles = this.call.peers().length + 1;
+    return tiles <= 1 ? 1 : tiles <= 4 ? 2 : 3;
   });
+
+  readonly initials = computed(() => this.nameInitials(this.call.title()));
 
   readonly status = computed(() => {
     const kind = this.call.isVideo() ? 'video' : 'audio';
+    const ringing = this.call.ringingCount();
     switch (this.call.phase()) {
       case 'incoming': return `Incoming ${kind} call…`;
-      case 'outgoing': return 'Calling…';
+      case 'outgoing': return ringing > 1 ? `Ringing ${ringing} people…` : 'Calling…';
       case 'connecting': return 'Connecting…';
-      case 'active': return formatDuration(this.call.elapsed());
+      case 'active': {
+        const people = this.call.joinedCount();
+        const extra = ringing ? ` · ${ringing} ringing` : '';
+        return `${formatDuration(this.call.elapsed())} · ${people} on call${extra}`;
+      }
       case 'ended': return this.call.message() ?? 'Call ended';
       default: return '';
     }
   });
 
-  readonly netTitle = computed(() => {
-    const stats = this.call.stats();
-    if (!stats) return 'Connecting…';
-    const path = stats.transport === 'relayed' ? 'Relayed through TURN'
-      : stats.transport === 'direct' ? 'Direct peer-to-peer' : 'Path unknown';
-    return `${path} · lost packets: ${stats.packetsLost}`;
+  readonly volumePercent = computed(() => Math.round(this.call.volume() * 100));
+  readonly micPercent = computed(() => levelToPercent(this.call.micLevel()));
+  readonly loudestPeerPercent = computed(() =>
+    levelToPercent(Math.max(0, ...this.call.peers().map(p => p.stats?.level ?? 0))));
+
+  /** Connected peers whose audio isn't arriving — the thing to name when someone says "I can't hear". */
+  readonly silentPeers = computed(() =>
+    this.call.peers().filter(p => p.connected && p.stats && !p.stats.receiving).map(p => p.displayName));
+
+  readonly matches = computed(() => {
+    const q = this.query.trim().toLowerCase();
+    if (q.length < 1) return [];
+    const inCall = new Set(this.call.roster().map(p => p.userId));
+    return this.directory()
+      .filter(u => !inCall.has(u.id) && u.displayName.toLowerCase().includes(q))
+      .slice(0, 6);
   });
 
-  readonly volumePercent = computed(() => Math.round(this.call.volume() * 100));
-  readonly micPercent = computed(() => levelToPercent(this.call.stats()?.micLevel));
-  readonly remotePercent = computed(() => levelToPercent(this.call.stats()?.remoteLevel));
+  loadDirectory(): void {
+    if (this.directory().length) return;
+    this.chat.directory().subscribe({ next: d => this.directory.set(d), error: () => {} });
+  }
+
+  add(user: DirectoryUser): void {
+    this.query = '';
+    this.call.addParticipant(user.id);
+  }
+
+  nameInitials(name: string): string {
+    const trimmed = (name ?? '').trim();
+    if (!trimmed) return '?';
+    return trimmed.split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
+  }
 
   onVolume(event: Event): void {
     this.call.setVolume(Number((event.target as HTMLInputElement).value) / 100);
@@ -251,3 +346,6 @@ function levelToPercent(level: number | undefined): number {
   if (!level || level <= 0) return 0;
   return Math.min(100, Math.round(Math.sqrt(level) * 140));
 }
+
+/** Re-exported so templates can type the tile list. */
+export type { PeerView };

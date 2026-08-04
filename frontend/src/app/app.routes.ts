@@ -54,6 +54,12 @@ export const routes: Routes = [
       import('./features/messages/moderation.component').then((m) => m.MessagesModerationComponent),
   },
   {
+    path: 'meetings',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/meetings/meetings.component').then((m) => m.MeetingsComponent),
+  },
+  {
     path: 'security',
     canActivate: [authGuard],
     loadComponent: () =>

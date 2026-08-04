@@ -9,6 +9,7 @@ using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Realtime.Calls;
 using KeshavSingh.Realtime.Chat;
+using KeshavSingh.Realtime.Meetings;
 using KeshavSingh.Security;
 using KeshavSingh.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -51,10 +52,11 @@ builder.Services.AddSingleton<FileService>();
 // supplies the user directory (its own users collection) and the app-side JWT hub-token handler below.
 builder.Services.AddKeshavChat(builder.Configuration);
 builder.Services.AddSingleton<IChatUserDirectory, AdminChatUserDirectory>();
-// 1:1 audio calls (WebRTC). Signalling rides the chat hub — no extra hub or auth wiring. Media is
-// peer-to-peer and DTLS-SRTP encrypted, so no audio ever reaches this server. TURN credentials, if
-// any, come from Calls:Turn:* in the environment (never appsettings).
+// Group audio/video calls (WebRTC mesh) + scheduled meetings. Signalling rides the chat hub — no extra
+// hub or auth wiring. Media is peer-to-peer and DTLS-SRTP encrypted, so nothing ever reaches this
+// server. TURN credentials, if any, come from Calls:Turn:* in the environment (never appsettings).
 builder.Services.AddKeshavCalls(builder.Configuration);
+builder.Services.AddKeshavMeetings(builder.Configuration);
 builder.Services.AddSingleton<NoteService>();
 // Family finance: persistence + the KeshavSingh.Finance advisory engine (pure, no secrets/I-O).
 builder.Services.AddSingleton<FinanceService>();

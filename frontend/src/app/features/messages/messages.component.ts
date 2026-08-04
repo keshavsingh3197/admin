@@ -10,7 +10,9 @@ import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
 import { CallService, formatDuration } from '../../core/services/call.service';
 import { UsersService } from '../../core/services/users.service';
-import { Attachment, ChatVisibility, Conversation, DirectoryUser, Message, PresenceState } from '../../core/models/chat.models';
+import {
+  Attachment, ChatVisibility, Conversation, ConversationMember, DirectoryUser, Message, PresenceState,
+} from '../../core/models/chat.models';
 import { CallMedia, CallSummary } from '../../core/models/call.models';
 
 @Component({
@@ -29,6 +31,7 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
             <button type="button" class="vis-btn" [class.active]="visibility() === 'family'" (click)="setVisibility('family')">👪 Family</button>
           </div>
           <button class="btn primary sm" (click)="openDirectory()">＋ New</button>
+          <button class="btn secondary sm" (click)="openGroupBuilder()" title="Create a group">👪 Group</button>
         </div>
 
         @if (requests().length) {
@@ -52,7 +55,7 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
             <button class="conv" [class.active]="c.id === activeId()" (click)="openConversation(c)">
               <span class="dot" [class]="presenceOf(c)"></span>
               <span class="conv-main">
-                <span class="conv-top"><span class="conv-name">{{ c.partnerName }}</span>
+                <span class="conv-top"><span class="conv-name">{{ c.isGroup ? '👪 ' : '' }}{{ c.partnerName }}</span>
                   @if (c.unreadCount) { <span class="unread">{{ c.unreadCount }}</span> }</span>
                 <span class="conv-prev">{{ c.status === 'pending' && c.isInitiator ? 'Request sent…' : (c.lastMessagePreview || 'No messages yet') }}</span>
               </span>
@@ -69,8 +72,13 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
         @if (active(); as a) {
           <header class="t-head">
             <span class="who"><span class="dot" [class]="presenceOf(a)"></span>
-              <strong>{{ a.partnerName }}</strong>
-              <span class="pstate">{{ presenceOf(a) }}</span></span>
+              <strong>{{ a.isGroup ? '👪 ' : '' }}{{ a.partnerName }}</strong>
+              @if (a.isGroup) {
+                <button class="pstate link" type="button" (click)="membersOpen.set(!membersOpen())"
+                        title="Group members">{{ a.participants?.length ?? 0 }} members</button>
+              } @else {
+                <span class="pstate">{{ presenceOf(a) }}</span>
+              }</span>
             <span class="t-tools">
               @if (a.status === 'accepted') {
                 <button class="btn primary xs" [disabled]="calls.busy()" (click)="startCall(a)"
@@ -78,18 +86,53 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
                 <button class="btn primary xs" [disabled]="calls.busy()" (click)="startCall(a, 'video')"
                         title="Start a video call">📹 Video</button>
               }
-              <button class="btn secondary xs" (click)="block(a)">Block</button>
-              <button class="btn danger xs" (click)="reportSpam(a)">Report spam</button>
+              @if (a.isGroup) {
+                @if (isOwner(a)) {
+                  <button class="btn secondary xs" (click)="renameGroup(a)">Rename</button>
+                }
+                <button class="btn danger xs" (click)="leaveGroup(a)">Leave</button>
+              } @else {
+                <button class="btn secondary xs" (click)="block(a)">Block</button>
+                <button class="btn danger xs" (click)="reportSpam(a)">Report spam</button>
+              }
             </span>
           </header>
 
+          @if (a.isGroup && membersOpen()) {
+            <div class="members">
+              @for (m of a.participants ?? []; track m.id) {
+                <span class="member">
+                  <span class="dot" [class]="chat.presence()[m.id] ?? m.presence"></span>{{ m.displayName }}
+                  @if (m.isOwner) { <em class="tag">host</em> }
+                  @if (isOwner(a) && !m.isOwner) {
+                    <button class="mini-btn" type="button" (click)="removeMember(a, m)" title="Remove">✕</button>
+                  }
+                </span>
+              }
+              <button class="btn secondary xs" (click)="openAddMembers(a)">＋ Add people</button>
+            </div>
+          }
+
           <div class="thread" #thread>
             @for (m of messages(); track m.id) {
+              @if (m.systemKind) {
+                <div class="system-row"><span class="system">{{ m.body }}</span></div>
+              } @else {
               <div class="bubble-row" [class.mine]="isMine(m)">
                 <div class="bubble" [class.mine]="isMine(m)" [class.call-bubble]="!!m.call">
+                  @if (a.isGroup && !isMine(m) && m.senderName) {
+                    <span class="sender">{{ m.senderName }}</span>
+                  }
                   @if (m.deleted) { <em class="deleted">message removed</em> }
                   @else if (m.call; as c) {
                     <span class="call-line">{{ callIcon(c) }} {{ callText(m, c) }}</span>
+                    @if (c.participants?.length) {
+                      <span class="call-breakdown">
+                        @for (p of c.participants; track p.name) {
+                          <span class="cb-row">{{ p.name }} — {{ duration(p.seconds) }}</span>
+                        }
+                      </span>
+                    }
                   }
                   @else {
                     @if (m.forwarded) { <span class="fwd-tag">↪ Forwarded</span> }
@@ -117,6 +160,7 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
                   <span class="time">{{ m.sentAt | date:'shortTime' }}@if (isMine(m)) { <span class="rcpt">{{ m.readAt ? '✓✓' : '✓' }}</span> }</span>
                 </div>
               </div>
+              }
             }
           </div>
 
@@ -165,6 +209,37 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
             }
             @if (!directory().length) { <p class="muted pad">No one else to chat with.</p> }
           </div>
+        </div>
+      </div>
+    }
+
+    <!-- Group builder: also used to add people to an existing group -->
+    @if (groupMode(); as mode) {
+      <div class="overlay" (click)="closeGroupBuilder()">
+        <div class="panel" (click)="$event.stopPropagation()">
+          <header class="p-head">
+            <span class="p-title">{{ mode === 'create' ? 'New group' : 'Add people' }}</span>
+            <button class="icon-btn" (click)="closeGroupBuilder()">✕</button>
+          </header>
+          <div class="p-body">
+            @if (mode === 'create') {
+              <div class="pad">
+                <input class="input wide" placeholder="Group name" [(ngModel)]="groupTitle" name="groupTitle" />
+              </div>
+            }
+            @for (u of directory(); track u.id) {
+              <button class="dir-row" (click)="togglePick(u)">
+                <span class="pick" [class.on]="picked().includes(u.id)">{{ picked().includes(u.id) ? '☑' : '☐' }}</span>
+                <span class="dot" [class]="u.presence"></span>{{ u.displayName }}
+              </button>
+            }
+            @if (!directory().length) { <p class="muted pad">Nobody else to add.</p> }
+          </div>
+          <footer class="p-foot">
+            <span class="muted sm">{{ picked().length }} selected</span>
+            <button class="btn primary sm" [disabled]="!picked().length || (mode === 'create' && !groupTitle.trim())"
+                    (click)="submitGroup()">{{ mode === 'create' ? 'Create group' : 'Add' }}</button>
+          </footer>
         </div>
       </div>
     }
@@ -224,6 +299,21 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
     .att-img { max-width: 100%; max-height: 220px; border-radius: 8px; cursor: pointer; display: block; }
     .att-audio { max-width: 100%; }
     .att-video { max-width: 100%; max-height: 260px; border-radius: 8px; display: block; }
+    .pstate.link { background: none; border: none; color: var(--brand); cursor: pointer; padding: 0; font-size: .78rem; }
+    .members { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; padding: .5rem 1rem;
+               border-bottom: 1px solid var(--border); background: var(--bg); }
+    .member { display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem;
+              background: var(--surface); border: 1px solid var(--border); border-radius: 99px; padding: .15rem .5rem; }
+    .tag { font-size: .66rem; color: var(--muted); font-style: normal; }
+    .sender { font-size: .74rem; font-weight: 600; opacity: .8; }
+    .system-row { display: flex; justify-content: center; }
+    .system { font-size: .74rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border);
+              border-radius: 99px; padding: .1rem .6rem; }
+    .call-breakdown { display: flex; flex-direction: column; font-size: .74rem; opacity: .85; }
+    .pick { width: 1rem; }
+    .input.wide { width: 100%; box-sizing: border-box; }
+    .p-foot { display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+              padding: .6rem 1rem; border-top: 1px solid var(--border); }
     .call-bubble { background: var(--bg); border-style: dashed; color: var(--text); }
     .call-bubble.mine { background: var(--bg); color: var(--text); border-color: var(--border); }
     .call-line { font-size: .84rem; }
@@ -283,6 +373,13 @@ export class MessagesComponent implements AfterViewChecked, OnDestroy {
   mediaUrls = signal<Record<string, string>>({});
   recording = signal(false);
   forwardTarget = signal<Message | null>(null);
+  membersOpen = signal(false);
+  /** null = closed; 'create' = new group; 'add' = add people to the open group. */
+  groupMode = signal<'create' | 'add' | null>(null);
+  picked = signal<string[]>([]);
+  groupTitle = '';
+
+  readonly duration = formatDuration;
 
   private shouldScroll = false;
   private mediaRecorder: MediaRecorder | null = null;
@@ -320,9 +417,96 @@ export class MessagesComponent implements AfterViewChecked, OnDestroy {
 
   isMine(m: Message): boolean { return m.senderUserId === this.myId(); }
 
-  /** Starts a call with the partner of this conversation (the overlay takes over from here). */
+  /**
+   * Starts a call in this conversation — the other person for a 1:1 thread, everyone for a group. Group
+   * calls opt into the per-person summary being posted back into the thread when the call ends.
+   */
   startCall(c: Conversation, media: CallMedia = 'audio'): void {
-    this.calls.start(c.id, c.partnerName, media);
+    this.calls.start(c.id, c.partnerName, media, c.isGroup);
+  }
+
+  isOwner(c: Conversation): boolean {
+    return !!c.participants?.some(m => m.id === this.myId() && m.isOwner);
+  }
+
+  // ---- Groups ----
+
+  openGroupBuilder(): void {
+    this.groupTitle = '';
+    this.picked.set([]);
+    this.groupMode.set('create');
+    this.loadDirectory();
+  }
+
+  openAddMembers(c: Conversation): void {
+    this.picked.set([]);
+    this.groupMode.set('add');
+    // Offer everyone who isn't already in the group.
+    this.loadDirectory(new Set((c.participants ?? []).map(m => m.id)));
+  }
+
+  closeGroupBuilder(): void {
+    this.groupMode.set(null);
+    this.picked.set([]);
+  }
+
+  togglePick(u: DirectoryUser): void {
+    this.picked.update(list => list.includes(u.id) ? list.filter(id => id !== u.id) : [...list, u.id]);
+  }
+
+  submitGroup(): void {
+    const mode = this.groupMode();
+    const members = this.picked();
+    if (!mode || !members.length) return;
+
+    if (mode === 'create') {
+      const title = this.groupTitle.trim();
+      if (!title) return;
+      this.chat.createGroup(title, members).subscribe({
+        next: c => { this.closeGroupBuilder(); this.loadConversations(); this.activeId.set(c.id); this.messages.set([]); },
+        error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not create the group.'),
+      });
+      return;
+    }
+
+    const active = this.active();
+    if (!active) return;
+    this.chat.addMembers(active.id, members).subscribe({
+      next: () => { this.closeGroupBuilder(); this.loadConversations(); },
+      error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not add them.'),
+    });
+  }
+
+  removeMember(c: Conversation, m: ConversationMember): void {
+    if (!confirm(`Remove ${m.displayName} from ${c.partnerName}?`)) return;
+    this.chat.removeMember(c.id, m.id).subscribe({
+      next: () => this.loadConversations(),
+      error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not remove them.'),
+    });
+  }
+
+  leaveGroup(c: Conversation): void {
+    if (!confirm(`Leave ${c.partnerName}?`)) return;
+    this.chat.removeMember(c.id, this.myId()).subscribe({
+      next: () => { this.activeId.set(null); this.messages.set([]); this.loadConversations(); },
+      error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not leave the group.'),
+    });
+  }
+
+  renameGroup(c: Conversation): void {
+    const title = prompt('Group name', c.partnerName)?.trim();
+    if (!title || title === c.partnerName) return;
+    this.chat.renameGroup(c.id, title).subscribe({
+      next: () => this.loadConversations(),
+      error: (e: HttpErrorResponse) => this.error.set(e.error?.error ?? 'Could not rename the group.'),
+    });
+  }
+
+  private loadDirectory(exclude?: Set<string>): void {
+    this.chat.directory().subscribe({
+      next: d => this.directory.set(exclude ? d.filter(u => !exclude.has(u.id)) : d),
+      error: () => this.error.set('Could not load the directory.'),
+    });
   }
 
   /**
@@ -408,7 +592,7 @@ export class MessagesComponent implements AfterViewChecked, OnDestroy {
 
   openDirectory(): void {
     this.directoryOpen.set(true);
-    this.chat.directory().subscribe({ next: d => this.directory.set(d), error: () => this.error.set('Could not load the directory.') });
+    this.loadDirectory();
   }
 
   startChat(u: DirectoryUser): void {

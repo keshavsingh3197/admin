@@ -5,7 +5,8 @@ import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } fro
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { AdminBlock, AdminConversation, Conversation, DirectoryUser, Message, PresenceState, ShareLink } from '../models/chat.models';
-import { CallHubEvent, CallMedia, CallSignalKind, CallStateChanged, IncomingCall } from '../models/call.models';
+import { CallEnded, CallHubEvent, CallMedia, CallRoom, CallSignalKind, IncomingCall } from '../models/call.models';
+import { MeetingReminder } from '../models/meeting.models';
 
 /**
  * Owns the single SignalR chat connection (presence + live message push) and the REST calls for
@@ -38,6 +39,10 @@ export class ChatService {
   private readonly callEvents = new Subject<CallHubEvent>();
   readonly calls$ = this.callEvents.asObservable();
 
+  /** Last "your meeting starts soon" push, and a counter the agenda watches for changes. */
+  readonly meetingReminder = signal<MeetingReminder | null>(null);
+  readonly meetingsDirty = signal(0);
+
   async connect(): Promise<void> {
     if (this.connection) return;
     const conn = new HubConnectionBuilder()
@@ -51,11 +56,18 @@ export class ChatService {
     conn.on('PresenceChanged', (userId: string, state: PresenceState) =>
       this.presence.update(p => ({ ...p, [userId]: state })));
     conn.on('CallIncoming', (call: IncomingCall) => this.callEvents.next({ type: 'incoming', call }));
-    conn.on('CallStateChanged', (state: CallStateChanged) => this.callEvents.next({ type: 'state', state }));
-    conn.on('CallMediaChanged', (e: { callId: string; media: CallMedia }) =>
-      this.callEvents.next({ type: 'media', callId: e.callId, media: e.media }));
-    conn.on('CallSignal', (callId: string, kind: CallSignalKind, payload: string) =>
-      this.callEvents.next({ type: 'signal', callId, kind, payload }));
+    conn.on('RoomState', (room: CallRoom) => this.callEvents.next({ type: 'roster', room }));
+    conn.on('ParticipantJoined', (roomId: string, userId: string) =>
+      this.callEvents.next({ type: 'joined', roomId, userId }));
+    conn.on('ParticipantLeft', (roomId: string, userId: string) =>
+      this.callEvents.next({ type: 'left', roomId, userId }));
+    conn.on('RoomEnded', (ended: CallEnded) => this.callEvents.next({ type: 'ended', ended }));
+    conn.on('CallMediaChanged', (e: { roomId: string; media: CallMedia }) =>
+      this.callEvents.next({ type: 'media', roomId: e.roomId, media: e.media }));
+    conn.on('CallSignal', (roomId: string, fromUserId: string, kind: CallSignalKind, payload: string) =>
+      this.callEvents.next({ type: 'signal', roomId, fromUserId, kind, payload }));
+    conn.on('MeetingReminder', (reminder: MeetingReminder) => this.meetingReminder.set(reminder));
+    conn.on('MeetingUpdated', () => this.meetingsDirty.update(v => v + 1));
     conn.onreconnected(() => this.connected.set(true));
     conn.onclose(() => this.connected.set(false));
 
@@ -84,6 +96,24 @@ export class ChatService {
 
   start(recipientUserId: string, body?: string): Observable<Conversation> {
     return this.http.post<Conversation>(`${this.base}/chat/conversations`, { recipientUserId, body: body ?? null });
+  }
+
+  // ---- Groups ----
+  createGroup(title: string, memberIds: string[]): Observable<Conversation> {
+    return this.http.post<Conversation>(`${this.base}/chat/groups`, { title, memberIds });
+  }
+
+  addMembers(id: string, memberIds: string[]): Observable<Conversation> {
+    return this.http.post<Conversation>(`${this.base}/chat/groups/${id}/members`, { memberIds });
+  }
+
+  /** Removes a member (owner only), or yourself — which is how you leave a group. */
+  removeMember(id: string, memberId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/chat/groups/${id}/members/${memberId}`);
+  }
+
+  renameGroup(id: string, title: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/chat/groups/${id}/rename`, { title });
   }
 
   messages(id: string, before?: string): Observable<Message[]> {

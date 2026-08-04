@@ -72,15 +72,16 @@ import { AdminCall } from '../../core/models/call.models';
              encrypted, so there is no audio to review — only these records. -->
         <p class="muted note">Audio and video are peer-to-peer and end-to-end encrypted — never recorded. This is the call log only.</p>
         <table class="tbl">
-          <thead><tr><th>Participants</th><th>Kind</th><th>State</th><th>Started</th><th>Answered</th><th>Duration</th></tr></thead>
+          <thead><tr><th>Call</th><th>Participants</th><th>Kind</th><th>State</th><th>Started</th><th>Duration</th></tr></thead>
           <tbody>
             @for (c of calls(); track c.callId) {
               <tr>
-                <td>{{ c.participantNames.join(' → ') }}</td>
+                <td>{{ c.title }}</td>
+                <td>{{ c.participantNames.join(', ') }}
+                  @if (c.participantCount > 2) { <span class="count">({{ c.participantCount }})</span> }</td>
                 <td>{{ c.media === 'video' ? '📹 Video' : '📞 Audio' }}</td>
                 <td><span class="tag" [class.spam]="c.endReason === 'failed'">{{ c.endReason ?? c.state }}</span></td>
                 <td>{{ c.startedAt | date:'short' }}</td>
-                <td>{{ c.answeredAt ? (c.answeredAt | date:'shortTime') : '—' }}</td>
                 <td>{{ c.durationSeconds ? duration(c.durationSeconds) : '—' }}</td>
               </tr>
             }
