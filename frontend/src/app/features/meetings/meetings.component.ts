@@ -9,10 +9,24 @@ import { Meeting, SaveMeeting } from '../../core/models/meeting.models';
 import { CallMedia } from '../../core/models/call.models';
 import { Conversation, DirectoryUser } from '../../core/models/chat.models';
 
+type MeetingsView = 'agenda' | 'calendar';
+
+interface MonthCell {
+  /** Local yyyy-mm-dd. */
+  key: string;
+  date: number;
+  inMonth: boolean;
+  isToday: boolean;
+  items: Meeting[];
+}
+
+const VIEW_KEY = 'admin.meetings.view';
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
 /**
- * The meeting calendar: an agenda of what's coming up, a form to schedule one, and a Join button that
- * opens the meeting's call room once the window is open. Reminders arrive over the chat hub, so this
- * page doesn't poll.
+ * The meeting calendar: an agenda of what's coming up or a month grid, a form to schedule one, and a
+ * Join button that opens the meeting's call room once the window is open. Reminders arrive over the
+ * chat hub (the shell shows them), so this page doesn't poll.
  */
 @Component({
   selector: 'app-meetings',
@@ -24,17 +38,48 @@ import { Conversation, DirectoryUser } from '../../core/models/chat.models';
       <header class="head">
         <h1>Meetings</h1>
         <div class="head-tools">
-          <label class="chk"><input type="checkbox" [(ngModel)]="includePast" (ngModelChange)="load()" /> Show past</label>
+          <div class="seg" role="tablist" aria-label="View">
+            <button class="seg-btn" [class.on]="view() === 'agenda'" (click)="setView('agenda')"
+                    role="tab" [attr.aria-selected]="view() === 'agenda'">☰ Agenda</button>
+            <button class="seg-btn" [class.on]="view() === 'calendar'" (click)="setView('calendar')"
+                    role="tab" [attr.aria-selected]="view() === 'calendar'">▦ Calendar</button>
+          </div>
+          @if (view() === 'agenda') {
+            <label class="chk"><input type="checkbox" [(ngModel)]="includePast" (ngModelChange)="load()" /> Show past</label>
+          }
+          @if (canAskForAlerts()) {
+            <button class="btn secondary sm" (click)="enableAlerts()" title="Show reminders as desktop notifications">
+              🔔 Alerts</button>
+          }
           <button class="btn primary sm" (click)="openForm()">＋ Schedule</button>
         </div>
       </header>
 
-      @if (reminder(); as r) {
-        <div class="banner">
-          ⏰ <strong>{{ r.title }}</strong> starts {{ r.minutesUntil <= 0 ? 'now' : 'in ' + r.minutesUntil + ' min' }}
-          <button class="btn primary xs" (click)="joinById(r.meetingId)">Join</button>
-          <button class="btn secondary xs" (click)="chat.meetingReminder.set(null)">Dismiss</button>
-        </div>
+      @if (view() === 'calendar') {
+        <section class="cal">
+          <header class="cal-head">
+            <button class="btn secondary xs" (click)="shiftMonth(-1)" aria-label="Previous month">‹</button>
+            <strong>{{ monthLabel() }}</strong>
+            <button class="btn secondary xs" (click)="shiftMonth(1)" aria-label="Next month">›</button>
+            <button class="btn secondary xs today" (click)="goToday()">Today</button>
+          </header>
+          <div class="cal-grid">
+            @for (d of weekdayNames; track d) { <span class="cal-dow">{{ d }}</span> }
+            @for (cell of monthCells(); track cell.key) {
+              <button class="cal-cell" type="button"
+                      [class.other]="!cell.inMonth" [class.today]="cell.isToday"
+                      [class.sel]="cell.key === selectedDay()"
+                      (click)="selectDay(cell.key)">
+                <span class="cal-date">{{ cell.date }}</span>
+                @for (m of cell.items.slice(0, 3); track m.id) {
+                  <span class="chip" [class.cancelled]="m.status === 'cancelled'"
+                        [title]="m.title">{{ m.startsAt | date:'HH:mm' }} {{ m.title }}</span>
+                }
+                @if (cell.items.length > 3) { <span class="more">+{{ cell.items.length - 3 }} more</span> }
+              </button>
+            }
+          </div>
+        </section>
       }
 
       @for (group of grouped(); track group.day) {
@@ -144,8 +189,35 @@ import { Conversation, DirectoryUser } from '../../core/models/chat.models';
     h1 { margin: 0; }
     h2 { font-size: .82rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
          margin: 1.25rem 0 .5rem; }
-    .banner { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: 1rem;
-              background: #fef7e0; color: #8a5b00; border: 1px solid #f5d98a; border-radius: 10px; padding: .6rem .8rem; }
+    .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .seg-btn { background: var(--surface); color: var(--muted); border: none; padding: .35rem .7rem;
+               font-size: .82rem; cursor: pointer; }
+    .seg-btn.on { background: var(--brand); color: var(--brand-text); }
+
+    .cal { margin-top: 1rem; border: 1px solid var(--border); border-radius: 12px;
+           background: var(--surface); overflow: hidden; }
+    .cal-head { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem;
+                border-bottom: 1px solid var(--border); }
+    .cal-head strong { min-width: 10rem; text-align: center; }
+    .cal-head .today { margin-left: auto; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+    .cal-dow { padding: .4rem; text-align: center; font-size: .72rem; text-transform: uppercase;
+               letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--border); }
+    .cal-cell { display: flex; flex-direction: column; gap: .15rem; align-items: stretch; min-height: 92px;
+                padding: .3rem; background: none; border: none; border-right: 1px solid var(--border);
+                border-bottom: 1px solid var(--border); text-align: left; color: var(--text); cursor: pointer; }
+    .cal-cell:nth-child(7n) { border-right: none; }
+    .cal-cell:hover { background: var(--bg); }
+    .cal-cell.other { opacity: .45; }
+    .cal-cell.sel { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+    .cal-date { font-size: .78rem; color: var(--muted); align-self: flex-start; }
+    .cal-cell.today .cal-date { background: var(--brand); color: var(--brand-text); border-radius: 99px;
+                                padding: 0 .35rem; }
+    .chip { font-size: .68rem; background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+            border-radius: 4px; padding: .05rem .25rem; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; }
+    .chip.cancelled { text-decoration: line-through; opacity: .6; }
+    .more { font-size: .66rem; color: var(--muted); }
     .card { display: grid; grid-template-columns: 90px 1fr auto; gap: .75rem; align-items: center;
             border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
             padding: .7rem .9rem; margin-bottom: .5rem; }
@@ -213,7 +285,15 @@ export class MeetingsComponent {
   formError = signal<string | null>(null);
   includePast = false;
 
-  readonly reminder = computed(() => this.chat.meetingReminder());
+  /** Agenda (a list) or Calendar (a month grid); remembered between visits. */
+  readonly view = signal<MeetingsView>(loadView());
+  /** Which month the grid is showing, as the 1st of that month. */
+  readonly month = signal(startOfMonth(new Date()));
+  /** yyyy-mm-dd of the day clicked in the grid, which the agenda below then filters to. */
+  readonly selectedDay = signal<string | null>(null);
+  readonly alertsAsked = signal(false);
+
+  readonly weekdayNames = WEEKDAYS;
 
   form: {
     title: string; description: string; localStart: string; durationMinutes: number;
@@ -222,14 +302,85 @@ export class MeetingsComponent {
 
   /** Agenda grouped by local day, so the list reads like a calendar. */
   readonly grouped = computed(() => {
+    const selected = this.selectedDay();
+    const source = selected ? this.meetings().filter(m => dayKey(new Date(m.startsAt)) === selected) : this.meetings();
     const groups = new Map<string, Meeting[]>();
-    for (const m of this.meetings()) {
+    for (const m of source) {
       const day = new Date(m.startsAt).toLocaleDateString(undefined,
         { weekday: 'short', day: 'numeric', month: 'short' });
       (groups.get(day) ?? groups.set(day, []).get(day)!).push(m);
     }
     return [...groups.entries()].map(([day, items]) => ({ day, items }));
   });
+
+  readonly monthLabel = computed(() =>
+    this.month().toLocaleDateString(undefined, { month: 'long', year: 'numeric' }));
+
+  /**
+   * The month grid: six weeks starting on the Monday on or before the 1st, each cell carrying that
+   * day's meetings. Built from local dates so a meeting lands on the day the user actually sees.
+   */
+  readonly monthCells = computed<MonthCell[]>(() => {
+    const byDay = new Map<string, Meeting[]>();
+    for (const m of this.meetings()) {
+      const key = dayKey(new Date(m.startsAt));
+      (byDay.get(key) ?? byDay.set(key, []).get(key)!).push(m);
+    }
+
+    const first = this.month();
+    const cursor = new Date(first);
+    // Monday-first: getDay() is 0 for Sunday, so shift it into 0..6 with Monday at 0.
+    cursor.setDate(1 - ((first.getDay() + 6) % 7));
+
+    const todayKey = dayKey(new Date());
+    const cells: MonthCell[] = [];
+    for (let i = 0; i < 42; i++) {
+      const key = dayKey(cursor);
+      cells.push({
+        key,
+        date: cursor.getDate(),
+        inMonth: cursor.getMonth() === first.getMonth(),
+        isToday: key === todayKey,
+        items: (byDay.get(key) ?? []).slice().sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return cells;
+  });
+
+  /** Only offer the alerts button when the browser can be asked (not granted, not blocked). */
+  readonly canAskForAlerts = computed(() =>
+    !this.alertsAsked() && typeof Notification !== 'undefined' && Notification.permission === 'default');
+
+  setView(view: MeetingsView): void {
+    this.view.set(view);
+    localStorage.setItem(VIEW_KEY, view);
+    // The calendar shows a whole month, which usually means past days too.
+    if (view === 'calendar' && !this.includePast) { this.includePast = true; this.load(); }
+    if (view === 'agenda') this.selectedDay.set(null);
+  }
+
+  shiftMonth(delta: number): void {
+    const next = new Date(this.month());
+    next.setMonth(next.getMonth() + delta);
+    this.month.set(startOfMonth(next));
+    this.selectedDay.set(null);
+  }
+
+  goToday(): void {
+    this.month.set(startOfMonth(new Date()));
+    this.selectedDay.set(dayKey(new Date()));
+  }
+
+  selectDay(key: string): void {
+    this.selectedDay.update(current => (current === key ? null : key));
+  }
+
+  /** Asks for notification permission — must be from a click, which is why it's a button. */
+  async enableAlerts(): Promise<void> {
+    this.alertsAsked.set(true);
+    try { await Notification.requestPermission(); } catch { /* denied or unsupported */ }
+  }
 
   constructor() {
     // Runs once on init, then whenever the hub reports a meeting changed (created, edited, cancelled).
@@ -288,13 +439,6 @@ export class MeetingsComponent {
     void this.calls.joinMeeting(m.id, m.media);
   }
 
-  joinById(meetingId: string): void {
-    const meeting = this.meetings().find(m => m.id === meetingId);
-    if (meeting) { this.join(meeting); return; }
-    // Reminder for something not in the loaded list (e.g. filtered out) — fetch it, then join.
-    this.api.get(meetingId).subscribe({ next: m => this.join(m), error: () => this.error.set('Could not open that meeting.') });
-  }
-
   private blankForm() {
     // Default to the next half hour, which is what people almost always want.
     const start = new Date();
@@ -340,7 +484,22 @@ export class MeetingsComponent {
 
 /** `datetime-local` wants a local-time string with no zone, so build it from the local parts. */
 function toLocalInput(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-    + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${dayKey(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** Local yyyy-mm-dd — the grid's cell key. Never use toISOString here: that would shift the day. */
+function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function loadView(): MeetingsView {
+  return localStorage.getItem(VIEW_KEY) === 'calendar' ? 'calendar' : 'agenda';
 }

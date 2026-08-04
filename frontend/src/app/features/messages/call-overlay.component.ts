@@ -115,8 +115,18 @@ import { PeerView } from '../../core/models/call.models';
             <span class="vol-val">{{ volumePercent() }}%</span>
           </div>
 
-          @if (call.canSelectSpeaker() || call.microphones().length > 1) {
+          @if (call.canSelectSpeaker() || call.microphones().length > 1 || call.cameras().length > 1) {
             <div class="devices">
+              @if (call.cameras().length > 1) {
+                <label>📷
+                  <select [value]="call.cameraId()" (change)="onCamera($event)">
+                    <option value="">Default camera</option>
+                    @for (d of call.cameras(); track d.deviceId) {
+                      <option [value]="d.deviceId">{{ d.label || 'Camera' }}</option>
+                    }
+                  </select>
+                </label>
+              }
               @if (call.canSelectSpeaker()) {
                 <label>🔊
                   <select [value]="call.speakerId()" (change)="onSpeaker($event)">
@@ -157,6 +167,10 @@ import { PeerView } from '../../core/models/call.models';
                         [title]="call.muted() ? 'Unmute' : 'Mute'">{{ call.muted() ? '🔇' : '🎙️' }}</button>
                 <button class="cbtn plain" type="button" [class.on]="call.cameraOn()" (click)="call.toggleCamera()"
                         [title]="call.cameraOn() ? 'Turn camera off' : 'Turn camera on'">📹</button>
+                @if (call.cameraOn() && call.cameras().length > 1) {
+                  <button class="cbtn plain" type="button" (click)="call.flipCamera()"
+                          title="Switch camera">🔄</button>
+                }
                 @if (showVideo()) {
                   <button class="cbtn plain" type="button" (click)="call.toggleLayout()"
                           [title]="call.layout() === 'pip' ? 'Gallery view' : 'Spotlight view'">
@@ -338,6 +352,10 @@ export class CallOverlayComponent {
 
   onMic(event: Event): void {
     void this.call.selectMic((event.target as HTMLSelectElement).value);
+  }
+
+  onCamera(event: Event): void {
+    void this.call.selectCamera((event.target as HTMLSelectElement).value);
   }
 }
 

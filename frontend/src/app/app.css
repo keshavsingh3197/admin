@@ -34,8 +34,60 @@ body {
 
 .app-nav {
   display: flex;
-  gap: 1.5rem;
+  align-items: center;
+  gap: 0.35rem;
 }
+
+.nav-ico { margin-right: 0.35rem; }
+
+/* The Manage menu: a button plus a panel that only exists while it's open. */
+.nav-group { position: relative; }
+
+.nav-group-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.nav-group-btn:hover { color: var(--brand-text); background: rgba(255, 255, 255, 0.14); }
+.caret { font-size: 0.7rem; transition: transform 0.15s; }
+.nav-group.open .caret { transform: rotate(180deg); }
+
+.nav-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  min-width: 210px;
+  z-index: 16;
+  flex-direction: column;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-group.open .nav-menu { display: flex; }
+
+.nav-menu a {
+  color: var(--text);
+  border-bottom: none;
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.nav-menu a:hover { background: var(--bg); border-bottom: none; }
+.nav-menu a.active { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--text); }
 
 .spacer { flex: 1; }
 
@@ -98,41 +150,26 @@ body {
   opacity: 0.9;
 }
 
-.theme-btn {
+/* Search / interface style / theme all share one square chip button. */
+.chip-btn {
   background: rgba(255,255,255,0.14);
   color: var(--brand-text);
   border: 1px solid rgba(255,255,255,0.38);
-  border-radius: 4px;
-  width: 2rem;
-  height: 2rem;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.2s;
-}
-
-.theme-btn:hover { background: rgba(255,255,255,0.24); }
-.theme-btn:active { transform: translateY(1px); }
-
-.search-btn {
-  background: rgba(255,255,255,0.14);
-  color: var(--brand-text);
-  border: 1px solid rgba(255,255,255,0.38);
-  border-radius: 4px;
+  border-radius: 6px;
   width: 2rem;
   height: 2rem;
   display: grid;
   place-items: center;
   padding: 0;
   font-size: 0.95rem;
+  font-weight: 700;
   text-decoration: none;
-  transition: background 0.2s;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
 }
 
-.search-btn:hover { background: rgba(255,255,255,0.24); }
+.chip-btn:hover { background: rgba(255,255,255,0.24); }
+.chip-btn:active { transform: translateY(1px); }
 
 .logout-btn {
   background: rgba(255,255,255,0.15);
@@ -147,20 +184,18 @@ body {
 
 .logout-btn:hover { background: rgba(255,255,255,0.28); }
 
-.app-nav a {
+.app-nav > a {
   color: rgba(255,255,255,0.85);
   text-decoration: none;
   font-size: 0.95rem;
-  padding: 0.25rem 0;
-  border-bottom: 2px solid transparent;
-  transition: color 0.2s, border-color 0.2s;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: color 0.2s, background 0.2s;
 }
 
-.app-nav a:hover,
-.app-nav a.active {
-  color: var(--brand-text);
-  border-bottom-color: var(--brand-text);
-}
+.app-nav > a:hover { color: var(--brand-text); background: rgba(255,255,255,0.14); }
+.app-nav > a.active { color: var(--brand-text); background: rgba(255,255,255,0.22); }
 
 .app-main {
   flex: 1;
@@ -236,7 +271,7 @@ body {
 }
 
 /* Phones and narrow tablets: collapse the nav behind a hamburger menu. */
-@media (max-width: 880px) {
+@media (max-width: 1100px) {
   .app-header { gap: 0.75rem; }
 
   .nav-toggle { display: flex; }
@@ -249,6 +284,7 @@ body {
     right: 0;
     z-index: 15;
     flex-direction: column;
+    align-items: stretch;
     gap: 0;
     background: var(--brand);
     padding: 0.5rem 1.25rem 1rem;
@@ -259,12 +295,25 @@ body {
 
   .app-nav.open { display: flex; }
 
-  .app-nav a {
-    padding: 0.65rem 0;
+  .app-nav > a {
+    padding: 0.65rem 0.4rem;
+    border-radius: 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   }
 
-  .app-nav a:last-child { border-bottom: none; }
+  /* In the drawer the Manage menu is just a section, not a floating panel. */
+  .nav-group-btn { width: 100%; justify-content: flex-start; padding: 0.65rem 0.4rem; }
+  .nav-menu {
+    position: static;
+    min-width: 0;
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    box-shadow: none;
+    padding: 0.2rem 0 0.2rem 0.6rem;
+  }
+  .nav-menu a { color: rgba(255, 255, 255, 0.9); }
+  .nav-menu a:hover { background: rgba(255, 255, 255, 0.14); }
+  .nav-menu a.active { background: rgba(255, 255, 255, 0.22); color: var(--brand-text); }
 
   .user-name { display: none; }
 }
@@ -276,3 +325,6 @@ body {
   .logout-btn { padding: 0.3rem 0.5rem; font-size: 0.8rem; }
   .app-main { padding: 1rem; }
 }
+
+/* The Basic/Modern interface styles live in the global styles.css: they restyle shared containers
+   (.card, .panel, tables…) across every page, not just this shell. */

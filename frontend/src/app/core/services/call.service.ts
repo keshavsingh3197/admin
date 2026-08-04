@@ -49,6 +49,7 @@ interface Peer {
 const VOLUME_KEY = 'admin.call.volume';
 const SPEAKER_KEY = 'admin.call.speaker';
 const MIC_KEY = 'admin.call.mic';
+const CAMERA_KEY = 'admin.call.camera';
 
 /**
  * Group audio/video calls over WebRTC.
@@ -92,8 +93,10 @@ export class CallService {
   readonly volume = signal(loadVolume());
   readonly speakers = signal<MediaDeviceInfo[]>([]);
   readonly microphones = signal<MediaDeviceInfo[]>([]);
+  readonly cameras = signal<MediaDeviceInfo[]>([]);
   readonly speakerId = signal(localStorage.getItem(SPEAKER_KEY) ?? '');
   readonly micId = signal(localStorage.getItem(MIC_KEY) ?? '');
+  readonly cameraId = signal(localStorage.getItem(CAMERA_KEY) ?? '');
   /** The browser refused to play audio without a gesture — the UI offers an "enable sound" button. */
   readonly needsSoundUnlock = signal(false);
   /** Our own mic level (0..1) so you can see that you're being picked up. */
@@ -267,6 +270,40 @@ export class CallService {
     this.speakerId.set(deviceId);
     localStorage.setItem(SPEAKER_KEY, deviceId);
     for (const peer of this.peerMap.values()) await this.applySinkDevice(peer);
+  }
+
+  /**
+   * Switches camera mid-call (a second webcam, or front/back on a phone). Uses `replaceTrack`, so the
+   * m-line stays as negotiated — the other side just sees the picture change, with no renegotiation.
+   */
+  async selectCamera(deviceId: string): Promise<void> {
+    this.cameraId.set(deviceId);
+    localStorage.setItem(CAMERA_KEY, deviceId);
+    // Camera off? Remember the choice; it applies the next time it's switched on.
+    if (!this.localMedia || !this.cameraOn()) return;
+
+    try {
+      const fresh = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(deviceId) });
+      const track = fresh.getVideoTracks()[0];
+      if (!track) return;
+      for (const peer of this.peerMap.values()) {
+        const sender = peer.pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) await sender.replaceTrack(track);
+      }
+      this.localMedia.getVideoTracks().forEach(old => { old.stop(); this.localMedia?.removeTrack(old); });
+      this.localMedia.addTrack(track);
+      this.localPreview.set(new MediaStream([track]));
+    } catch {
+      this.message.set('Could not switch camera.');
+    }
+  }
+
+  /** Flips to the next camera in the list — the one-tap version for phones. */
+  async flipCamera(): Promise<void> {
+    const list = this.cameras();
+    if (list.length < 2) return;
+    const current = list.findIndex(d => d.deviceId === this.cameraId());
+    await this.selectCamera(list[(current + 1) % list.length].deviceId);
   }
 
   /** Switches microphone mid-call — the usual fix when the others can't hear you. */
@@ -602,7 +639,7 @@ export class CallService {
     }
 
     try {
-      const cam = await navigator.mediaDevices.getUserMedia({ video: videoConstraints() });
+      const cam = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(this.cameraId()) });
       const track = cam.getVideoTracks()[0];
       if (!track) return;
       this.localMedia.addTrack(track);
@@ -650,7 +687,7 @@ export class CallService {
     const audio = audioConstraints(this.micId());
     if (wantVideo) {
       try {
-        this.localMedia = await navigator.mediaDevices.getUserMedia({ audio, video: videoConstraints() });
+        this.localMedia = await navigator.mediaDevices.getUserMedia({ audio, video: videoConstraints(this.cameraId()) });
         const track = this.localMedia.getVideoTracks()[0];
         this.cameraOn.set(!!track);
         if (track) this.localPreview.set(new MediaStream([track]));
@@ -681,6 +718,7 @@ export class CallService {
       const devices = await navigator.mediaDevices.enumerateDevices();
       this.speakers.set(devices.filter(d => d.kind === 'audiooutput'));
       this.microphones.set(devices.filter(d => d.kind === 'audioinput'));
+      this.cameras.set(devices.filter(d => d.kind === 'videoinput'));
     } catch { /* enumeration unavailable */ }
   }
 
@@ -849,8 +887,13 @@ function audioConstraints(deviceId: string): MediaTrackConstraints {
   };
 }
 
-function videoConstraints(): MediaTrackConstraints {
-  return { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' };
+function videoConstraints(deviceId = ''): MediaTrackConstraints {
+  return {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    // A specific camera wins; otherwise ask for the front-facing one (what phones default to).
+    ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' }),
+  };
 }
 
 function toRtcIceServer(server: IceServer): RTCIceServer {

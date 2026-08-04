@@ -18,29 +18,46 @@
         <div class="nav-backdrop" (click)="closeNav()"></div>
       }
 
-      <nav class="app-nav" id="app-nav" [class.open]="navOpen()" (click)="closeNav()">
-        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Dashboard</a>
-        <a routerLink="/notes" routerLinkActive="active">Notes</a>
-        <a routerLink="/messages" routerLinkActive="active">Messages</a>
-        <a routerLink="/meetings" routerLinkActive="active">Meetings</a>
-        <a routerLink="/security" routerLinkActive="active">Security</a>
+      <nav class="app-nav" id="app-nav" [class.open]="navOpen()">
+        @for (link of primaryLinks; track link.path) {
+          <a [routerLink]="link.path" routerLinkActive="active"
+             [routerLinkActiveOptions]="{exact: link.exact}" (click)="closeNav()">
+            <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ link.label }}
+          </a>
+        }
+
+        <!-- Admin pages live behind one menu so the bar stays short as the app grows. -->
         @if (auth.hasRole('Admin')) {
-          <a routerLink="/messages/moderation" routerLinkActive="active">Chat mod</a>
-          <a routerLink="/users" routerLinkActive="active">Users</a>
-          <a routerLink="/groups" routerLinkActive="active">Groups</a>
-          <a routerLink="/roles" routerLinkActive="active">Roles</a>
-          <a routerLink="/analytics" routerLinkActive="active">Analytics</a>
-          <a routerLink="/data-retention" routerLinkActive="active">Data retention</a>
-          <a routerLink="/health" routerLinkActive="active">Health</a>
-          <a routerLink="/settings" routerLinkActive="active">Settings</a>
+          <div class="nav-group" [class.open]="manageOpen()">
+            <button class="nav-group-btn" type="button" (click)="toggleManage()"
+                    [attr.aria-expanded]="manageOpen()">
+              <span class="nav-ico" aria-hidden="true">⚙️</span>Manage
+              <span class="caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="nav-menu">
+              @for (link of adminLinks; track link.path) {
+                <a [routerLink]="link.path" routerLinkActive="active" (click)="closeNav()">
+                  <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ link.label }}
+                </a>
+              }
+            </div>
+          </div>
         }
       </nav>
+
       <div class="spacer"></div>
+
       <div class="user-chip">
-        <a class="search-btn" routerLink="/search" aria-label="Search" title="Search">
+        <a class="chip-btn" routerLink="/search" aria-label="Search" title="Search">
           <span aria-hidden="true">🔍</span>
         </a>
-        <button class="theme-btn" type="button" (click)="toggleTheme()" [attr.aria-label]="'Switch theme, current: ' + theme()" [title]="'Theme: ' + theme()">
+        <button class="chip-btn" type="button" (click)="toggleUiMode()"
+                [attr.aria-label]="'Switch interface style, current: ' + uiMode()"
+                [title]="'Interface: ' + uiMode() + ' — click for ' + (uiMode() === 'modern' ? 'basic' : 'modern')">
+          <span aria-hidden="true">{{ uiMode() === 'modern' ? '✨' : '▭' }}</span>
+        </button>
+        <button class="chip-btn" type="button" (click)="toggleTheme()"
+                [attr.aria-label]="'Switch theme, current: ' + theme()" [title]="'Theme: ' + theme()">
           <span aria-hidden="true">{{ theme() === 'light' ? '☀' : (theme() === 'dark' ? '☾' : '✦') }}</span>
         </button>
         <span class="user-name">{{ auth.user()?.displayName }}</span>
@@ -67,6 +84,7 @@
   </footer>
 
   @if (auth.isAuthenticated()) {
+    <app-meeting-reminder />
     <app-call-overlay />
   }
 </div>
