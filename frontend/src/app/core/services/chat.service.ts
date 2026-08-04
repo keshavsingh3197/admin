@@ -5,7 +5,7 @@ import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } fro
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { AdminBlock, AdminConversation, Conversation, DirectoryUser, Message, PresenceState, ShareLink } from '../models/chat.models';
-import { CallHubEvent, CallSignalKind, CallStateChanged, IncomingCall } from '../models/call.models';
+import { CallHubEvent, CallMedia, CallSignalKind, CallStateChanged, IncomingCall } from '../models/call.models';
 
 /**
  * Owns the single SignalR chat connection (presence + live message push) and the REST calls for
@@ -52,6 +52,8 @@ export class ChatService {
       this.presence.update(p => ({ ...p, [userId]: state })));
     conn.on('CallIncoming', (call: IncomingCall) => this.callEvents.next({ type: 'incoming', call }));
     conn.on('CallStateChanged', (state: CallStateChanged) => this.callEvents.next({ type: 'state', state }));
+    conn.on('CallMediaChanged', (e: { callId: string; media: CallMedia }) =>
+      this.callEvents.next({ type: 'media', callId: e.callId, media: e.media }));
     conn.on('CallSignal', (callId: string, kind: CallSignalKind, payload: string) =>
       this.callEvents.next({ type: 'signal', callId, kind, payload }));
     conn.onreconnected(() => this.connected.set(true));

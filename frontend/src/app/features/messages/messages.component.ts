@@ -11,7 +11,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { CallService, formatDuration } from '../../core/services/call.service';
 import { UsersService } from '../../core/services/users.service';
 import { Attachment, ChatVisibility, Conversation, DirectoryUser, Message, PresenceState } from '../../core/models/chat.models';
-import { CallSummary } from '../../core/models/call.models';
+import { CallMedia, CallSummary } from '../../core/models/call.models';
 
 @Component({
   selector: 'app-messages',
@@ -75,6 +75,8 @@ import { CallSummary } from '../../core/models/call.models';
               @if (a.status === 'accepted') {
                 <button class="btn primary xs" [disabled]="calls.busy()" (click)="startCall(a)"
                         title="Start an audio call">📞 Call</button>
+                <button class="btn primary xs" [disabled]="calls.busy()" (click)="startCall(a, 'video')"
+                        title="Start a video call">📹 Video</button>
               }
               <button class="btn secondary xs" (click)="block(a)">Block</button>
               <button class="btn danger xs" (click)="reportSpam(a)">Report spam</button>
@@ -87,7 +89,7 @@ import { CallSummary } from '../../core/models/call.models';
                 <div class="bubble" [class.mine]="isMine(m)" [class.call-bubble]="!!m.call">
                   @if (m.deleted) { <em class="deleted">message removed</em> }
                   @else if (m.call; as c) {
-                    <span class="call-line">{{ c.outcome === 'completed' ? '📞' : '📵' }} {{ callText(m, c) }}</span>
+                    <span class="call-line">{{ callIcon(c) }} {{ callText(m, c) }}</span>
                   }
                   @else {
                     @if (m.forwarded) { <span class="fwd-tag">↪ Forwarded</span> }
@@ -318,22 +320,28 @@ export class MessagesComponent implements AfterViewChecked, OnDestroy {
 
   isMine(m: Message): boolean { return m.senderUserId === this.myId(); }
 
-  /** Starts an audio call with the partner of this conversation (the overlay takes over from here). */
-  startCall(c: Conversation): void {
-    this.calls.start(c.id, c.partnerName);
+  /** Starts a call with the partner of this conversation (the overlay takes over from here). */
+  startCall(c: Conversation, media: CallMedia = 'audio'): void {
+    this.calls.start(c.id, c.partnerName, media);
   }
 
   /**
    * A call row reads from each side's point of view: the same missed call is "No answer" for the
    * caller and "Missed audio call" for the person who didn't pick up.
    */
+  callIcon(c: CallSummary): string {
+    if (c.outcome !== 'completed') return '📵';
+    return c.media === 'video' ? '📹' : '📞';
+  }
+
   callText(m: Message, c: CallSummary): string {
     const outgoing = this.isMine(m);
+    const kind = c.media === 'video' ? 'Video' : 'Audio';
     switch (c.outcome) {
-      case 'completed': return `Audio call · ${formatDuration(c.durationSeconds)}`;
+      case 'completed': return `${kind} call · ${formatDuration(c.durationSeconds)}`;
       case 'declined': return outgoing ? 'Call declined' : 'You declined the call';
       case 'failed': return 'Call failed to connect';
-      default: return outgoing ? 'No answer' : 'Missed audio call';
+      default: return outgoing ? 'No answer' : `Missed ${kind.toLowerCase()} call`;
     }
   }
 

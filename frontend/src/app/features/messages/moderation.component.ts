@@ -70,20 +70,21 @@ import { AdminCall } from '../../core/models/call.models';
       } @else {
         <!-- Call log: who called whom and for how long. Calls are peer-to-peer and end-to-end
              encrypted, so there is no audio to review — only these records. -->
-        <p class="muted note">Audio is peer-to-peer and end-to-end encrypted — never recorded. This is the call log only.</p>
+        <p class="muted note">Audio and video are peer-to-peer and end-to-end encrypted — never recorded. This is the call log only.</p>
         <table class="tbl">
-          <thead><tr><th>Participants</th><th>State</th><th>Started</th><th>Answered</th><th>Duration</th></tr></thead>
+          <thead><tr><th>Participants</th><th>Kind</th><th>State</th><th>Started</th><th>Answered</th><th>Duration</th></tr></thead>
           <tbody>
             @for (c of calls(); track c.callId) {
               <tr>
                 <td>{{ c.participantNames.join(' → ') }}</td>
+                <td>{{ c.media === 'video' ? '📹 Video' : '📞 Audio' }}</td>
                 <td><span class="tag" [class.spam]="c.endReason === 'failed'">{{ c.endReason ?? c.state }}</span></td>
                 <td>{{ c.startedAt | date:'short' }}</td>
                 <td>{{ c.answeredAt ? (c.answeredAt | date:'shortTime') : '—' }}</td>
                 <td>{{ c.durationSeconds ? duration(c.durationSeconds) : '—' }}</td>
               </tr>
             }
-            @if (!calls().length) { <tr><td colspan="5" class="muted">No calls yet.</td></tr> }
+            @if (!calls().length) { <tr><td colspan="6" class="muted">No calls yet.</td></tr> }
           </tbody>
         </table>
       }
