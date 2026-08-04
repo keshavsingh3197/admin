@@ -64,4 +64,8 @@
   <footer class="app-footer">
     <small>admin.keshavsingh.in</small>
   </footer>
+
+  @if (auth.isAuthenticated()) {
+    <app-call-overlay />
+  }
 </div>

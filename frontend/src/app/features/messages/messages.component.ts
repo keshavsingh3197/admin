@@ -8,8 +8,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
+import { CallService, formatDuration } from '../../core/services/call.service';
 import { UsersService } from '../../core/services/users.service';
 import { Attachment, ChatVisibility, Conversation, DirectoryUser, Message, PresenceState } from '../../core/models/chat.models';
+import { CallSummary } from '../../core/models/call.models';
 
 @Component({
   selector: 'app-messages',
@@ -70,6 +72,10 @@ import { Attachment, ChatVisibility, Conversation, DirectoryUser, Message, Prese
               <strong>{{ a.partnerName }}</strong>
               <span class="pstate">{{ presenceOf(a) }}</span></span>
             <span class="t-tools">
+              @if (a.status === 'accepted') {
+                <button class="btn primary xs" [disabled]="calls.busy()" (click)="startCall(a)"
+                        title="Start an audio call">📞 Call</button>
+              }
               <button class="btn secondary xs" (click)="block(a)">Block</button>
               <button class="btn danger xs" (click)="reportSpam(a)">Report spam</button>
             </span>
@@ -78,8 +84,11 @@ import { Attachment, ChatVisibility, Conversation, DirectoryUser, Message, Prese
           <div class="thread" #thread>
             @for (m of messages(); track m.id) {
               <div class="bubble-row" [class.mine]="isMine(m)">
-                <div class="bubble" [class.mine]="isMine(m)">
+                <div class="bubble" [class.mine]="isMine(m)" [class.call-bubble]="!!m.call">
                   @if (m.deleted) { <em class="deleted">message removed</em> }
+                  @else if (m.call; as c) {
+                    <span class="call-line">{{ c.outcome === 'completed' ? '📞' : '📵' }} {{ callText(m, c) }}</span>
+                  }
                   @else {
                     @if (m.forwarded) { <span class="fwd-tag">↪ Forwarded</span> }
                     @if (m.body) { <span class="body">{{ m.body }}</span> }
@@ -213,6 +222,9 @@ import { Attachment, ChatVisibility, Conversation, DirectoryUser, Message, Prese
     .att-img { max-width: 100%; max-height: 220px; border-radius: 8px; cursor: pointer; display: block; }
     .att-audio { max-width: 100%; }
     .att-video { max-width: 100%; max-height: 260px; border-radius: 8px; display: block; }
+    .call-bubble { background: var(--bg); border-style: dashed; color: var(--text); }
+    .call-bubble.mine { background: var(--bg); color: var(--text); border-color: var(--border); }
+    .call-line { font-size: .84rem; }
     .fwd-tag { font-size: .72rem; opacity: .75; font-style: italic; }
     .msg-tools { display: flex; gap: .3rem; }
     .mini-btn { background: none; border: none; cursor: pointer; font-size: .78rem; opacity: .7; padding: 0 .15rem; color: inherit; }
@@ -251,6 +263,7 @@ import { Attachment, ChatVisibility, Conversation, DirectoryUser, Message, Prese
 })
 export class MessagesComponent implements AfterViewChecked, OnDestroy {
   chat = inject(ChatService);
+  calls = inject(CallService);
   private auth = inject(AuthService);
   private usersApi = inject(UsersService);
   @ViewChild('thread') threadEl?: ElementRef<HTMLElement>;
@@ -304,6 +317,25 @@ export class MessagesComponent implements AfterViewChecked, OnDestroy {
   }
 
   isMine(m: Message): boolean { return m.senderUserId === this.myId(); }
+
+  /** Starts an audio call with the partner of this conversation (the overlay takes over from here). */
+  startCall(c: Conversation): void {
+    this.calls.start(c.id, c.partnerName);
+  }
+
+  /**
+   * A call row reads from each side's point of view: the same missed call is "No answer" for the
+   * caller and "Missed audio call" for the person who didn't pick up.
+   */
+  callText(m: Message, c: CallSummary): string {
+    const outgoing = this.isMine(m);
+    switch (c.outcome) {
+      case 'completed': return `Audio call · ${formatDuration(c.durationSeconds)}`;
+      case 'declined': return outgoing ? 'Call declined' : 'You declined the call';
+      case 'failed': return 'Call failed to connect';
+      default: return outgoing ? 'No answer' : 'Missed audio call';
+    }
+  }
 
   private loadConversations(): void {
     this.chat.conversations().subscribe({

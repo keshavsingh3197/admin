@@ -2,7 +2,9 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
+import { CallService, formatDuration } from '../../core/services/call.service';
 import { AdminBlock, AdminConversation, Message } from '../../core/models/chat.models';
+import { AdminCall } from '../../core/models/call.models';
 
 @Component({
   selector: 'app-messages-moderation',
@@ -16,6 +18,7 @@ import { AdminBlock, AdminConversation, Message } from '../../core/models/chat.m
         <div class="tabs">
           <button class="tab" [class.on]="tab() === 'conversations'" (click)="tab.set('conversations')">Conversations</button>
           <button class="tab" [class.on]="tab() === 'blocks'" (click)="loadBlocks()">Blocks &amp; reports</button>
+          <button class="tab" [class.on]="tab() === 'calls'" (click)="loadCalls()">Calls</button>
         </div>
       </header>
 
@@ -52,7 +55,7 @@ import { AdminBlock, AdminConversation, Message } from '../../core/models/chat.m
             } @else { <p class="muted pad">Select a conversation to review its messages.</p> }
           </div>
         </div>
-      } @else {
+      } @else if (tab() === 'blocks') {
         <table class="tbl">
           <thead><tr><th>Blocker</th><th>Blocked</th><th>Reason</th><th>When</th></tr></thead>
           <tbody>
@@ -62,6 +65,25 @@ import { AdminBlock, AdminConversation, Message } from '../../core/models/chat.m
                 <td>{{ b.createdAt | date:'short' }}</td></tr>
             }
             @if (!blocks().length) { <tr><td colspan="4" class="muted">No blocks or spam reports.</td></tr> }
+          </tbody>
+        </table>
+      } @else {
+        <!-- Call log: who called whom and for how long. Calls are peer-to-peer and end-to-end
+             encrypted, so there is no audio to review — only these records. -->
+        <p class="muted note">Audio is peer-to-peer and end-to-end encrypted — never recorded. This is the call log only.</p>
+        <table class="tbl">
+          <thead><tr><th>Participants</th><th>State</th><th>Started</th><th>Answered</th><th>Duration</th></tr></thead>
+          <tbody>
+            @for (c of calls(); track c.callId) {
+              <tr>
+                <td>{{ c.participantNames.join(' → ') }}</td>
+                <td><span class="tag" [class.spam]="c.endReason === 'failed'">{{ c.endReason ?? c.state }}</span></td>
+                <td>{{ c.startedAt | date:'short' }}</td>
+                <td>{{ c.answeredAt ? (c.answeredAt | date:'shortTime') : '—' }}</td>
+                <td>{{ c.durationSeconds ? duration(c.durationSeconds) : '—' }}</td>
+              </tr>
+            }
+            @if (!calls().length) { <tr><td colspan="5" class="muted">No calls yet.</td></tr> }
           </tbody>
         </table>
       }
@@ -96,20 +118,25 @@ import { AdminBlock, AdminConversation, Message } from '../../core/models/chat.m
     .tbl { width: 100%; border-collapse: collapse; margin-top: 1rem; }
     .tbl th, .tbl td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); font-size: .88rem; }
     .muted { color: var(--muted); } .pad { padding: 1rem; }
+    .note { font-size: .84rem; margin: 1rem 0 0; }
     .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 8px; padding: .6rem 1rem; }
     @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
   `],
 })
 export class MessagesModerationComponent implements OnInit {
   private chat = inject(ChatService);
+  private callsApi = inject(CallService);
 
-  tab = signal<'conversations' | 'blocks'>('conversations');
+  tab = signal<'conversations' | 'blocks' | 'calls'>('conversations');
   conversations = signal<AdminConversation[]>([]);
   activeId = signal<string | null>(null);
   messages = signal<Message[]>([]);
   blocks = signal<AdminBlock[]>([]);
+  calls = signal<AdminCall[]>([]);
   error = signal<string | null>(null);
   flaggedOnly = false;
+
+  duration = formatDuration;
 
   ngOnInit(): void { this.loadConversations(); }
 
@@ -137,5 +164,10 @@ export class MessagesModerationComponent implements OnInit {
   loadBlocks(): void {
     this.tab.set('blocks');
     this.chat.adminBlocks().subscribe({ next: b => this.blocks.set(b), error: () => this.error.set('Could not load blocks.') });
+  }
+
+  loadCalls(): void {
+    this.tab.set('calls');
+    this.callsApi.adminCalls().subscribe({ next: c => this.calls.set(c), error: () => this.error.set('Could not load the call log.') });
   }
 }

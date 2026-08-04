@@ -4,10 +4,13 @@ import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart } fro
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from './core/services/auth.service';
 import { AnalyticsService } from './core/services/analytics.service';
+import { ChatService } from './core/services/chat.service';
+import { CallService } from './core/services/call.service';
+import { CallOverlayComponent } from './features/messages/call-overlay.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, CallOverlayComponent],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -16,6 +19,9 @@ export class App {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   private analytics = inject(AnalyticsService);
+  private chat = inject(ChatService);
+  // Injected so the call service is alive shell-wide and can ring on any page, not just Messages.
+  private calls = inject(CallService);
 
   readonly routeLoading = signal(false);
   readonly navOpen = signal(false);
@@ -26,6 +32,13 @@ export class App {
       const nextTheme = this.theme();
       document.body.dataset['theme'] = nextTheme;
       localStorage.setItem('admin.theme', nextTheme);
+    });
+
+    // Hold the chat hub open for the whole session (not just the Messages page) so incoming
+    // messages and calls arrive wherever the user is. Both calls are idempotent.
+    effect(() => {
+      if (this.auth.isAuthenticated()) void this.chat.connect();
+      else void this.chat.disconnect();
     });
 
     this.router.events

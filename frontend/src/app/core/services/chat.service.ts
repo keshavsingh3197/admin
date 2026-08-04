@@ -1,10 +1,11 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { AdminBlock, AdminConversation, Conversation, DirectoryUser, Message, PresenceState, ShareLink } from '../models/chat.models';
+import { CallHubEvent, CallSignalKind, CallStateChanged, IncomingCall } from '../models/call.models';
 
 /**
  * Owns the single SignalR chat connection (presence + live message push) and the REST calls for
@@ -29,6 +30,14 @@ export class ChatService {
   readonly presence = signal<Record<string, PresenceState>>({});
   readonly connected = signal(false);
 
+  /**
+   * Call events (ring / state change / WebRTC signal) as a stream rather than a signal: ICE candidates
+   * arrive in bursts and a signal would only keep the last one per change-detection pass.
+   * CallService is the only consumer.
+   */
+  private readonly callEvents = new Subject<CallHubEvent>();
+  readonly calls$ = this.callEvents.asObservable();
+
   async connect(): Promise<void> {
     if (this.connection) return;
     const conn = new HubConnectionBuilder()
@@ -41,6 +50,10 @@ export class ChatService {
     conn.on('ConversationUpdated', () => this.conversationsDirty.update(v => v + 1));
     conn.on('PresenceChanged', (userId: string, state: PresenceState) =>
       this.presence.update(p => ({ ...p, [userId]: state })));
+    conn.on('CallIncoming', (call: IncomingCall) => this.callEvents.next({ type: 'incoming', call }));
+    conn.on('CallStateChanged', (state: CallStateChanged) => this.callEvents.next({ type: 'state', state }));
+    conn.on('CallSignal', (callId: string, kind: CallSignalKind, payload: string) =>
+      this.callEvents.next({ type: 'signal', callId, kind, payload }));
     conn.onreconnected(() => this.connected.set(true));
     conn.onclose(() => this.connected.set(false));
 

@@ -1,3 +1,5 @@
+import { CallSummary } from './call.models';
+
 export type ChatStatus = 'pending' | 'accepted' | 'declined';
 export type PresenceState = 'online' | 'idle' | 'offline';
 
@@ -37,6 +39,8 @@ export interface Message {
   readAt: string | null;
   deleted: boolean;
   forwarded: boolean;
+  /** Set when this row records a call rather than something someone typed. */
+  call: CallSummary | null;
 }
 
 export interface AdminConversation {
