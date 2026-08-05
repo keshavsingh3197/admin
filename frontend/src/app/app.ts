@@ -16,9 +16,11 @@ interface NavLink {
   exact: boolean;
 }
 
-/** Everyday pages stay on the bar; admin pages live behind the Manage menu (see app.html). */
+/**
+ * Everyday pages stay on the bar; admin pages live behind the Manage menu (see app.html).
+ * There is no Dashboard entry — the 🏠 brand on the left is the link home.
+ */
 const PRIMARY_LINKS: NavLink[] = [
-  { path: '/', label: 'Dashboard', icon: '🏠', exact: true },
   { path: '/messages', label: 'Messages', icon: '💬', exact: false },
   { path: '/meetings', label: 'Meetings', icon: '📅', exact: false },
   { path: '/notes', label: 'Notes', icon: '📝', exact: false },
@@ -29,6 +31,8 @@ const PRIMARY_LINKS: NavLink[] = [
 
 const ADMIN_LINKS: NavLink[] = [
   { path: '/contact-inbox', label: 'Contact inbox', icon: '✉️', exact: false },
+  { path: '/website', label: 'Websites', icon: '🌐', exact: false },
+  { path: '/database', label: 'Database', icon: '🗃️', exact: false },
   { path: '/users', label: 'Users', icon: '👤', exact: false },
   { path: '/groups', label: 'Groups', icon: '👪', exact: false },
   { path: '/roles', label: 'Roles', icon: '🎫', exact: false },

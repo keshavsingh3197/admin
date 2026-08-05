@@ -3,6 +3,8 @@ using Admin.Api.Services;
 using KeshavSingh.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Exceptions;
 
 namespace Admin.Api.Controllers;
 
@@ -17,6 +19,9 @@ namespace Admin.Api.Controllers;
 [Authorize] // Default-deny: a valid session is required for every endpoint.
 public class FinanceController : ControllerBase
 {
+    /// <summary>Upload ceiling for a statement file — generous for a year of pages, far below a DoS.</summary>
+    private const int MaxStatementBytes = 15 * 1024 * 1024;
+
     private readonly FinanceService _finance;
     private readonly IFinancialAdvisor _advisor;
 
@@ -302,7 +307,7 @@ public class FinanceController : ControllerBase
     /// CSV import; the file is streamed, never stored.
     /// </summary>
     [HttpPost("transactions/import/xlsx")]
-    [RequestSizeLimit(15 * 1024 * 1024)]
+    [RequestSizeLimit(MaxStatementBytes)]
     public async Task<ActionResult<ImportResult>> ImportWorkbook(
         IFormFile file,
         [FromForm] int dateColumn, [FromForm] int descriptionColumn,
@@ -342,6 +347,78 @@ public class FinanceController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Reads a statement PDF and returns the table it found, so the column mapping can be picked against
+    /// real rows — a PDF has no header row to infer them from. Nothing is imported or stored here, and the
+    /// password is used only to open this one stream.
+    /// </summary>
+    [HttpPost("transactions/import/pdf/preview")]
+    [RequestSizeLimit(MaxStatementBytes)]
+    public ActionResult<PdfStatementPreview> PreviewPdf(IFormFile file, [FromForm] string? password,
+        [FromForm] int rows = 15)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { error = "Choose a statement file." });
+        if (!IsPdf(file)) return BadRequest(new { error = "Only .pdf statements are supported here." });
+
+        using var stream = file.OpenReadStream();
+        try
+        {
+            var grid = PdfStatementReader.Read(stream, password);
+            var preview = grid.Rows.Take(Math.Clamp(rows, 1, 60)).ToList();
+            return Ok(new PdfStatementPreview(grid.Pages, grid.Columns, grid.Rows.Count, grid.Truncated, preview));
+        }
+        catch (Exception ex) when (IsUnreadablePdf(ex))
+        {
+            return BadRequest(new { error = PdfError(ex) });
+        }
+    }
+
+    /// <summary>
+    /// Imports a statement PDF, password protected or not. Same column mapping as the CSV/.xlsx imports —
+    /// take the indices from the preview above. The file is streamed and never stored, and the password is
+    /// never logged or persisted.
+    /// </summary>
+    [HttpPost("transactions/import/pdf")]
+    [RequestSizeLimit(MaxStatementBytes)]
+    public async Task<ActionResult<ImportResult>> ImportPdf(
+        IFormFile file, [FromForm] string? password,
+        [FromForm] int dateColumn, [FromForm] int descriptionColumn,
+        [FromForm] int? amountColumn, [FromForm] int? debitColumn, [FromForm] int? creditColumn,
+        [FromForm] string? dateFormat, [FromForm] bool hasHeader = true,
+        [FromForm] string? account = null, [FromForm] string? category = null)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { error = "Choose a statement file." });
+        if (!IsPdf(file)) return BadRequest(new { error = "Only .pdf statements are supported here." });
+        if (amountColumn is null && debitColumn is null && creditColumn is null)
+            return BadRequest(new { error = "Map either an amount column, or debit/credit columns." });
+
+        var map = new BankCsvMapping
+        {
+            DateColumn = dateColumn,
+            DescriptionColumn = descriptionColumn,
+            AmountColumn = amountColumn,
+            DebitColumn = debitColumn,
+            CreditColumn = creditColumn,
+            DateFormat = Clean(dateFormat),
+            HasHeader = hasHeader,
+            Account = Clean(account),
+            DefaultCategory = Clean(category),
+        };
+
+        await using var stream = file.OpenReadStream();
+        try
+        {
+            var (imported, skipped) = await _finance.ImportPdfAsync(Owner, stream, password, map);
+            return Ok(new ImportResult(imported, skipped));
+        }
+        catch (Exception ex) when (IsUnreadablePdf(ex))
+        {
+            // Only a file the reader could not make sense of lands here. A failure to save what it read
+            // is a server fault and goes to the exception handler, not back as "bad PDF".
+            return BadRequest(new { error = PdfError(ex) });
+        }
+    }
+
     // ---- Statement analysis ----
 
     /// <summary>What the ledger says: monthly in/out, category split, recurring payments, suggestions.</summary>
@@ -366,4 +443,26 @@ public class FinanceController : ControllerBase
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool IsPdf(IFormFile file) =>
+        file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether this failure is "that file cannot be read", which is the user's to fix, rather than a
+    /// fault of ours. Malformed PDFs surface through the reader in several shapes, hence the list.
+    /// </summary>
+    private static bool IsUnreadablePdf(Exception ex) =>
+        ex is PdfDocumentEncryptedException or PdfDocumentFormatException or InvalidDataException
+            or FormatException or ArgumentException or IndexOutOfRangeException;
+
+    /// <summary>
+    /// Turns a PDF failure into something the user can act on. Deliberately says nothing about the
+    /// internals — and never echoes the password, whatever the underlying exception carried.
+    /// </summary>
+    private static string PdfError(Exception ex) => ex switch
+    {
+        PdfDocumentEncryptedException => "This PDF is password protected — enter the statement password and try again.",
+        InvalidDataException => "No text could be read from that PDF. Scanned statements need to be exported as CSV or .xlsx instead.",
+        _ => "That file could not be read as a PDF statement.",
+    };
 }

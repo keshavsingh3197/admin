@@ -1,12 +1,13 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { FinanceService } from '../../core/services/finance.service';
 import {
   AccountType, AssetClass, DebtType, Expense, ExpenseCategory, FamilyMember, FinancialGoal,
   Frequency, GoalPriority, Household, ImportTransactionsRequest, IncomeSource, IncomeType,
-  InstrumentKind, Investment, Liability, Transaction, TransactionDirection,
+  InstrumentKind, Investment, Liability, PdfStatementPreview, Transaction, TransactionDirection,
 } from '../../core/models/finance.models';
 
 type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'liabilities' | 'goals' | 'transactions';
@@ -203,8 +204,40 @@ type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'li
         <div class="scrim" (click)="closeImport()">
           <div class="dialog" (click)="$event.stopPropagation()">
             <h2>Import bank statement</h2>
-            <label class="field"><span>Statement file (.csv or .xlsx)</span>
-              <input class="input" type="file" accept=".csv,text/csv,.xlsx" (change)="onImportFile($event)"></label>
+            <label class="field"><span>Statement file (.csv, .xlsx or .pdf)</span>
+              <input class="input" type="file" accept=".csv,text/csv,.xlsx,.pdf,application/pdf"
+                     (change)="onImportFile($event)"></label>
+
+            @if (pdfFile()) {
+              <!-- Bank PDFs are usually locked with a DOB/PAN-style password. It is sent with this one
+                   request to read the file and is never stored, here or on the server. -->
+              <p class="muted">{{ pdfFile()!.name }} — read the statement first, then map its columns.</p>
+              <div class="grid-2">
+                <label class="field"><span>PDF password (if protected)</span>
+                  <input class="input" type="password" autocomplete="off" [(ngModel)]="pdfPassword"
+                         placeholder="Leave blank if not protected"></label>
+                <div class="field">
+                  <span>&nbsp;</span>
+                  <button class="btn-secondary" (click)="readPdf()" [disabled]="busy()">
+                    {{ pdfPreview() ? 'Read again' : 'Read statement' }}</button>
+                </div>
+              </div>
+            }
+
+            @if (pdfPreview(); as p) {
+              <p class="muted">{{ p.totalRows }} row(s) across {{ p.pages }} page(s), {{ p.columns }} columns.
+                Check the numbers below against the table, then map them.</p>
+              <div class="preview-scroll">
+                <table class="preview">
+                  <thead><tr>@for (c of p.rows[0]; track $index) { <th>{{ $index }}</th> }</tr></thead>
+                  <tbody>
+                    @for (row of p.rows; track $index) {
+                      <tr>@for (cell of row; track $index) { <td>{{ cell }}</td> }</tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
 
             @if (xlsxFile()) {
               <!-- We can't read an .xlsx in the browser without pulling in a parser, so the columns are
@@ -263,7 +296,7 @@ type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'li
             @if (importMsg()) { <p class="muted">{{ importMsg() }}</p> }
             <div class="form-actions">
               <button class="btn-primary" (click)="submitImport()"
-                      [disabled]="busy() || (!imp.csvText && !xlsxFile())">Import</button>
+                      [disabled]="busy() || (!imp.csvText && !xlsxFile() && !pdfPreview())">Import</button>
               <button class="btn-secondary" (click)="closeImport()">Close</button>
             </div>
           </div>
@@ -314,6 +347,11 @@ type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'li
     .dialog { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:12px;
       padding:1.5rem; width:100%; max-width:540px; max-height:90vh; overflow-y:auto; box-shadow:var(--shadow-sm); }
     .dialog h2 { margin:0 0 1rem; color:var(--text); }
+    .preview-scroll { max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:6px; margin-bottom:0.75rem; }
+    .preview { border-collapse:collapse; width:100%; font-size:0.74rem; }
+    .preview th, .preview td { border-bottom:1px solid var(--border); border-right:1px solid var(--border);
+      padding:0.25rem 0.4rem; text-align:left; white-space:nowrap; max-width:16rem; overflow:hidden; text-overflow:ellipsis; }
+    .preview th { position:sticky; top:0; background:var(--surface); color:var(--muted); font-weight:600; }
   `],
 })
 export class FinanceManageComponent implements OnInit {
@@ -369,12 +407,17 @@ export class FinanceManageComponent implements OnInit {
   newMemberName = '';
 
   // Statement import dialog state. CSV is parsed here for the column picker; .xlsx is sent as-is and
-  // parsed server-side, so its columns are entered by hand.
+  // parsed server-side, so its columns are entered by hand. A PDF is read server-side first — the
+  // preview it returns supplies the column picker, since a PDF has no header row to detect.
   importing = signal(false);
   importMsg = signal<string | null>(null);
   amountMode: 'single' | 'split' = 'single';
   csvColumns = signal<{ index: number; label: string }[]>([]);
   xlsxFile = signal<File | null>(null);
+  pdfFile = signal<File | null>(null);
+  pdfPreview = signal<PdfStatementPreview | null>(null);
+  /** Held only for the life of this dialog — never persisted, never sent anywhere else. */
+  pdfPassword = '';
   imp: ImportTransactionsRequest = this.blankImport();
 
   ngOnInit(): void { this.loadAll(); }
@@ -566,8 +609,12 @@ export class FinanceManageComponent implements OnInit {
   openImport(): void { this.imp = this.blankImport(); this.csvColumns.set([]); this.importMsg.set(null); this.amountMode = 'single'; this.importing.set(true); }
   closeImport(): void {
     this.importing.set(false);
-    // Drop the picked file so reopening the dialog doesn't re-import the last statement by accident.
+    // Drop the picked file so reopening the dialog doesn't re-import the last statement by accident,
+    // and the password with it — it has no reason to outlive the dialog.
     this.xlsxFile.set(null);
+    this.pdfFile.set(null);
+    this.pdfPreview.set(null);
+    this.pdfPassword = '';
     this.csvColumns.set([]);
     this.imp = this.blankImport();
   }
@@ -578,11 +625,22 @@ export class FinanceManageComponent implements OnInit {
     this.importMsg.set(null);
     this.csvColumns.set([]);
     this.xlsxFile.set(null);
+    this.pdfFile.set(null);
+    this.pdfPreview.set(null);
+    this.pdfPassword = '';
 
     if (file.name.toLowerCase().endsWith('.xlsx')) {
       // Workbooks go to the server untouched; no browser-side parser to add.
       this.imp = { ...this.blankImport(), csvText: '' };
       this.xlsxFile.set(file);
+      return;
+    }
+
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      // A PDF may be encrypted and has no header row, so nothing can be mapped until the server has
+      // read it. The user enters the password (if any) and asks for the preview.
+      this.imp = { ...this.blankImport(), csvText: '' };
+      this.pdfFile.set(file);
       return;
     }
 
@@ -593,6 +651,41 @@ export class FinanceManageComponent implements OnInit {
       this.detectColumns(text);
     };
     reader.readAsText(file);
+  }
+
+  /** Asks the server to read the PDF, then drives the column picker from the table it found. */
+  readPdf(): void {
+    const file = this.pdfFile();
+    if (!file) return;
+
+    this.busy.set(true);
+    this.importMsg.set(null);
+    this.api.previewPdf(file, this.pdfPassword || null).subscribe({
+      next: preview => {
+        this.busy.set(false);
+        this.pdfPreview.set(preview);
+        // Label each column with a sample value so the numbers mean something while mapping.
+        const sample = preview.rows.find(r => r.some(c => c.trim().length > 0)) ?? [];
+        this.csvColumns.set(Array.from({ length: preview.columns }, (_, i) => ({
+          index: i,
+          label: `${i}: ${(sample[i] ?? '').trim() || '(blank)'}`,
+        })));
+        if (preview.columns >= 3) {
+          this.imp.dateColumn = 0;
+          this.imp.descriptionColumn = 1;
+          this.imp.amountColumn = Math.min(2, preview.columns - 1);
+        }
+        // Statement PDFs repeat their headings on every page; the parser drops them as unparseable
+        // rows anyway, so skipping only the first would just lose a transaction.
+        this.imp.hasHeader = false;
+      },
+      error: (e: HttpErrorResponse) => {
+        this.busy.set(false);
+        this.pdfPreview.set(null);
+        this.csvColumns.set([]);
+        this.errorMessage.set(e.error?.error ?? 'Could not read that PDF. Please try again.');
+      },
+    });
   }
 
   private detectColumns(text: string): void {
@@ -627,10 +720,13 @@ export class FinanceManageComponent implements OnInit {
     };
 
     const workbook = this.xlsxFile();
+    const pdf = this.pdfFile();
     this.busy.set(true);
-    const request = workbook
-      ? this.api.importWorkbook(workbook, req)
-      : this.api.importTransactions(req);
+    const request = pdf
+      ? this.api.importPdf(pdf, this.pdfPassword || null, req)
+      : workbook
+        ? this.api.importWorkbook(workbook, req)
+        : this.api.importTransactions(req);
 
     request.subscribe({
       next: r => {
@@ -640,7 +736,12 @@ export class FinanceManageComponent implements OnInit {
         this.txSkip.set(0);
         this.loadTransactions();
       },
-      error: () => { this.busy.set(false); this.fail('import the statement'); },
+      error: (e: HttpErrorResponse) => {
+        this.busy.set(false);
+        // The server explains what it could not read (wrong password, scanned pages); pass that on.
+        if (e.error?.error) this.errorMessage.set(e.error.error);
+        else this.fail('import the statement');
+      },
     });
   }
 

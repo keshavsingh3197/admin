@@ -171,19 +171,6 @@ body {
 .chip-btn:hover { background: rgba(255,255,255,0.24); }
 .chip-btn:active { transform: translateY(1px); }
 
-.logout-btn {
-  background: rgba(255,255,255,0.15);
-  color: var(--brand-text);
-  border: 1px solid rgba(255,255,255,0.35);
-  border-radius: 4px;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.logout-btn:hover { background: rgba(255,255,255,0.28); }
-
 .app-nav > a {
   color: rgba(255,255,255,0.85);
   text-decoration: none;
@@ -322,7 +309,6 @@ body {
 @media (max-width: 480px) {
   .app-header { padding: 0 0.75rem; }
   .brand { font-size: 1rem; }
-  .logout-btn { padding: 0.3rem 0.5rem; font-size: 0.8rem; }
   .app-main { padding: 1rem; }
 }
 

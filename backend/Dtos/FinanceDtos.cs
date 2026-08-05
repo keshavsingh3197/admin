@@ -142,6 +142,17 @@ public sealed record ImportTransactionsRequest(
 
 public sealed record ImportResult(int Imported, int Skipped);
 
+/// <summary>
+/// The table recovered from a statement PDF, so the column mapping can be chosen against what was
+/// actually read rather than guessed. Rows are trimmed to a handful for the preview; nothing is stored.
+/// </summary>
+public sealed record PdfStatementPreview(
+    int Pages,
+    int Columns,
+    int TotalRows,
+    bool Truncated,
+    IReadOnlyList<IReadOnlyList<string>> Rows);
+
 // ---- Statement analysis ----
 
 /// <summary>

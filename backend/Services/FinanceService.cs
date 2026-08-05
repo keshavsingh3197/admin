@@ -179,6 +179,54 @@ public class FinanceService
         return SaveParsedAsync(owner, BankStatementParser.Parse(rows, map));
     }
 
+    /// <summary>
+    /// Imports a statement PDF — the format most banks actually email, usually password protected. The
+    /// table is recovered by <see cref="PdfStatementReader"/> and then goes through the same package
+    /// parser as CSV and .xlsx. The password is used to open the stream and never leaves this call.
+    /// </summary>
+    public Task<(int Imported, int Skipped)> ImportPdfAsync(string owner, Stream pdf, string? password, BankCsvMapping map)
+    {
+        var grid = PdfStatementReader.Read(pdf, password);
+        return SaveParsedAsync(owner, BankStatementParser.Parse(MergeWrappedRows(grid.Rows, map), map));
+    }
+
+    /// <summary>
+    /// A PDF wraps long narration onto its own line with every other column blank. Those lines belong to
+    /// the transaction above, so they are folded back into its description before parsing — otherwise the
+    /// second half of a payee's name would just be dropped as an unparseable row.
+    /// </summary>
+    private static List<IReadOnlyList<string>> MergeWrappedRows(
+        IReadOnlyList<IReadOnlyList<string>> rows, BankCsvMapping map)
+    {
+        var merged = new List<List<string>>();
+
+        foreach (var row in rows)
+        {
+            var isWrap = merged.Count > 0
+                && string.IsNullOrWhiteSpace(Cell(row, map.DateColumn))
+                && string.IsNullOrWhiteSpace(Cell(row, map.AmountColumn ?? -1))
+                && string.IsNullOrWhiteSpace(Cell(row, map.DebitColumn ?? -1))
+                && string.IsNullOrWhiteSpace(Cell(row, map.CreditColumn ?? -1))
+                && !string.IsNullOrWhiteSpace(Cell(row, map.DescriptionColumn));
+
+            if (!isWrap)
+            {
+                merged.Add([.. row]);
+                continue;
+            }
+
+            var previous = merged[^1];
+            if (map.DescriptionColumn >= 0 && map.DescriptionColumn < previous.Count)
+                previous[map.DescriptionColumn] =
+                    $"{previous[map.DescriptionColumn]} {Cell(row, map.DescriptionColumn)}".Trim();
+        }
+
+        return merged.Cast<IReadOnlyList<string>>().ToList();
+
+        static string Cell(IReadOnlyList<string> row, int index) =>
+            index >= 0 && index < row.Count ? row[index] : string.Empty;
+    }
+
     private async Task<(int Imported, int Skipped)> SaveParsedAsync(string owner, BankParseResult result)
     {
         if (result.Transactions.Count == 0) return (0, result.SkippedRows);

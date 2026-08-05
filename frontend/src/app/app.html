@@ -1,6 +1,7 @@
 <div class="app-shell">
   <header class="app-header">
-    <a class="brand" routerLink="/">🛡️ Admin</a>
+    <!-- Also the home link: there is no separate Dashboard entry in the nav. -->
+    <a class="brand" routerLink="/" title="Home" aria-label="Home">🏠 Admin</a>
 
     @if (auth.isAuthenticated()) {
       <button
@@ -61,7 +62,9 @@
           <span aria-hidden="true">{{ theme() === 'light' ? '☀' : (theme() === 'dark' ? '☾' : '✦') }}</span>
         </button>
         <span class="user-name">{{ auth.user()?.displayName }}</span>
-        <button class="logout-btn" type="button" (click)="logout()">Sign out</button>
+        <button class="chip-btn" type="button" (click)="logout()" aria-label="Sign out" title="Sign out">
+          <span aria-hidden="true">⏻</span>
+        </button>
       </div>
     }
   </header>

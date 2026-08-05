@@ -160,6 +160,18 @@ export interface ImportTransactionsRequest {
   category?: string | null;
 }
 
+/**
+ * The table the server recovered from a statement PDF. A PDF has no header row to infer columns from,
+ * so the mapping is chosen against these rows.
+ */
+export interface PdfStatementPreview {
+  pages: number;
+  columns: number;
+  totalRows: number;
+  truncated: boolean;
+  rows: string[][];
+}
+
 // ---- Statement analysis (mirrors KeshavSingh.Finance.StatementInsights) ----
 
 /** What the analyser thinks a narration was. Serialised as a string by the API. */

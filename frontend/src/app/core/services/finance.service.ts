@@ -5,7 +5,7 @@ import { environment } from '../../../environments/environment';
 import {
   AppliedSuggestion, Expense, FamilyMember, FinanceOverview, FinancialGoal, Household,
   ImportResult, ImportTransactionsRequest, IncomeSource, Investment, Liability,
-  PagedResult, StatementAnalysis, Transaction,
+  PagedResult, PdfStatementPreview, StatementAnalysis, Transaction,
 } from '../models/finance.models';
 
 /** Family-finance API. Everything is owner-scoped server-side; no logic lives here. */
@@ -66,16 +66,30 @@ export class FinanceService {
   importWorkbook(file: File, map: Omit<ImportTransactionsRequest, 'csvText'>): Observable<ImportResult> {
     const form = new FormData();
     form.append('file', file);
-    form.append('dateColumn', String(map.dateColumn));
-    form.append('descriptionColumn', String(map.descriptionColumn));
-    if (map.amountColumn != null) form.append('amountColumn', String(map.amountColumn));
-    if (map.debitColumn != null) form.append('debitColumn', String(map.debitColumn));
-    if (map.creditColumn != null) form.append('creditColumn', String(map.creditColumn));
-    if (map.dateFormat) form.append('dateFormat', map.dateFormat);
-    form.append('hasHeader', String(map.hasHeader));
-    if (map.account) form.append('account', map.account);
-    if (map.category) form.append('category', map.category);
+    this.appendMapping(form, map);
     return this.http.post<ImportResult>(`${this.f}/transactions/import/xlsx`, form);
+  }
+
+  /**
+   * Asks the server what table it can read out of a statement PDF, so the columns can be mapped against
+   * real rows. The password (bank statements are usually protected) is sent over TLS for this one call
+   * and never stored — here or server-side.
+   */
+  previewPdf(file: File, password: string | null, rows = 15): Observable<PdfStatementPreview> {
+    const form = new FormData();
+    form.append('file', file);
+    if (password) form.append('password', password);
+    form.append('rows', String(rows));
+    return this.http.post<PdfStatementPreview>(`${this.f}/transactions/import/pdf/preview`, form);
+  }
+
+  /** Imports a statement PDF with the mapping chosen from the preview. */
+  importPdf(file: File, password: string | null, map: Omit<ImportTransactionsRequest, 'csvText'>): Observable<ImportResult> {
+    const form = new FormData();
+    form.append('file', file);
+    if (password) form.append('password', password);
+    this.appendMapping(form, map);
+    return this.http.post<ImportResult>(`${this.f}/transactions/import/pdf`, form);
   }
 
   /** What the statement says: monthly in/out, category split, recurring payments, suggestions. */
@@ -90,5 +104,18 @@ export class FinanceService {
 
   exportXlsx(): Observable<Blob> {
     return this.http.get(`${this.f}/export`, { responseType: 'blob' });
+  }
+
+  /** The column mapping every binary (multipart) import shares. */
+  private appendMapping(form: FormData, map: Omit<ImportTransactionsRequest, 'csvText'>): void {
+    form.append('dateColumn', String(map.dateColumn));
+    form.append('descriptionColumn', String(map.descriptionColumn));
+    if (map.amountColumn != null) form.append('amountColumn', String(map.amountColumn));
+    if (map.debitColumn != null) form.append('debitColumn', String(map.debitColumn));
+    if (map.creditColumn != null) form.append('creditColumn', String(map.creditColumn));
+    if (map.dateFormat) form.append('dateFormat', map.dateFormat);
+    form.append('hasHeader', String(map.hasHeader));
+    if (map.account) form.append('account', map.account);
+    if (map.category) form.append('category', map.category);
   }
 }

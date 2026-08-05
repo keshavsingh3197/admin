@@ -66,6 +66,18 @@ export const routes: Routes = [
       import('./features/contact/contact-inbox.component').then((m) => m.ContactInboxComponent),
   },
   {
+    path: 'website',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/website/website-manage.component').then((m) => m.WebsiteManageComponent),
+  },
+  {
+    path: 'database',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/database/db-console.component').then((m) => m.DbConsoleComponent),
+  },
+  {
     path: 'security',
     canActivate: [authGuard],
     loadComponent: () =>

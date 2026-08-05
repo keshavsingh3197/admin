@@ -10,6 +10,8 @@ using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Realtime.Calls;
 using KeshavSingh.Realtime.Chat;
 using KeshavSingh.Realtime.Meetings;
+using KeshavSingh.Mongo.NoSql;
+using KeshavSingh.Mongo.NoSql.Console;
 using KeshavSingh.Security;
 using KeshavSingh.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -73,6 +75,15 @@ builder.Services.AddSingleton<CustomRoleService>();
 builder.Services.AddSingleton<GroupService>();
 builder.Services.AddSingleton<PermissionsService>();
 builder.Services.AddSingleton<SearchService>();
+// The database console (KeshavSingh.Mongo.NoSql): an Admin-only query editor over this app's own Mongo.
+// Writes are opt-in and single-document only; the package guard refuses server-side JavaScript, $out /
+// $merge and system collections, and redacts secret fields on the way out. See DbConsoleController.
+builder.Services.AddSingleton(sp =>
+{
+    var options = builder.Configuration.GetSection(MongoConsoleOptions.Section).Get<MongoConsoleOptions>()
+                  ?? new MongoConsoleOptions();
+    return new MongoQueryConsole(sp.GetRequiredService<MongoDbService>(), options);
+});
 builder.Services.AddSingleton<DataRetentionService>();
 builder.Services.AddSingleton<HealthCheckService>();
 builder.Services.AddHostedService<SessionRetentionCleanupWorker>();
