@@ -22,6 +22,8 @@ interface NavLink {
  */
 const PRIMARY_LINKS: NavLink[] = [
   { path: '/messages', label: 'Messages', icon: '💬', exact: false },
+  // Strangers on the public sites, kept apart from Messages (which is people with accounts).
+  { path: '/visitor-chat', label: 'Visitors', icon: '🙋', exact: false },
   { path: '/meetings', label: 'Meetings', icon: '📅', exact: false },
   { path: '/notes', label: 'Notes', icon: '📝', exact: false },
   { path: '/files', label: 'Files', icon: '📁', exact: false },

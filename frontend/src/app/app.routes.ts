@@ -66,6 +66,12 @@ export const routes: Routes = [
       import('./features/contact/contact-inbox.component').then((m) => m.ContactInboxComponent),
   },
   {
+    path: 'visitor-chat',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/visitor-chat/visitor-chat.component').then((m) => m.VisitorChatComponent),
+  },
+  {
     path: 'website',
     canActivate: [adminGuard],
     loadComponent: () =>

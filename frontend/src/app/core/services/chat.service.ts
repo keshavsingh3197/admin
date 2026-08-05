@@ -43,6 +43,19 @@ export class ChatService {
   readonly meetingReminder = signal<MeetingReminder | null>(null);
   readonly meetingsDirty = signal(0);
 
+  /**
+   * Who is typing, as `${conversationId}:${userId}` keys mapped to when we heard it. A timestamp rather
+   * than a flag so the indicator expires on its own: the "stopped" event is the one most likely to be
+   * lost (closed tab, dropped socket), and a dot that never stops is worse than no dot at all.
+   */
+  private readonly typingAt = signal<Record<string, number>>({});
+
+  /** Ticks while anyone is typing, so the UI re-evaluates as entries age out. */
+  private typingSweep: ReturnType<typeof setInterval> | null = null;
+
+  /** How long a typing notice counts for without a fresh one. */
+  private static readonly TypingTtlMs = 6000;
+
   async connect(): Promise<void> {
     if (this.connection) return;
     const conn = new HubConnectionBuilder()
@@ -68,6 +81,8 @@ export class ChatService {
       this.callEvents.next({ type: 'signal', roomId, fromUserId, kind, payload }));
     conn.on('MeetingReminder', (reminder: MeetingReminder) => this.meetingReminder.set(reminder));
     conn.on('MeetingUpdated', () => this.meetingsDirty.update(v => v + 1));
+    conn.on('TypingChanged', (conversationId: string, userId: string, isTyping: boolean) =>
+      this.setTyping(conversationId, userId, isTyping));
     conn.onreconnected(() => this.connected.set(true));
     conn.onclose(() => this.connected.set(false));
 
@@ -85,9 +100,58 @@ export class ChatService {
   async disconnect(): Promise<void> {
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
+    if (this.typingSweep) clearInterval(this.typingSweep);
+    this.typingSweep = null;
+    this.typingAt.set({});
     await this.connection?.stop().catch(() => {});
     this.connection = null;
     this.connected.set(false);
+  }
+
+  // ---- Typing ----
+
+  /**
+   * Tells the other side this user is writing. Safe to call on every keystroke — the caller throttles,
+   * and the hub only forwards it to people actually in the conversation.
+   */
+  notifyTyping(conversationId: string, isTyping: boolean): void {
+    if (this.connection?.state !== HubConnectionState.Connected) return;
+    this.connection.send('Typing', conversationId, isTyping).catch(() => {});
+  }
+
+  /** Who is currently typing in a conversation, ignoring notices that have aged out. */
+  typingUserIds(conversationId: string): string[] {
+    const now = Date.now();
+    return Object.entries(this.typingAt())
+      .filter(([key, at]) => key.startsWith(`${conversationId}:`) && now - at < ChatService.TypingTtlMs)
+      .map(([key]) => key.slice(conversationId.length + 1));
+  }
+
+  private setTyping(conversationId: string, userId: string, isTyping: boolean): void {
+    const key = `${conversationId}:${userId}`;
+    this.typingAt.update(current => {
+      const next = { ...current };
+      if (isTyping) next[key] = Date.now();
+      else delete next[key];
+      return next;
+    });
+
+    // A sweep keeps the signal changing while entries expire, so a stale dot disappears even if the
+    // "stopped" event never arrives.
+    if (isTyping && !this.typingSweep) {
+      this.typingSweep = setInterval(() => {
+        const now = Date.now();
+        this.typingAt.update(current => {
+          const next = Object.fromEntries(
+            Object.entries(current).filter(([, at]) => now - at < ChatService.TypingTtlMs));
+          return Object.keys(next).length === Object.keys(current).length ? current : next;
+        });
+        if (Object.keys(this.typingAt()).length === 0 && this.typingSweep) {
+          clearInterval(this.typingSweep);
+          this.typingSweep = null;
+        }
+      }, 2000);
+    }
   }
 
   // ---- REST ----

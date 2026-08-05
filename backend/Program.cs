@@ -65,6 +65,9 @@ builder.Services.AddSingleton<FinanceService>();
 builder.Services.AddKeshavFinance();
 // Inbox for the portfolio's public "Contact me" form (submissions encrypted at rest; admin-only reads).
 builder.Services.AddSingleton<ContactService>();
+// Live chat with visitors on the public sites, answered from the admin app. Anonymous on the visitor
+// side (an opaque token, only its hash stored) and encrypted at rest, like the contact inbox.
+builder.Services.AddSingleton<VisitorChatService>();
 builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
 builder.Services.AddSingleton<WebsiteVisitService>();
@@ -201,6 +204,26 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(10),
             QueueLimit = 0,
         }));
+    // Visitor chat polls every few seconds while the widget is open, so this has to be roomy — it is
+    // here to stop a flood, not to pace a conversation.
+    options.AddPolicy("visitor-chat", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+    // Starting a conversation is once-per-visitor, so it gets its own much tighter budget: this is what
+    // stops the queue being filled with empty threads.
+    options.AddPolicy("visitor-chat-start", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromHours(1),
+            QueueLimit = 0,
+        }));
 });
 
 builder.Services.AddHealthChecks();
@@ -257,6 +280,7 @@ await app.Services.GetRequiredService<WebsiteContentService>()
 await app.Services.GetRequiredService<TwoFactorDeviceService>()
     .EnsureIndexesAsync();
 await app.Services.GetRequiredService<ContactService>().EnsureIndexesAsync();
+await app.Services.GetRequiredService<VisitorChatService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<CustomRoleService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<CustomRoleService>().SeedSystemRolesAsync();
 await app.Services.GetRequiredService<GroupService>().EnsureIndexesAsync();

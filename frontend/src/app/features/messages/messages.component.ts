@@ -162,6 +162,9 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
               </div>
               }
             }
+            @if (typingLabel(); as label) {
+              <div class="typing" aria-live="polite">{{ label }}</div>
+            }
           </div>
 
           @if (a.status === 'declined') {
@@ -179,7 +182,8 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
               <button type="button" class="icon-btn" (click)="attach.click()" title="Attach a file or video">📎</button>
               <input #attach type="file" hidden (change)="onFile($event)">
               <button type="button" class="icon-btn" [class.recording]="recording()" (click)="toggleVoice()" title="Record a voice message">{{ recording() ? '⏹️' : '🎙️' }}</button>
-              <input class="input" placeholder="Type a message…" [(ngModel)]="draft" name="draft" autocomplete="off" />
+              <input class="input" placeholder="Type a message…" [(ngModel)]="draft" name="draft"
+                     autocomplete="off" (ngModelChange)="onDraftChanged()" />
               <button class="btn primary" type="submit" [disabled]="!draft.trim() && !file()">Send</button>
             </form>
           }
@@ -326,6 +330,7 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
     .rcpt { margin-left: .25rem; }
     .deleted { opacity: .7; }
     .closed, .accept-bar { padding: .75rem 1rem; border-top: 1px solid var(--border); display: flex; align-items: center; gap: .5rem; color: var(--muted); }
+    .typing { padding: .2rem .3rem; color: var(--muted); font-size: .78rem; font-style: italic; }
     .composer { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-top: 1px solid var(--border); }
     .composer .input { flex: 1; }
     .input { padding: .55rem .75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: .9rem; }
@@ -368,6 +373,8 @@ export class MessagesComponent implements AfterViewChecked, OnDestroy {
   error = signal<string | null>(null);
   notice = signal<string | null>(null);
   draft = '';
+  /** When the last "typing" ping went out, so keystrokes don't flood the hub. */
+  private lastTypingPing = 0;
   file = signal<File | null>(null);
   visibility = signal<ChatVisibility>('everyone');
   mediaUrls = signal<Record<string, string>>({});
@@ -554,6 +561,49 @@ export class MessagesComponent implements AfterViewChecked, OnDestroy {
     }
   }
 
+  /**
+   * "X is typing…" for the open conversation. Names come from the conversation itself — a group knows
+   * its members, a 1:1 has exactly one partner — so an id we can't name is simply left out rather than
+   * shown raw.
+   */
+  typingLabel(): string | null {
+    const conversation = this.active();
+    if (!conversation) return null;
+
+    const typing = this.chat.typingUserIds(conversation.id);
+    if (typing.length === 0) return null;
+
+    const names = typing
+      .map(id => conversation.isGroup
+        ? conversation.participants?.find(m => m.id === id)?.displayName
+        : conversation.partnerName)
+      .filter((name): name is string => !!name);
+
+    if (names.length === 0) return 'Someone is typing…';
+    if (names.length === 1) return `${names[0]} is typing…`;
+    return `${names.length} people are typing…`;
+  }
+
+  /**
+   * Pings the hub while the user writes. Throttled: one notice every few seconds is enough to keep the
+   * indicator alive, and the receiver expires it on its own if the pings stop.
+   */
+  onDraftChanged(): void {
+    const id = this.activeId();
+    if (!id) return;
+
+    if (!this.draft.trim()) {
+      this.chat.notifyTyping(id, false);
+      this.lastTypingPing = 0;
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastTypingPing < 3000) return;
+    this.lastTypingPing = now;
+    this.chat.notifyTyping(id, true);
+  }
+
   sendMessage(): void {
     const id = this.activeId();
     const text = this.draft.trim();
@@ -561,6 +611,9 @@ export class MessagesComponent implements AfterViewChecked, OnDestroy {
     this.chat.send(id, text, this.file()).subscribe({
       next: m => {
         this.draft = ''; this.file.set(null);
+        // Sending ends the sentence: stop the other side's dot straight away.
+        this.chat.notifyTyping(id, false);
+        this.lastTypingPing = 0;
         this.messages.update(list => list.some(x => x.id === m.id) ? list : [...list, m]);
         this.shouldScroll = true;
         this.ensureMediaUrls([m]);
