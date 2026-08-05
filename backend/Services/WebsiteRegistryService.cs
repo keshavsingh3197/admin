@@ -21,12 +21,27 @@ public sealed class WebsiteRegistryService
             cancellationToken: ct);
     }
 
-    public async Task SeedDefaultsAsync(string blogUrl, string blogAdminUrl, CancellationToken ct = default)
+    /// <summary>
+    /// Makes sure the sites in the family are registered. Missing keys are added one by one rather than
+    /// only seeding an empty collection: a site added to this list later (the portfolio was) would
+    /// otherwise never appear, and analytics rejects visits from a key it doesn't know.
+    ///
+    /// Existing rows are left exactly as they are — the registry is editable on the Settings page, and a
+    /// restart has no business undoing that.
+    /// </summary>
+    public async Task SeedDefaultsAsync(string blogUrl, string blogAdminUrl, string portfolioUrl,
+        CancellationToken ct = default)
     {
-        if (await _websites.Find(FilterDefinition<WebsiteLink>.Empty).AnyAsync(ct)) return;
-
         var defaults = new List<WebsiteLink>
         {
+            new()
+            {
+                Key = "portfolio",
+                Name = "Portfolio",
+                Url = NormalizeUrl(portfolioUrl, nameof(portfolioUrl)),
+                SortOrder = 5,
+                IsEnabled = true,
+            },
             new()
             {
                 Key = "blog",
@@ -45,7 +60,12 @@ public sealed class WebsiteRegistryService
             }
         };
 
-        await _websites.InsertManyAsync(defaults, cancellationToken: ct);
+        var existing = (await _websites.Find(FilterDefinition<WebsiteLink>.Empty)
+                .Project(x => x.Key).ToListAsync(ct))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var missing = defaults.Where(x => !existing.Contains(x.Key)).ToList();
+        if (missing.Count > 0) await _websites.InsertManyAsync(missing, cancellationToken: ct);
     }
 
     public async Task<IReadOnlyList<WebsiteLinkView>> ListAsync(CancellationToken ct = default)

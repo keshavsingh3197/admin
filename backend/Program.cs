@@ -287,8 +287,13 @@ await app.Services.GetRequiredService<GroupService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<FolderService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<FileService>().EnsureIndexesAsync();
 var publicConfig = app.Services.GetRequiredService<SettingsService>().ToPublicConfig();
+// The portfolio's URL isn't part of the shared PublicConfig (nothing else needs it), so it comes from
+// Websites:PortfolioUrl — only ever used to seed the registry row, which is editable on Settings after.
 await app.Services.GetRequiredService<WebsiteRegistryService>()
-    .SeedDefaultsAsync(publicConfig.BlogUrl, publicConfig.BlogAdminUrl);
+    .SeedDefaultsAsync(
+        publicConfig.BlogUrl,
+        publicConfig.BlogAdminUrl,
+        app.Configuration["Websites:PortfolioUrl"] ?? "https://keshavsingh.in");
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();

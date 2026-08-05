@@ -21,9 +21,8 @@ interface NavLink {
  * There is no Dashboard entry — the 🏠 brand on the left is the link home.
  */
 const PRIMARY_LINKS: NavLink[] = [
-  { path: '/messages', label: 'Messages', icon: '💬', exact: false },
-  // Strangers on the public sites, kept apart from Messages (which is people with accounts).
-  { path: '/visitor-chat', label: 'Visitors', icon: '🙋', exact: false },
+  // One entry for every conversation — team chat, visitors and the contact form are tabs inside it.
+  { path: '/inbox', label: 'Inbox', icon: '💬', exact: false },
   { path: '/meetings', label: 'Meetings', icon: '📅', exact: false },
   { path: '/notes', label: 'Notes', icon: '📝', exact: false },
   { path: '/files', label: 'Files', icon: '📁', exact: false },
@@ -32,7 +31,6 @@ const PRIMARY_LINKS: NavLink[] = [
 ];
 
 const ADMIN_LINKS: NavLink[] = [
-  { path: '/contact-inbox', label: 'Contact inbox', icon: '✉️', exact: false },
   { path: '/website', label: 'Websites', icon: '🌐', exact: false },
   { path: '/database', label: 'Database', icon: '🗃️', exact: false },
   { path: '/users', label: 'Users', icon: '👤', exact: false },

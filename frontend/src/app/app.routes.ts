@@ -41,12 +41,39 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/finance/finance-manage.component').then((m) => m.FinanceManageComponent),
   },
+  /**
+   * One page for everything anyone said to you: team chat, visitor chat and the contact form as tabs
+   * of a single Inbox rather than three near-identical pages. Each tab keeps its own component — they
+   * only look alike from the outside.
+   */
   {
-    path: 'messages',
+    path: 'inbox',
     canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/messages/messages.component').then((m) => m.MessagesComponent),
+    loadComponent: () => import('./features/inbox/inbox.component').then((m) => m.InboxComponent),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'team' },
+      {
+        path: 'team',
+        loadComponent: () =>
+          import('./features/messages/messages.component').then((m) => m.MessagesComponent),
+      },
+      {
+        path: 'visitors',
+        loadComponent: () =>
+          import('./features/visitor-chat/visitor-chat.component').then((m) => m.VisitorChatComponent),
+      },
+      {
+        path: 'contact',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/contact/contact-inbox.component').then((m) => m.ContactInboxComponent),
+      },
+    ],
   },
+  // The old addresses still work — bookmarks and anything linking to them shouldn't break.
+  { path: 'messages', pathMatch: 'full', redirectTo: 'inbox/team' },
+  { path: 'visitor-chat', pathMatch: 'full', redirectTo: 'inbox/visitors' },
+  { path: 'contact-inbox', pathMatch: 'full', redirectTo: 'inbox/contact' },
   {
     path: 'messages/moderation',
     canActivate: [adminGuard],
@@ -58,18 +85,6 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/meetings/meetings.component').then((m) => m.MeetingsComponent),
-  },
-  {
-    path: 'contact-inbox',
-    canActivate: [adminGuard],
-    loadComponent: () =>
-      import('./features/contact/contact-inbox.component').then((m) => m.ContactInboxComponent),
-  },
-  {
-    path: 'visitor-chat',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/visitor-chat/visitor-chat.component').then((m) => m.VisitorChatComponent),
   },
   {
     path: 'website',

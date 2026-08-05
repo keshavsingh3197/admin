@@ -31,10 +31,10 @@ import { ConfigService } from '../../core/services/config.service';
           <p>Manage your notes and important information.</p>
         </a>
 
-        <a class="card" routerLink="/messages">
+        <a class="card" routerLink="/inbox">
           <span class="card-icon">💬</span>
-          <h2>Messages</h2>
-          <p>Chat with other users in real time — with requests, presence, and blocking.</p>
+          <h2>Inbox</h2>
+          <p>Team chat, visitors on the public sites, and the contact form — all in one place.</p>
         </a>
 
         <a class="card" routerLink="/files">
