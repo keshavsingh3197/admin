@@ -60,6 +60,12 @@ export const routes: Routes = [
       import('./features/meetings/meetings.component').then((m) => m.MeetingsComponent),
   },
   {
+    path: 'contact-inbox',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/contact/contact-inbox.component').then((m) => m.ContactInboxComponent),
+  },
+  {
     path: 'security',
     canActivate: [authGuard],
     loadComponent: () =>

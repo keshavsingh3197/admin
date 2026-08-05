@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { CallService } from '../../core/services/call.service';
 import { ChatService } from '../../core/services/chat.service';
@@ -66,17 +67,21 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
           <div class="cal-grid">
             @for (d of weekdayNames; track d) { <span class="cal-dow">{{ d }}</span> }
             @for (cell of monthCells(); track cell.key) {
-              <button class="cal-cell" type="button"
-                      [class.other]="!cell.inMonth" [class.today]="cell.isToday"
-                      [class.sel]="cell.key === selectedDay()"
-                      (click)="selectDay(cell.key)">
-                <span class="cal-date">{{ cell.date }}</span>
+              <div class="cal-cell"
+                   [class.other]="!cell.inMonth" [class.today]="cell.isToday"
+                   [class.sel]="cell.key === selectedDay()">
+                <button class="cal-date-btn" type="button" (click)="selectDay(cell.key)"
+                        [attr.aria-label]="'Show ' + cell.key">
+                  <span class="cal-date">{{ cell.date }}</span>
+                </button>
                 @for (m of cell.items.slice(0, 3); track m.id) {
-                  <span class="chip" [class.cancelled]="m.status === 'cancelled'"
-                        [title]="m.title">{{ m.startsAt | date:'HH:mm' }} {{ m.title }}</span>
+                  <button class="chip" type="button" [class.cancelled]="m.status === 'cancelled'"
+                          [title]="m.title" (click)="open(m)">{{ m.startsAt | date:'HH:mm' }} {{ m.title }}</button>
                 }
-                @if (cell.items.length > 3) { <span class="more">+{{ cell.items.length - 3 }} more</span> }
-              </button>
+                @if (cell.items.length > 3) {
+                  <button class="more" type="button" (click)="selectDay(cell.key)">+{{ cell.items.length - 3 }} more</button>
+                }
+              </div>
             }
           </div>
         </section>
@@ -86,7 +91,8 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         <section class="day">
           <h2>{{ group.day }}</h2>
           @for (m of group.items; track m.id) {
-            <article class="card" [class.cancelled]="m.status === 'cancelled'">
+            <article class="card" [class.cancelled]="m.status === 'cancelled'"
+                     [class.sel]="m.id === selected()?.id" (click)="open(m)">
               <div class="when">
                 <strong>{{ m.startsAt | date:'shortTime' }}</strong>
                 <small>{{ m.durationMinutes }} min</small>
@@ -104,18 +110,95 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
               </div>
               <div class="ops">
                 @if (m.canJoin && m.status !== 'cancelled') {
-                  <button class="btn primary xs" [disabled]="calls.busy()" (click)="join(m)">Join</button>
+                  <button class="btn primary xs" [disabled]="calls.busy()"
+                          (click)="join(m); $event.stopPropagation()">Join</button>
                 }
-                @if (m.isOwner && m.status !== 'cancelled') {
-                  <button class="btn secondary xs" (click)="openForm(m)">Edit</button>
-                  <button class="btn danger xs" (click)="cancel(m)">Cancel</button>
-                }
+                <button class="btn secondary xs" (click)="open(m); $event.stopPropagation()">Details</button>
               </div>
             </article>
           }
         </section>
       }
       @if (!meetings().length) { <p class="muted pad">Nothing scheduled. Use ＋ Schedule to add a meeting.</p> }
+
+      <!-- Details panel: everything about one meeting, plus the things you do to it. -->
+      @if (selected(); as m) {
+        <div class="overlay" (click)="closeDetails()">
+          <div class="panel wide" (click)="$event.stopPropagation()">
+            <header class="p-head">
+              <span class="p-title">{{ m.media === 'video' ? '📹' : '📞' }} {{ m.title }}</span>
+              <button class="icon-btn" (click)="closeDetails()" aria-label="Close">✕</button>
+            </header>
+
+            <div class="p-body pad">
+              <dl class="facts">
+                <dt>When</dt>
+                <dd>{{ m.startsAt | date:'EEEE d MMM, HH:mm' }} – {{ endOf(m) | date:'HH:mm' }}
+                  <span class="muted">({{ m.durationMinutes }} min)</span></dd>
+
+                <dt>Status</dt>
+                <dd>
+                  <span class="tag" [class.live]="m.status === 'started'">{{ m.status }}</span>
+                  @if (m.canJoin && m.status !== 'cancelled') { <span class="tag live">joinable now</span> }
+                </dd>
+
+                <dt>Organiser</dt>
+                <dd>{{ m.isOwner ? 'You' : m.ownerName }}</dd>
+
+                <dt>Participants</dt>
+                <dd class="people-list">
+                  @for (i of m.invitees; track i.id) { <span class="member">{{ i.displayName }}</span> }
+                  @if (!m.invitees.length) { <span class="muted">Nobody invited yet.</span> }
+                </dd>
+
+                @if (m.description) {
+                  <dt>Notes</dt>
+                  <dd class="notes">{{ m.description }}</dd>
+                }
+
+                <dt>Meeting link</dt>
+                <dd class="link-row">
+                  <input class="input" readonly [value]="api.linkFor(m.id)" (click)="selectAll($event)" />
+                  <button class="btn secondary xs" (click)="copyLink(m)">{{ copied() ? 'Copied' : 'Copy' }}</button>
+                </dd>
+              </dl>
+
+              @if (m.isOwner && addingPeople()) {
+                <div class="add-people">
+                  <span class="lbl">Add participants</span>
+                  @for (u of addableFor(m); track u.id) {
+                    <button class="dir-row" type="button" (click)="togglePick(u)">
+                      <span class="pick">{{ picked().includes(u.id) ? '☑' : '☐' }}</span>
+                      <span class="dot" [class]="u.presence"></span>{{ u.displayName }}
+                    </button>
+                  }
+                  @if (!addableFor(m).length) { <p class="muted pad">Everyone available is already invited.</p> }
+                  <div class="add-ops">
+                    <button class="btn primary xs" [disabled]="!picked().length" (click)="addPeople(m)">Add</button>
+                    <button class="btn secondary xs" (click)="addingPeople.set(false)">Done</button>
+                  </div>
+                </div>
+              }
+
+              @if (detailError()) { <p class="err">{{ detailError() }}</p> }
+            </div>
+
+            <footer class="p-foot wrap">
+              @if (m.canJoin && m.status !== 'cancelled') {
+                <button class="btn primary sm" [disabled]="calls.busy()" (click)="join(m)">Join call</button>
+              }
+              @if (m.isOwner && m.status !== 'cancelled') {
+                <button class="btn secondary sm" (click)="openForm(m)">Edit</button>
+                <button class="btn secondary sm" (click)="addingPeople.set(!addingPeople())">＋ Participants</button>
+                <button class="btn secondary sm" (click)="cancel(m)">Cancel meeting</button>
+              }
+              @if (m.isOwner) {
+                <button class="btn danger sm" (click)="remove(m)">Delete</button>
+              }
+            </footer>
+          </div>
+        </div>
+      }
 
       @if (formOpen()) {
         <div class="overlay" (click)="formOpen.set(false)">
@@ -204,20 +287,41 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     .cal-dow { padding: .4rem; text-align: center; font-size: .72rem; text-transform: uppercase;
                letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--border); }
     .cal-cell { display: flex; flex-direction: column; gap: .15rem; align-items: stretch; min-height: 92px;
-                padding: .3rem; background: none; border: none; border-right: 1px solid var(--border);
-                border-bottom: 1px solid var(--border); text-align: left; color: var(--text); cursor: pointer; }
-    .cal-cell:nth-child(7n) { border-right: none; }
+                padding: .3rem; border-right: 1px solid var(--border);
+                border-bottom: 1px solid var(--border); text-align: left; color: var(--text); }
+    .cal-cell:nth-child(7n+1) { border-right: 1px solid var(--border); }
     .cal-cell:hover { background: var(--bg); }
     .cal-cell.other { opacity: .45; }
     .cal-cell.sel { background: color-mix(in srgb, var(--brand) 12%, transparent); }
-    .cal-date { font-size: .78rem; color: var(--muted); align-self: flex-start; }
+    .cal-date-btn { background: none; border: none; padding: 0; cursor: pointer; align-self: flex-start; }
+    .cal-date { font-size: .78rem; color: var(--muted); }
     .cal-cell.today .cal-date { background: var(--brand); color: var(--brand-text); border-radius: 99px;
                                 padding: 0 .35rem; }
     .chip { font-size: .68rem; background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+            border: none; color: var(--text); text-align: left; cursor: pointer;
             border-radius: 4px; padding: .05rem .25rem; overflow: hidden; text-overflow: ellipsis;
             white-space: nowrap; }
+    .chip:hover { background: color-mix(in srgb, var(--brand) 28%, var(--surface)); }
     .chip.cancelled { text-decoration: line-through; opacity: .6; }
-    .more { font-size: .66rem; color: var(--muted); }
+    .more { font-size: .66rem; color: var(--muted); background: none; border: none; cursor: pointer;
+            text-align: left; padding: 0; }
+
+    .card { cursor: pointer; }
+    .card.sel { border-color: var(--brand); }
+    .panel.wide { width: min(620px, 94%); }
+    .facts { display: grid; grid-template-columns: 8rem 1fr; gap: .4rem .6rem; margin: 0; }
+    .facts dt { color: var(--muted); font-size: .8rem; }
+    .facts dd { margin: 0; font-size: .88rem; }
+    .notes { white-space: pre-wrap; }
+    .people-list { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .member { font-size: .8rem; background: var(--bg); border: 1px solid var(--border);
+              border-radius: 99px; padding: .1rem .5rem; }
+    .link-row { display: flex; gap: .35rem; align-items: center; }
+    .link-row .input { font-size: .78rem; }
+    .add-people { display: flex; flex-direction: column; border: 1px solid var(--border);
+                  border-radius: 8px; margin-top: .6rem; max-height: 220px; overflow: auto; }
+    .add-ops { display: flex; gap: .35rem; padding: .4rem .6rem; }
+    .p-foot.wrap { flex-wrap: wrap; justify-content: flex-start; }
     .card { display: grid; grid-template-columns: 90px 1fr auto; gap: .75rem; align-items: center;
             border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
             padding: .7rem .9rem; margin-bottom: .5rem; }
@@ -272,9 +376,10 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   `],
 })
 export class MeetingsComponent {
-  private api = inject(MeetingsService);
+  readonly api = inject(MeetingsService);
   readonly chat = inject(ChatService);
   readonly calls = inject(CallService);
+  private route = inject(ActivatedRoute);
 
   meetings = signal<Meeting[]>([]);
   directory = signal<DirectoryUser[]>([]);
@@ -284,6 +389,13 @@ export class MeetingsComponent {
   error = signal<string | null>(null);
   formError = signal<string | null>(null);
   includePast = false;
+
+  /** The meeting whose details panel is open. */
+  readonly selected = signal<Meeting | null>(null);
+  readonly addingPeople = signal(false);
+  readonly picked = signal<string[]>([]);
+  readonly copied = signal(false);
+  readonly detailError = signal<string | null>(null);
 
   /** Agenda (a list) or Calendar (a month grid); remembered between visits. */
   readonly view = signal<MeetingsView>(loadView());
@@ -385,6 +497,85 @@ export class MeetingsComponent {
   constructor() {
     // Runs once on init, then whenever the hub reports a meeting changed (created, edited, cancelled).
     effect(() => { this.chat.meetingsDirty(); this.load(); });
+
+    // ?meeting=<id> is the shareable meeting link: open that meeting's details straight away.
+    const shared = this.route.snapshot.queryParamMap.get('meeting');
+    if (shared) {
+      this.api.get(shared).subscribe({
+        next: m => this.open(m),
+        error: () => this.error.set('That meeting is no longer available.'),
+      });
+    }
+  }
+
+  // ---- Details panel ----
+
+  open(meeting: Meeting): void {
+    this.detailError.set(null);
+    this.addingPeople.set(false);
+    this.picked.set([]);
+    this.copied.set(false);
+    this.selected.set(meeting);
+    // Load the people list once, so "add participants" is ready without another click.
+    if (!this.directory().length) {
+      this.chat.directory().subscribe({ next: d => this.directory.set(d), error: () => {} });
+    }
+  }
+
+  closeDetails(): void {
+    this.selected.set(null);
+    this.addingPeople.set(false);
+    this.picked.set([]);
+  }
+
+  endOf(m: Meeting): Date {
+    return new Date(new Date(m.startsAt).getTime() + m.durationMinutes * 60_000);
+  }
+
+  /** People not already on the invite list — what the add-participants picker offers. */
+  addableFor(m: Meeting): DirectoryUser[] {
+    const invited = new Set([...m.invitees.map(i => i.id), m.ownerUserId]);
+    return this.directory().filter(u => !invited.has(u.id));
+  }
+
+  togglePick(u: DirectoryUser): void {
+    this.picked.update(list => list.includes(u.id) ? list.filter(id => id !== u.id) : [...list, u.id]);
+  }
+
+  addPeople(m: Meeting): void {
+    const ids = this.picked();
+    if (!ids.length) return;
+    this.api.addInvitees(m.id, ids).subscribe({
+      next: updated => {
+        this.picked.set([]);
+        this.selected.set(updated);
+        this.load();
+      },
+      error: (e: HttpErrorResponse) => this.detailError.set(e.error?.error ?? 'Could not add them.'),
+    });
+  }
+
+  async copyLink(m: Meeting): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.api.linkFor(m.id));
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2500);
+    } catch {
+      // Clipboard blocked (insecure context or permission) — the field is selectable as a fallback.
+      this.detailError.set('Could not copy — select the link and copy it manually.');
+    }
+  }
+
+  selectAll(event: Event): void {
+    (event.target as HTMLInputElement).select();
+  }
+
+  remove(m: Meeting): void {
+    if (!confirm(`Delete “${m.title}” for everyone? Cancelling instead keeps the record.`)) return;
+    this.api.delete(m.id).subscribe({
+      next: () => { this.closeDetails(); this.load(); },
+      error: () => this.detailError.set('Could not delete the meeting.'),
+    });
   }
 
   load(): void {
@@ -400,6 +591,7 @@ export class MeetingsComponent {
 
   openForm(meeting?: Meeting): void {
     this.formError.set(null);
+    this.selected.set(null); // the form takes over from the details panel
     this.editing.set(meeting ?? null);
     this.form = meeting ? this.formFrom(meeting) : this.blankForm();
     this.formOpen.set(true);
@@ -429,13 +621,14 @@ export class MeetingsComponent {
   cancel(m: Meeting): void {
     if (!confirm(`Cancel “${m.title}”? Invitees will see it as cancelled.`)) return;
     this.api.cancel(m.id).subscribe({
-      next: () => this.load(),
-      error: () => this.error.set('Could not cancel the meeting.'),
+      next: () => { this.closeDetails(); this.load(); },
+      error: () => this.detailError.set('Could not cancel the meeting.'),
     });
   }
 
   join(m: Meeting): void {
     this.chat.meetingReminder.set(null);
+    this.closeDetails();
     void this.calls.joinMeeting(m.id, m.media);
   }
 

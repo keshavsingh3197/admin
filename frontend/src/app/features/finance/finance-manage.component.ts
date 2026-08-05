@@ -202,8 +202,41 @@ type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'li
       @if (importing()) {
         <div class="scrim" (click)="closeImport()">
           <div class="dialog" (click)="$event.stopPropagation()">
-            <h2>Import bank statement (CSV)</h2>
-            <label class="field"><span>CSV file</span><input class="input" type="file" accept=".csv,text/csv" (change)="onImportFile($event)"></label>
+            <h2>Import bank statement</h2>
+            <label class="field"><span>Statement file (.csv or .xlsx)</span>
+              <input class="input" type="file" accept=".csv,text/csv,.xlsx" (change)="onImportFile($event)"></label>
+
+            @if (xlsxFile()) {
+              <!-- We can't read an .xlsx in the browser without pulling in a parser, so the columns are
+                   entered by hand here (0 = first column) and the server does the parsing. -->
+              <p class="muted">{{ xlsxFile()!.name }} — enter which columns to use, counting from 0.</p>
+              <div class="grid-2">
+                <label class="field"><span>Date column</span>
+                  <input class="input" type="number" min="0" [(ngModel)]="imp.dateColumn"></label>
+                <label class="field"><span>Description column</span>
+                  <input class="input" type="number" min="0" [(ngModel)]="imp.descriptionColumn"></label>
+              </div>
+              <label class="field"><span>Amount columns</span><select class="input" [(ngModel)]="amountMode">
+                <option value="single">One signed amount column</option>
+                <option value="split">Separate debit &amp; credit columns</option></select></label>
+              @if (amountMode === 'single') {
+                <label class="field"><span>Amount column</span>
+                  <input class="input" type="number" min="0" [(ngModel)]="imp.amountColumn"></label>
+              } @else {
+                <div class="grid-2">
+                  <label class="field"><span>Debit (out) column</span>
+                    <input class="input" type="number" min="0" [(ngModel)]="imp.debitColumn"></label>
+                  <label class="field"><span>Credit (in) column</span>
+                    <input class="input" type="number" min="0" [(ngModel)]="imp.creditColumn"></label>
+                </div>
+              }
+              <div class="grid-2">
+                <label class="field"><span>Date format (optional)</span><input class="input" [(ngModel)]="imp.dateFormat" placeholder="dd/MM/yyyy"></label>
+                <label class="field"><span>Account label</span><input class="input" [(ngModel)]="imp.account" placeholder="HDFC Savings"></label>
+              </div>
+              <label class="check"><input type="checkbox" [(ngModel)]="imp.hasHeader"> First row is a header</label>
+            }
+
             @if (csvColumns().length) {
               <p class="muted">Detected {{ csvColumns().length }} columns — map them below.</p>
               <div class="grid-2">
@@ -229,7 +262,8 @@ type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'li
             }
             @if (importMsg()) { <p class="muted">{{ importMsg() }}</p> }
             <div class="form-actions">
-              <button class="btn-primary" (click)="submitImport()" [disabled]="busy() || !imp.csvText">Import</button>
+              <button class="btn-primary" (click)="submitImport()"
+                      [disabled]="busy() || (!imp.csvText && !xlsxFile())">Import</button>
               <button class="btn-secondary" (click)="closeImport()">Close</button>
             </div>
           </div>
@@ -334,11 +368,13 @@ export class FinanceManageComponent implements OnInit {
   addingMember = signal(false);
   newMemberName = '';
 
-  // CSV import dialog state.
+  // Statement import dialog state. CSV is parsed here for the column picker; .xlsx is sent as-is and
+  // parsed server-side, so its columns are entered by hand.
   importing = signal(false);
   importMsg = signal<string | null>(null);
   amountMode: 'single' | 'split' = 'single';
   csvColumns = signal<{ index: number; label: string }[]>([]);
+  xlsxFile = signal<File | null>(null);
   imp: ImportTransactionsRequest = this.blankImport();
 
   ngOnInit(): void { this.loadAll(); }
@@ -528,17 +564,33 @@ export class FinanceManageComponent implements OnInit {
   // ---- CSV import ----
 
   openImport(): void { this.imp = this.blankImport(); this.csvColumns.set([]); this.importMsg.set(null); this.amountMode = 'single'; this.importing.set(true); }
-  closeImport(): void { this.importing.set(false); }
+  closeImport(): void {
+    this.importing.set(false);
+    // Drop the picked file so reopening the dialog doesn't re-import the last statement by accident.
+    this.xlsxFile.set(null);
+    this.csvColumns.set([]);
+    this.imp = this.blankImport();
+  }
 
   onImportFile(e: Event): void {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
+    this.importMsg.set(null);
+    this.csvColumns.set([]);
+    this.xlsxFile.set(null);
+
+    if (file.name.toLowerCase().endsWith('.xlsx')) {
+      // Workbooks go to the server untouched; no browser-side parser to add.
+      this.imp = { ...this.blankImport(), csvText: '' };
+      this.xlsxFile.set(file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       const text = String(reader.result ?? '');
       this.imp = { ...this.blankImport(), csvText: text };
       this.detectColumns(text);
-      this.importMsg.set(null);
     };
     reader.readAsText(file);
   }
@@ -573,11 +625,18 @@ export class FinanceManageComponent implements OnInit {
       account: this.imp.account || null,
       category: this.imp.category || null,
     };
+
+    const workbook = this.xlsxFile();
     this.busy.set(true);
-    this.api.importTransactions(req).subscribe({
+    const request = workbook
+      ? this.api.importWorkbook(workbook, req)
+      : this.api.importTransactions(req);
+
+    request.subscribe({
       next: r => {
         this.busy.set(false);
-        this.importMsg.set(`Imported ${r.imported} transaction(s), skipped ${r.skipped}.`);
+        this.importMsg.set(`Imported ${r.imported} transaction(s), skipped ${r.skipped}.`
+          + ' Uncategorised rows were labelled from their description — see Finance for the analysis.');
         this.txSkip.set(0);
         this.loadTransactions();
       },

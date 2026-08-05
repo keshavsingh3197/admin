@@ -3,9 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
-  Expense, FamilyMember, FinanceOverview, FinancialGoal, Household,
+  AppliedSuggestion, Expense, FamilyMember, FinanceOverview, FinancialGoal, Household,
   ImportResult, ImportTransactionsRequest, IncomeSource, Investment, Liability,
-  PagedResult, Transaction,
+  PagedResult, StatementAnalysis, Transaction,
 } from '../models/finance.models';
 
 /** Family-finance API. Everything is owner-scoped server-side; no logic lives here. */
@@ -60,6 +60,32 @@ export class FinanceService {
   deleteTransaction(id: string) { return this.http.delete<void>(`${this.f}/transactions/${id}`); }
   importTransactions(b: ImportTransactionsRequest): Observable<ImportResult> {
     return this.http.post<ImportResult>(`${this.f}/transactions/import`, b);
+  }
+
+  /** Imports an .xlsx statement — same column mapping, sent as multipart because it's a binary file. */
+  importWorkbook(file: File, map: Omit<ImportTransactionsRequest, 'csvText'>): Observable<ImportResult> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('dateColumn', String(map.dateColumn));
+    form.append('descriptionColumn', String(map.descriptionColumn));
+    if (map.amountColumn != null) form.append('amountColumn', String(map.amountColumn));
+    if (map.debitColumn != null) form.append('debitColumn', String(map.debitColumn));
+    if (map.creditColumn != null) form.append('creditColumn', String(map.creditColumn));
+    if (map.dateFormat) form.append('dateFormat', map.dateFormat);
+    form.append('hasHeader', String(map.hasHeader));
+    if (map.account) form.append('account', map.account);
+    if (map.category) form.append('category', map.category);
+    return this.http.post<ImportResult>(`${this.f}/transactions/import/xlsx`, form);
+  }
+
+  /** What the statement says: monthly in/out, category split, recurring payments, suggestions. */
+  insights(months = 6): Observable<StatementAnalysis> {
+    return this.http.get<StatementAnalysis>(`${this.f}/insights?months=${months}`);
+  }
+
+  /** Creates records from the suggestions the user accepted (salary, EMIs, standing bills). */
+  applySuggestions(suggestions: AppliedSuggestion[]): Observable<{ created: number }> {
+    return this.http.post<{ created: number }>(`${this.f}/insights/apply`, { suggestions });
   }
 
   exportXlsx(): Observable<Blob> {

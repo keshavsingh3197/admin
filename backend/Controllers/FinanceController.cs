@@ -297,6 +297,63 @@ public class FinanceController : ControllerBase
         return Ok(new ImportResult(imported, skipped));
     }
 
+    /// <summary>
+    /// Imports a statement workbook (.xlsx) — the format most banks hand out. Same column mapping as the
+    /// CSV import; the file is streamed, never stored.
+    /// </summary>
+    [HttpPost("transactions/import/xlsx")]
+    [RequestSizeLimit(15 * 1024 * 1024)]
+    public async Task<ActionResult<ImportResult>> ImportWorkbook(
+        IFormFile file,
+        [FromForm] int dateColumn, [FromForm] int descriptionColumn,
+        [FromForm] int? amountColumn, [FromForm] int? debitColumn, [FromForm] int? creditColumn,
+        [FromForm] string? dateFormat, [FromForm] bool hasHeader = true,
+        [FromForm] string? account = null, [FromForm] string? category = null)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { error = "Choose a statement file." });
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { error = "Only .xlsx workbooks are supported here — use the CSV import otherwise." });
+        if (amountColumn is null && debitColumn is null && creditColumn is null)
+            return BadRequest(new { error = "Map either an amount column, or debit/credit columns." });
+
+        var map = new BankCsvMapping
+        {
+            DateColumn = dateColumn,
+            DescriptionColumn = descriptionColumn,
+            AmountColumn = amountColumn,
+            DebitColumn = debitColumn,
+            CreditColumn = creditColumn,
+            DateFormat = Clean(dateFormat),
+            HasHeader = hasHeader,
+            Account = Clean(account),
+            DefaultCategory = Clean(category),
+        };
+
+        await using var stream = file.OpenReadStream();
+        try
+        {
+            var (imported, skipped) = await _finance.ImportWorkbookAsync(Owner, stream, map);
+            return Ok(new ImportResult(imported, skipped));
+        }
+        catch (Exception ex) when (ex is InvalidDataException or FormatException)
+        {
+            // A corrupt or password-protected workbook is the user's problem to fix, not a 500.
+            return BadRequest(new { error = "That file could not be read as an .xlsx workbook." });
+        }
+    }
+
+    // ---- Statement analysis ----
+
+    /// <summary>What the ledger says: monthly in/out, category split, recurring payments, suggestions.</summary>
+    [HttpGet("insights")]
+    public async Task<ActionResult<StatementAnalysis>> Insights([FromQuery] int months = 6) =>
+        Ok(await _finance.AnalyzeAsync(Owner, months));
+
+    /// <summary>Creates records from the suggestions the user accepted (salary, EMIs, standing bills).</summary>
+    [HttpPost("insights/apply")]
+    public async Task<ActionResult<ApplySuggestionsResult>> ApplySuggestions(ApplySuggestionsRequest r) =>
+        Ok(new ApplySuggestionsResult(await _finance.ApplySuggestionsAsync(Owner, r.Suggestions)));
+
     // ---- Export ----
 
     [HttpGet("export")]

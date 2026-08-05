@@ -61,6 +61,8 @@ builder.Services.AddSingleton<NoteService>();
 // Family finance: persistence + the KeshavSingh.Finance advisory engine (pure, no secrets/I-O).
 builder.Services.AddSingleton<FinanceService>();
 builder.Services.AddKeshavFinance();
+// Inbox for the portfolio's public "Contact me" form (submissions encrypted at rest; admin-only reads).
+builder.Services.AddSingleton<ContactService>();
 builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
 builder.Services.AddSingleton<WebsiteVisitService>();
@@ -178,6 +180,16 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         }));
+    // The public contact form: a real visitor sends one message, so this only has to be generous enough
+    // not to block a retry, and tight enough that the inbox can't be flooded from one address.
+    options.AddPolicy("contact", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(10),
+            QueueLimit = 0,
+        }));
 });
 
 builder.Services.AddHealthChecks();
@@ -233,6 +245,7 @@ await app.Services.GetRequiredService<WebsiteContentService>()
     .EnsureIndexesAsync();
 await app.Services.GetRequiredService<TwoFactorDeviceService>()
     .EnsureIndexesAsync();
+await app.Services.GetRequiredService<ContactService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<CustomRoleService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<CustomRoleService>().SeedSystemRolesAsync();
 await app.Services.GetRequiredService<GroupService>().EnsureIndexesAsync();

@@ -1,3 +1,4 @@
+using Admin.Api.Dtos;
 using ClosedXML.Excel;
 using MongoDB.Driver;
 
@@ -158,9 +159,28 @@ public class FinanceService
     }
 
     /// <summary>Imports a bank statement CSV using the package's pure parser. Returns counts.</summary>
-    public async Task<(int Imported, int Skipped)> ImportTransactionsAsync(string owner, string csv, BankCsvMapping map)
+    public Task<(int Imported, int Skipped)> ImportTransactionsAsync(string owner, string csv, BankCsvMapping map) =>
+        SaveParsedAsync(owner, BankStatementParser.ParseCsv(csv, map));
+
+    /// <summary>
+    /// Imports a statement workbook (.xlsx) — many banks only offer Excel. Cells are read as text so the
+    /// package's parser does the messy date/amount normalisation, exactly as it does for CSV.
+    /// </summary>
+    public Task<(int Imported, int Skipped)> ImportWorkbookAsync(string owner, Stream xlsx, BankCsvMapping map)
     {
-        var result = BankStatementParser.ParseCsv(csv, map);
+        using var wb = new XLWorkbook(xlsx);
+        var sheet = wb.Worksheets.First();
+        var used = sheet.RangeUsed();
+        if (used is null) return Task.FromResult((0, 0));
+
+        var rows = used.RowsUsed()
+            .Select(row => (IReadOnlyList<string>)row.Cells().Select(c => c.GetFormattedString()).ToList())
+            .ToList();
+        return SaveParsedAsync(owner, BankStatementParser.Parse(rows, map));
+    }
+
+    private async Task<(int Imported, int Skipped)> SaveParsedAsync(string owner, BankParseResult result)
+    {
         if (result.Transactions.Count == 0) return (0, result.SkippedRows);
 
         var docs = result.Transactions.Select(p => new Transaction
@@ -170,12 +190,104 @@ public class FinanceService
             Description = p.Description,
             Amount = p.Amount,
             Direction = p.Direction,
-            Category = p.Category,
+            // Nothing chose a category, so label it from the narration — an uncategorised statement is
+            // no use for analysis, and the guess is visible and editable in the ledger.
+            Category = p.Category ?? CategoryLabel(p.Description, p.Direction),
             Account = p.Account,
         }).ToList();
 
         await _transactions.InsertManyAsync(docs);
         return (docs.Count, result.SkippedRows);
+    }
+
+    private static string? CategoryLabel(string description, TransactionDirection direction)
+    {
+        var kind = StatementInsights.Classify(description, direction);
+        return kind == StatementEntryKind.Unknown ? null : kind.ToString();
+    }
+
+    // ---- Statement analysis ----
+
+    /// <summary>
+    /// Runs the package's statement analyser over the owner's ledger for the last
+    /// <paramref name="months"/> months: monthly in/out, category split, recurring payments and the
+    /// household records those imply. Read-only — suggestions are applied only on request.
+    /// </summary>
+    public async Task<StatementAnalysis> AnalyzeAsync(string owner, int months)
+    {
+        var from = DateTime.UtcNow.Date.AddMonths(-Math.Clamp(months, 1, 36));
+        var filter = Builders<Transaction>.Filter.Eq(t => t.OwnerUserId, owner)
+                     & Builders<Transaction>.Filter.Gte(t => t.Date, from);
+
+        var items = await _transactions.Find(filter)
+            .SortBy(t => t.Date)
+            .Limit(20_000) // a hard ceiling so one enormous ledger can't exhaust memory
+            .ToListAsync();
+
+        return StatementInsights.Analyze(items.Select(t => new StatementEntry(
+            DateOnly.FromDateTime(t.Date), t.Description, t.Amount, t.Direction)));
+    }
+
+    /// <summary>
+    /// Turns accepted suggestions into real records — the "fill in my salary and EMIs from the
+    /// statement" step. Duplicates are skipped by label so applying twice doesn't double the household's
+    /// income. Amounts are monthly, which is how the analyser reports them.
+    /// </summary>
+    public async Task<int> ApplySuggestionsAsync(string owner, IEnumerable<AppliedSuggestion> suggestions)
+    {
+        var created = 0;
+        var existingIncome = (await ListAsync<IncomeSource>(owner)).Select(i => i.Label).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var existingDebt = (await ListAsync<Liability>(owner)).Select(l => l.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var existingExpense = (await ListAsync<Expense>(owner)).Select(e => e.Label).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var s in suggestions)
+        {
+            var label = s.Label.Trim();
+            if (label.Length == 0 || s.MonthlyAmount <= 0m) continue;
+
+            switch (s.Kind)
+            {
+                case "income" when existingIncome.Add(label):
+                    await CreateAsync(owner, new IncomeSource
+                    {
+                        Label = label,
+                        Type = s.IncomeType ?? IncomeType.Other,
+                        Frequency = Frequency.Monthly,
+                        Amount = s.MonthlyAmount,
+                        IsActive = true,
+                    });
+                    created++;
+                    break;
+
+                case "liability" when existingDebt.Add(label):
+                    await CreateAsync(owner, new Liability
+                    {
+                        Name = label,
+                        Type = s.DebtType ?? DebtType.Other,
+                        // The statement shows the instalment, never the principal or the rate — those
+                        // stay at zero for the owner to fill in, rather than being invented here.
+                        Outstanding = 0m,
+                        InterestRatePct = 0,
+                        EmiMonthly = s.MonthlyAmount,
+                    });
+                    created++;
+                    break;
+
+                case "expense" when existingExpense.Add(label):
+                    await CreateAsync(owner, new Expense
+                    {
+                        Label = label,
+                        Category = s.ExpenseCategory ?? ExpenseCategory.Other,
+                        Frequency = Frequency.Monthly,
+                        Amount = s.MonthlyAmount,
+                        IsEssential = s.IsEssential,
+                    });
+                    created++;
+                    break;
+            }
+        }
+
+        return created;
     }
 
     // ---- Excel (.xlsx) export of everything the owner has ----

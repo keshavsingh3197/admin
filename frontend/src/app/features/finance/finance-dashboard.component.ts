@@ -1,11 +1,15 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FinanceService } from '../../core/services/finance.service';
-import { Advisory, AdvisorySeverity, FinanceOverview, HouseholdMetrics } from '../../core/models/finance.models';
+import {
+  Advisory, AdvisorySeverity, AppliedSuggestion, FinanceOverview, HouseholdMetrics,
+  StatementAnalysis, StatementSuggestion,
+} from '../../core/models/finance.models';
 
 @Component({
   selector: 'app-finance-dashboard',
-  imports: [RouterLink],
+  imports: [RouterLink, DatePipe],
   template: `
     <div class="finance">
       <div class="fin-head">
@@ -143,6 +147,91 @@ import { Advisory, AdvisorySeverity, FinanceOverview, HouseholdMetrics } from '.
           </div>
         }
       }
+
+      <!-- Statement analysis: what the imported ledger says, and the records it implies. -->
+      <section class="card statement">
+        <div class="card-head">
+          <h2>From your bank statement</h2>
+          <span class="head-tools">
+            <select class="mini-select" [value]="months()" (change)="onMonths($event)" aria-label="Period">
+              <option [value]="3">Last 3 months</option>
+              <option [value]="6">Last 6 months</option>
+              <option [value]="12">Last 12 months</option>
+            </select>
+            <a class="btn-secondary sm" routerLink="/finance/manage">Import statement</a>
+          </span>
+        </div>
+
+        @if (insightsLoading()) { <p class="muted">Analysing…</p> }
+        @else if (insights(); as a) {
+          @if (!a.transactionCount) {
+            <p class="muted">No transactions in this period. Import a statement (CSV or .xlsx) and this fills in
+              — average income and spend, what recurs, and the salary/EMI records it implies.</p>
+          } @else {
+            <div class="stat-row">
+              <span class="stat"><small>Money in / month</small><strong class="pos">{{ money(a.averageMonthlyIn) }}</strong></span>
+              <span class="stat"><small>Money out / month</small><strong class="neg">{{ money(a.averageMonthlyOut) }}</strong></span>
+              <span class="stat"><small>Transactions</small><strong>{{ a.transactionCount }}</strong></span>
+              <span class="stat"><small>Period</small><strong>{{ a.from | date:'MMM y' }} – {{ a.to | date:'MMM y' }}</strong></span>
+            </div>
+
+            @if (a.months.length) {
+              <div class="bars" role="img" aria-label="Money in and out per month">
+                @for (mo of a.months; track mo.label) {
+                  <span class="bar-col" [title]="mo.label + ': in ' + money(mo.moneyIn) + ', out ' + money(mo.moneyOut)">
+                    <span class="bar-pair">
+                      <i class="bar in" [style.height.%]="barHeight(mo.moneyIn)"></i>
+                      <i class="bar out" [style.height.%]="barHeight(mo.moneyOut)"></i>
+                    </span>
+                    <small>{{ mo.label.split(' ')[0] }}</small>
+                  </span>
+                }
+              </div>
+            }
+
+            @if (a.categories.length) {
+              <h3 class="sub">Where it went</h3>
+              <ul class="cat-list">
+                @for (c of a.categories.slice(0, 8); track c.kind) {
+                  <li><span class="cat-name">{{ prettyKind(c.kind) }}</span>
+                    <span class="meter"><span class="meter-fill" [style.width.%]="categoryPct(c.total)"></span></span>
+                    <span class="muted">{{ money(c.total) }}</span></li>
+                }
+              </ul>
+            }
+
+            @if (a.suggestions.length) {
+              <h3 class="sub">Fill in from the statement</h3>
+              <p class="muted small">These are guesses from bank narrations — check each one before adding it.</p>
+              <ul class="sugg-list">
+                @for (s of a.suggestions; track s.label + s.kind) {
+                  <li class="sugg" [class.on]="isPicked(s)">
+                    <label class="sugg-main">
+                      <input type="checkbox" [checked]="isPicked(s)" (change)="togglePick(s)" />
+                      <span>
+                        <strong>{{ s.label }}</strong>
+                        <span class="badge">{{ s.kind === 'liability' ? 'EMI' : s.kind }}</span>
+                        <small class="muted">{{ s.reason }}</small>
+                      </span>
+                    </label>
+                    <span class="sugg-amt">{{ money(s.monthlyAmount) }}/mo</span>
+                  </li>
+                }
+              </ul>
+              <div class="sugg-ops">
+                <button class="btn-primary sm" [disabled]="!picked().length || applying()" (click)="apply()">
+                  Add {{ picked().length || '' }} selected</button>
+                @if (applyMsg()) { <span class="muted">{{ applyMsg() }}</span> }
+              </div>
+            } @else {
+              <p class="muted small">Nothing recurring detected yet — a few months of statement data makes this
+                much better at spotting salary and EMIs.</p>
+            }
+          }
+        } @else if (insightsError()) {
+          <p class="muted">{{ insightsError() }}</p>
+        }
+      </section>
     </div>
   `,
   styles: [`
@@ -224,6 +313,45 @@ import { Advisory, AdvisorySeverity, FinanceOverview, HouseholdMetrics } from '.
     .donut-seg.gold{stroke:var(--v-yellow);} .donut-seg.realestate{stroke:var(--v-orange);}
     .donut-seg.cash{stroke:var(--v-green);} .donut-seg.crypto{stroke:var(--v-magenta);}
     .donut-seg.other{stroke:var(--v-violet);}
+
+    /* ---- Statement analysis ---- */
+    .statement { margin-top:1.25rem; }
+    .head-tools { display:flex; align-items:center; gap:.5rem; }
+    .mini-select { background:var(--bg); color:var(--text); border:1px solid var(--border);
+                   border-radius:6px; padding:.25rem .4rem; font-size:.8rem; }
+    .btn-secondary.sm { padding:.3rem .6rem; font-size:.8rem; }
+    .stat-row { display:flex; flex-wrap:wrap; gap:1.25rem; margin:.5rem 0 1rem; }
+    .stat { display:flex; flex-direction:column; }
+    .stat small { color:var(--muted); font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; }
+    .stat strong { font-size:1.05rem; }
+    .stat .pos { color:#137333; } .stat .neg { color:#c5221f; }
+    .bars { display:flex; align-items:flex-end; gap:.6rem; height:120px; padding:.5rem 0 0;
+            border-bottom:1px solid var(--border); }
+    .bar-col { display:flex; flex-direction:column; align-items:center; gap:.25rem; flex:1; height:100%; }
+    .bar-pair { display:flex; align-items:flex-end; gap:2px; flex:1; width:100%; justify-content:center; }
+    .bar { width:40%; max-width:18px; border-radius:3px 3px 0 0; min-height:2px; }
+    .bar.in { background:#34a853; } .bar.out { background:#ea4335; }
+    .bar-col small { color:var(--muted); font-size:.68rem; }
+    .sub { font-size:.82rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+           margin:1.1rem 0 .4rem; }
+    .small { font-size:.8rem; }
+    .cat-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.35rem; }
+    .cat-list li { display:grid; grid-template-columns:9rem 1fr 6rem; align-items:center; gap:.6rem;
+                   font-size:.85rem; }
+    .cat-list .muted { text-align:right; }
+    .sugg-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.35rem; }
+    .sugg { display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem;
+            border:1px solid var(--border); border-radius:8px; padding:.5rem .6rem; }
+    .sugg.on { border-color:var(--brand); background:color-mix(in srgb, var(--brand) 8%, transparent); }
+    .sugg-main { display:flex; align-items:flex-start; gap:.5rem; cursor:pointer; }
+    .sugg-main > span { display:flex; flex-direction:column; gap:.1rem; }
+    .sugg-main small { font-size:.76rem; }
+    .badge { align-self:flex-start; font-size:.68rem; text-transform:uppercase; letter-spacing:.04em;
+             background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:0 .4rem;
+             color:var(--muted); }
+    .sugg-amt { white-space:nowrap; font-weight:600; font-size:.88rem; }
+    .sugg-ops { display:flex; align-items:center; gap:.6rem; margin-top:.6rem; }
+    @media (max-width:640px) { .cat-list li { grid-template-columns:7rem 1fr; } .cat-list .muted { display:none; } }
   `],
 })
 export class FinanceDashboardComponent implements OnInit {
@@ -232,6 +360,15 @@ export class FinanceDashboardComponent implements OnInit {
   loading = signal(true);
   errorMessage = signal<string | null>(null);
   private overview = signal<FinanceOverview | null>(null);
+
+  // ---- Statement analysis ----
+  readonly months = signal(6);
+  readonly insights = signal<StatementAnalysis | null>(null);
+  readonly insightsLoading = signal(true);
+  readonly insightsError = signal<string | null>(null);
+  readonly picked = signal<StatementSuggestion[]>([]);
+  readonly applying = signal(false);
+  readonly applyMsg = signal<string | null>(null);
 
   metrics = computed<HouseholdMetrics | null>(() => this.overview()?.metrics ?? null);
   advisories = computed<Advisory[]>(() => this.overview()?.advisories ?? []);
@@ -257,6 +394,85 @@ export class FinanceDashboardComponent implements OnInit {
     this.api.getOverview().subscribe({
       next: o => { this.overview.set(o); this.loading.set(false); },
       error: () => { this.errorMessage.set('Failed to load your finances. Please try again.'); this.loading.set(false); },
+    });
+    this.loadInsights();
+  }
+
+  // ---- Statement analysis ----
+
+  loadInsights(): void {
+    this.insightsLoading.set(true);
+    this.picked.set([]);
+    this.applyMsg.set(null);
+    this.api.insights(this.months()).subscribe({
+      next: a => { this.insights.set(a); this.insightsLoading.set(false); },
+      error: () => {
+        this.insightsLoading.set(false);
+        this.insightsError.set('Could not analyse your transactions.');
+      },
+    });
+  }
+
+  onMonths(event: Event): void {
+    this.months.set(Number((event.target as HTMLSelectElement).value) || 6);
+    this.loadInsights();
+  }
+
+  /** Bar height as a percentage of the busiest month, so the chart scales itself. */
+  barHeight(value: number): number {
+    const peak = Math.max(1, ...(this.insights()?.months ?? []).flatMap(m => [m.moneyIn, m.moneyOut]));
+    return Math.round((value / peak) * 100);
+  }
+
+  categoryPct(total: number): number {
+    const peak = Math.max(1, ...(this.insights()?.categories ?? []).map(c => c.total));
+    return Math.round((total / peak) * 100);
+  }
+
+  /** "LoanEmi" → "Loan EMI", "SelfTransfer" → "Self transfer". */
+  prettyKind(kind: string): string {
+    if (kind === 'LoanEmi') return 'Loan EMI';
+    const spaced = kind.replace(/([a-z])([A-Z])/g, '$1 $2');
+    return spaced.charAt(0) + spaced.slice(1).toLowerCase();
+  }
+
+  isPicked(s: StatementSuggestion): boolean {
+    return this.picked().some(p => p.label === s.label && p.kind === s.kind);
+  }
+
+  togglePick(s: StatementSuggestion): void {
+    this.picked.update(list => this.isPicked(s)
+      ? list.filter(p => !(p.label === s.label && p.kind === s.kind))
+      : [...list, s]);
+  }
+
+  apply(): void {
+    const chosen = this.picked();
+    if (!chosen.length) return;
+    this.applying.set(true);
+    const payload: AppliedSuggestion[] = chosen.map(s => ({
+      kind: s.kind,
+      label: s.label,
+      monthlyAmount: s.monthlyAmount,
+      incomeType: s.incomeType ?? null,
+      debtType: s.debtType ?? null,
+      expenseCategory: s.expenseCategory ?? null,
+      isEssential: s.isEssential,
+    }));
+
+    this.api.applySuggestions(payload).subscribe({
+      next: r => {
+        this.applying.set(false);
+        this.picked.set([]);
+        this.applyMsg.set(r.created > 0
+          ? `Added ${r.created} record${r.created === 1 ? '' : 's'} — reloading your totals…`
+          : 'Those records already exist.');
+        // The metrics change as soon as records land, so pull the overview again.
+        if (r.created > 0) {
+          this.api.getOverview().subscribe({ next: o => this.overview.set(o), error: () => {} });
+        }
+      },
+      error: () => { this.applying.set(false); this.applyMsg.set('Could not add those records.'); },
     });
   }
 

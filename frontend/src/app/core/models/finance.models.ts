@@ -159,3 +159,78 @@ export interface ImportTransactionsRequest {
   account?: string | null;
   category?: string | null;
 }
+
+// ---- Statement analysis (mirrors KeshavSingh.Finance.StatementInsights) ----
+
+/** What the analyser thinks a narration was. Serialised as a string by the API. */
+export type StatementEntryKind =
+  | 'Unknown' | 'Salary' | 'LoanEmi' | 'Rent' | 'Utilities' | 'Insurance' | 'Investment'
+  | 'Groceries' | 'Transport' | 'Healthcare' | 'Education' | 'Lifestyle'
+  | 'CreditCardPayment' | 'SelfTransfer' | 'Interest' | 'Fees';
+
+export interface MonthlyTotal {
+  year: number;
+  month: number;
+  moneyIn: number;
+  moneyOut: number;
+  net: number;
+  label: string;
+}
+
+export interface CategoryTotal {
+  kind: StatementEntryKind;
+  total: number;
+  count: number;
+}
+
+/** A payment that keeps coming back — salary, EMI, subscription. */
+export interface RecurringSeries {
+  label: string;
+  kind: StatementEntryKind;
+  direction: TransactionDirection;
+  typicalAmount: number;
+  occurrences: number;
+  averageGapDays: number;
+  firstSeen: string;
+  lastSeen: string;
+  isMonthly: boolean;
+}
+
+/** A record the analyser thinks is missing. Nothing is created until the user accepts it. */
+export interface StatementSuggestion {
+  kind: 'income' | 'liability' | 'expense';
+  label: string;
+  monthlyAmount: number;
+  detected: StatementEntryKind;
+  occurrences: number;
+  reason: string;
+  incomeType?: IncomeType | null;
+  debtType?: DebtType | null;
+  expenseCategory?: ExpenseCategory | null;
+  isEssential: boolean;
+}
+
+export interface StatementAnalysis {
+  from: string | null;
+  to: string | null;
+  transactionCount: number;
+  totalIn: number;
+  totalOut: number;
+  averageMonthlyIn: number;
+  averageMonthlyOut: number;
+  months: MonthlyTotal[];
+  categories: CategoryTotal[];
+  recurring: RecurringSeries[];
+  suggestions: StatementSuggestion[];
+}
+
+/** One accepted suggestion, sent back to be created. */
+export interface AppliedSuggestion {
+  kind: 'income' | 'liability' | 'expense';
+  label: string;
+  monthlyAmount: number;
+  incomeType?: IncomeType | null;
+  debtType?: DebtType | null;
+  expenseCategory?: ExpenseCategory | null;
+  isEssential: boolean;
+}

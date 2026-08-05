@@ -142,4 +142,24 @@ public sealed record ImportTransactionsRequest(
 
 public sealed record ImportResult(int Imported, int Skipped);
 
+// ---- Statement analysis ----
+
+/// <summary>
+/// One suggestion the user accepted. Sent back rather than referenced by id because the analysis is
+/// computed on the fly, not stored — and re-validated here, since it arrives from the browser.
+/// </summary>
+public sealed record AppliedSuggestion(
+    [Required, RegularExpression("^(income|liability|expense)$")] string Kind,
+    [Required, MaxLength(120)] string Label,
+    [Range(0.01, 1_000_000_000_000)] decimal MonthlyAmount,
+    IncomeType? IncomeType,
+    DebtType? DebtType,
+    ExpenseCategory? ExpenseCategory,
+    bool IsEssential = true);
+
+public sealed record ApplySuggestionsRequest(
+    [Required, MinLength(1), MaxLength(50)] IReadOnlyList<AppliedSuggestion> Suggestions);
+
+public sealed record ApplySuggestionsResult(int Created);
+
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, long Total);

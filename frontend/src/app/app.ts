@@ -28,6 +28,7 @@ const PRIMARY_LINKS: NavLink[] = [
 ];
 
 const ADMIN_LINKS: NavLink[] = [
+  { path: '/contact-inbox', label: 'Contact inbox', icon: '✉️', exact: false },
   { path: '/users', label: 'Users', icon: '👤', exact: false },
   { path: '/groups', label: 'Groups', icon: '👪', exact: false },
   { path: '/roles', label: 'Roles', icon: '🎫', exact: false },
