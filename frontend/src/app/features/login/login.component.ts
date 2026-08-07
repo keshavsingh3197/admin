@@ -94,23 +94,26 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
   styles: [`
     .login-wrap { display: flex; justify-content: center; padding: 3rem 1rem; }
     .login-card {
-      width: 100%; max-width: 380px; background: #fff; border: 1px solid #e0e0e0;
-      border-radius: 8px; padding: 2rem; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      width: 100%; max-width: 380px; background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px; padding: 2rem; box-shadow: var(--shadow-sm);
     }
     .login-title { margin: 0 0 0.25rem; font-size: 1.5rem; }
-    .login-sub { margin: 0 0 1.5rem; color: #666; font-size: 0.9rem; }
+    .login-sub { margin: 0 0 1.5rem; color: var(--muted); font-size: 0.9rem; }
     .field { display: block; margin-bottom: 1rem; }
-    .field span { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #444; }
+    .field span { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: var(--muted); }
     .input {
-      width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #ccc; border-radius: 6px;
-      font-size: 1rem;
+      width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 1rem; background: var(--surface); color: var(--text);
     }
-    .input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px #e8f0fe; }
+    .input:focus {
+      outline: none; border-color: var(--brand);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 20%, transparent);
+    }
     .btn-primary {
-      width: 100%; padding: 0.65rem 1rem; background: #1a73e8; color: #fff; border: none;
-      border-radius: 6px; font-size: 1rem; cursor: pointer; transition: background 0.2s;
+      width: 100%; padding: 0.65rem 1rem; background: var(--brand); color: var(--brand-text); border: none;
+      border-radius: 6px; font-size: 1rem; cursor: pointer; transition: filter 0.2s;
     }
-    .btn-primary:hover:not(:disabled) { background: #1663c7; }
+    .btn-primary:hover:not(:disabled) { filter: brightness(0.92); }
     .btn-primary:disabled { opacity: 0.6; cursor: default; }
     .error-banner {
       background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c3;
@@ -118,19 +121,19 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
     }
     .alt-methods { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
     .linkish {
-      background: none; border: none; color: #1a73e8; cursor: pointer; padding: 0;
+      background: none; border: none; color: var(--brand); cursor: pointer; padding: 0;
       font-size: 0.85rem;
     }
     .linkish:hover { text-decoration: underline; }
-    .back { margin-top: 1rem; color: #666; }
-    .or-divider { display: flex; align-items: center; text-align: center; color: #999; font-size: 0.8rem; margin: 1.1rem 0; }
-    .or-divider::before, .or-divider::after { content: ''; flex: 1; border-bottom: 1px solid #e0e0e0; }
+    .back { margin-top: 1rem; color: var(--muted); }
+    .or-divider { display: flex; align-items: center; text-align: center; color: var(--muted); font-size: 0.8rem; margin: 1.1rem 0; }
+    .or-divider::before, .or-divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--border); }
     .or-divider span { padding: 0 0.75rem; }
     .btn-passkey {
-      width: 100%; padding: 0.65rem 1rem; background: #fff; color: #1a73e8; border: 1px solid #1a73e8;
+      width: 100%; padding: 0.65rem 1rem; background: var(--surface); color: var(--brand); border: 1px solid var(--brand);
       border-radius: 6px; font-size: 1rem; cursor: pointer; transition: background 0.2s;
     }
-    .btn-passkey:hover:not(:disabled) { background: #e8f0fe; }
+    .btn-passkey:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 12%, var(--surface)); }
     .btn-passkey:disabled { opacity: 0.6; cursor: default; }
   `]
 })

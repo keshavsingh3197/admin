@@ -60,7 +60,11 @@ export class ChatService {
     if (this.connection) return;
     const conn = new HubConnectionBuilder()
       .withUrl(this.hubUrl, { accessTokenFactory: () => this.auth.token() ?? '' })
-      .withAutomaticReconnect()
+      // Bounded, not the default's "retry every 30s forever": an expired in-memory access token
+      // (see AuthService) can never succeed on its own, so retrying indefinitely just spams the
+      // console/network with 401s until the tab is closed. onclose() below cleans up so a real
+      // reconnect (e.g. after logging back in) starts fresh instead of silently no-op'ing.
+      .withAutomaticReconnect([0, 2000, 10000, 30000])
       .configureLogging(LogLevel.Warning)
       .build();
 
@@ -84,7 +88,15 @@ export class ChatService {
     conn.on('TypingChanged', (conversationId: string, userId: string, isTyping: boolean) =>
       this.setTyping(conversationId, userId, isTyping));
     conn.onreconnected(() => this.connected.set(true));
-    conn.onclose(() => this.connected.set(false));
+    // Reconnect attempts are exhausted (or the token was rejected outright) — drop the dead
+    // connection so a future connect() (a fresh login) actually opens a new one instead of
+    // early-returning on a defunct handle.
+    conn.onclose(() => {
+      this.connected.set(false);
+      if (this.heartbeat) clearInterval(this.heartbeat);
+      this.heartbeat = null;
+      this.connection = null;
+    });
 
     this.connection = conn;
     try {
@@ -94,6 +106,7 @@ export class ChatService {
         () => { if (conn.state === HubConnectionState.Connected) conn.send('Heartbeat').catch(() => {}); }, 45000);
     } catch {
       this.connected.set(false);
+      this.connection = null;
     }
   }
 

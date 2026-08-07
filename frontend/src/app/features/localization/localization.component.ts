@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, Component, HostListener, OnInit, computed, inj
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { forkJoin, map } from 'rxjs';
-import { zipSync } from 'fflate';
+import { forkJoin, map, firstValueFrom } from 'rxjs';
+import { zipSync, unzipSync } from 'fflate';
 import { LocalizationAdminService } from '../../core/services/localization-admin.service';
 import { ConfigRegistryService } from '../../core/services/config-registry.service';
 import { ConfigService } from '../../core/services/config.service';
@@ -345,10 +345,12 @@ interface EditRow {
 
             <brand-card [heading]="i18n.t('common.actions.import')">
               <p class="muted small">
-                Upload a <code>.xlsx</code>, <code>.csv</code> or <code>.json</code> file, or paste a
-                payload below. JSON may be flat (<code>"blog.nav.home": "Home"</code>) or nested; CSV
-                wants a <code>namespace,key,value</code> header. Every value is validated exactly as a
-                hand edit is, so an import can't introduce anything an editor couldn't type.
+                Upload a <code>.xlsx</code>, <code>.csv</code>, <code>.json</code> or a
+                <code>.zip</code> from "Export all languages" (each file inside is matched to its
+                language automatically), or paste a payload below. JSON may be flat
+                (<code>"blog.nav.home": "Home"</code>) or nested; CSV wants a
+                <code>namespace,key,value</code> header. Every value is validated exactly as a hand
+                edit is, so an import can't introduce anything an editor couldn't type.
               </p>
               <div class="grid-2">
                 <label class="field"><span>{{ i18n.t('common.label.language') }}</span>
@@ -372,10 +374,11 @@ interface EditRow {
 
               <label class="field"><span>Upload a file</span>
                 <input #fileInput class="input" type="file"
-                       accept=".json,.csv,.xlsx,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                       accept=".json,.csv,.xlsx,.zip,text/csv,application/json,application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                        (change)="uploadFile($event)"></label>
-              <p class="muted small">A file is sent straight to the server — the format comes from its
-                name. Spreadsheets can only be imported this way.</p>
+              <p class="muted small">A single-language file is sent straight to the server — the format
+                comes from its name. A <code>.zip</code> is unpacked here first and each language inside
+                imported in turn. Spreadsheets can only be imported this way.</p>
 
               <label class="field"><span>…or paste JSON / CSV</span>
                 <textarea class="input mono" rows="8" [(ngModel)]="importPayload" spellcheck="false"
@@ -1063,12 +1066,20 @@ export class LocalizationComponent implements OnInit {
   /**
    * Sends the chosen file straight to the server, which infers the format from its name. This is the
    * only path for a spreadsheet — `.xlsx` is binary, so it cannot be pasted or carried in a JSON body.
+   * A `.zip` (from "Export all languages") is handled separately: it is unpacked client-side and each
+   * language file inside is imported in turn, since the server's import endpoint takes one file at a time.
    */
   uploadFile(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file || !this.importLocale) return;
+    if (!file) return;
 
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      this.uploadZip(file, input);
+      return;
+    }
+
+    if (!this.importLocale) return;
     this.busy.set(true);
     this.importResult.set(null);
     this.api
@@ -1092,6 +1103,78 @@ export class LocalizationComponent implements OnInit {
           this.fail(e);
         },
       });
+  }
+
+  /**
+   * Unpacks a multi-language `.zip` (as produced by "Export all languages") and imports each file
+   * inside in turn, matching each entry's filename against a known language code — `translations-hi.json`,
+   * `translations-en-common.xlsx`, etc. — so the language selector above isn't needed for this path.
+   */
+  private async uploadZip(file: File, input: HTMLInputElement): Promise<void> {
+    this.busy.set(true);
+    this.importResult.set(null);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const entries = Object.entries(unzipSync(bytes)).filter(([name]) => !name.endsWith('/'));
+      if (!entries.length) {
+        this.error.set(`${file.name} did not contain any files.`);
+        this.busy.set(false);
+        input.value = '';
+        return;
+      }
+
+      const totals = { created: 0, updated: 0, deleted: 0, skipped: 0, errors: [] as string[] };
+      const localesTouched = new Set<string>();
+      for (const [name, data] of entries) {
+        const locale = this.parseLocaleFromFilename(name);
+        if (!locale) {
+          totals.errors.push(`${name}: could not tell which language this file is for.`);
+          continue;
+        }
+        const entryFile = new File([data], name);
+        try {
+          const result = await firstValueFrom(
+            this.api.importFile(entryFile, {
+              locale,
+              mode: this.importMode,
+              markNeedsReview: this.importNeedsReview,
+            }),
+          );
+          totals.created += result.created;
+          totals.updated += result.updated;
+          totals.deleted += result.deleted;
+          totals.skipped += result.skipped;
+          totals.errors.push(...result.errors);
+          localesTouched.add(locale);
+        } catch (e) {
+          totals.errors.push(`${name}: ${e instanceof HttpErrorResponse ? (e.error?.error ?? e.message) : 'import failed'}`);
+        }
+      }
+
+      this.importResult.set(totals);
+      this.note(`Imported ${localesTouched.size} language(s) from ${file.name}.`);
+      input.value = '';
+      this.loadNamespaces();
+      this.loadCoverage();
+      this.loadLocales();
+      if (localesTouched.has(this.editLocaleCode())) this.loadRows();
+      this.i18n.reload();
+    } catch (e) {
+      this.fail(e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /** Matches a zip entry's filename against the known language codes (longest first, so "en-US" beats "en"). */
+  private parseLocaleFromFilename(filename: string): string | null {
+    const base = filename.replace(/\.[^./]+$/, '');
+    const withoutPrefix = base.startsWith('translations-') ? base.slice('translations-'.length) : base;
+    const knownCodes = this.locales().map((l) => l.code).sort((a, b) => b.length - a.length);
+    for (const code of knownCodes) {
+      if (withoutPrefix === code || withoutPrefix.startsWith(`${code}-`)) return code;
+    }
+    return withoutPrefix.split('-')[0] || null;
   }
 
   doImport(): void {
