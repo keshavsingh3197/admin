@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { forkJoin, map } from 'rxjs';
+import { zipSync } from 'fflate';
 import { LocalizationAdminService } from '../../core/services/localization-admin.service';
 import { ConfigRegistryService } from '../../core/services/config-registry.service';
 import { ConfigService } from '../../core/services/config.service';
@@ -147,46 +148,50 @@ interface EditRow {
           </table>
 
           @if (localeDraft; as d) {
-            <div class="form card">
-              <h3>{{ isNewLocale ? 'Add language' : 'Edit ' + d.code }}</h3>
-              <div class="grid-3">
-                <label class="field"><span>Code</span>
-                  <input class="input" [(ngModel)]="d.code" [readonly]="!isNewLocale" placeholder="hi"></label>
-                <label class="field"><span>Name (English)</span>
-                  <input class="input" [(ngModel)]="d.englishName" placeholder="Hindi"></label>
-                <label class="field"><span>Name (native)</span>
-                  <input class="input" [(ngModel)]="d.nativeName" placeholder="हिन्दी"></label>
-                <label class="field"><span>Icon</span>
-                  <input class="input" [(ngModel)]="d.icon" placeholder="🇮🇳"></label>
-                <label class="field"><span>Direction</span>
-                  <select class="input" [(ngModel)]="d.direction">
-                    <option value="ltr">ltr</option><option value="rtl">rtl</option>
-                  </select></label>
-                <label class="field"><span>Fallback language</span>
-                  <select class="input" [(ngModel)]="d.fallbackCode">
-                    <option value="">(default language)</option>
-                    @for (l of locales(); track l.code) {
-                      @if (l.code !== d.code) { <option [value]="l.code">{{ l.code }} — {{ l.englishName }}</option> }
-                    }
-                  </select></label>
-                <label class="field"><span>Sort order</span>
-                  <input class="input" type="number" [(ngModel)]="d.sortOrder"></label>
-                <label class="field"><span>Date format</span>
-                  <input class="input" [(ngModel)]="d.dateFormat" placeholder="dd MMM yyyy"></label>
-                <label class="field"><span>Currency</span>
-                  <input class="input" [(ngModel)]="d.currencyCode" placeholder="INR"></label>
+            <div class="modal-backdrop" (click)="localeDraft = null">
+              <div class="modal-panel" (click)="$event.stopPropagation()">
+                <div class="form card">
+                  <h3>{{ isNewLocale ? 'Add language' : 'Edit ' + d.code }}</h3>
+                  <div class="grid-3">
+                    <label class="field"><span>Code</span>
+                      <input class="input" [(ngModel)]="d.code" [readonly]="!isNewLocale" placeholder="hi"></label>
+                    <label class="field"><span>Name (English)</span>
+                      <input class="input" [(ngModel)]="d.englishName" placeholder="Hindi"></label>
+                    <label class="field"><span>Name (native)</span>
+                      <input class="input" [(ngModel)]="d.nativeName" placeholder="हिन्दी"></label>
+                    <label class="field"><span>Icon</span>
+                      <input class="input" [(ngModel)]="d.icon" placeholder="🇮🇳"></label>
+                    <label class="field"><span>Direction</span>
+                      <select class="input" [(ngModel)]="d.direction">
+                        <option value="ltr">ltr</option><option value="rtl">rtl</option>
+                      </select></label>
+                    <label class="field"><span>Fallback language</span>
+                      <select class="input" [(ngModel)]="d.fallbackCode">
+                        <option value="">(default language)</option>
+                        @for (l of locales(); track l.code) {
+                          @if (l.code !== d.code) { <option [value]="l.code">{{ l.code }} — {{ l.englishName }}</option> }
+                        }
+                      </select></label>
+                    <label class="field"><span>Sort order</span>
+                      <input class="input" type="number" [(ngModel)]="d.sortOrder"></label>
+                    <label class="field"><span>Date format</span>
+                      <input class="input" [(ngModel)]="d.dateFormat" placeholder="dd MMM yyyy"></label>
+                    <label class="field"><span>Currency</span>
+                      <input class="input" [(ngModel)]="d.currencyCode" placeholder="INR"></label>
+                  </div>
+                  <div class="row-actions">
+                    <label class="check"><input type="checkbox" [(ngModel)]="d.isEnabled"> Enabled (visible to visitors)</label>
+                    <label class="check"><input type="checkbox" [(ngModel)]="d.isDefault"> Default language</label>
+                    <span class="spacer"></span>
+                    <brand-button size="sm" (clicked)="saveLocale()" [disabled]="busy()">Save</brand-button>
+                    <brand-button variant="secondary" size="sm" (clicked)="localeDraft = null">Cancel</brand-button>
+                  </div>
+                  <p class="muted small">
+                    An untranslated key renders the fallback language's string instead of a blank. The
+                    default language is the last-resort fallback, so it can be neither disabled nor deleted.
+                  </p>
+                </div>
               </div>
-              <div class="row-actions">
-                <label class="check"><input type="checkbox" [(ngModel)]="d.isEnabled"> Enabled (visible to visitors)</label>
-                <label class="check"><input type="checkbox" [(ngModel)]="d.isDefault"> Default language</label>
-                <span class="spacer"></span>
-                <button class="btn primary sm" (click)="saveLocale()" [disabled]="busy()">Save</button>
-                <button class="btn secondary sm" (click)="localeDraft = null">Cancel</button>
-              </div>
-              <p class="muted small">
-                An untranslated key renders the fallback language's string instead of a blank. The
-                default language is the last-resort fallback, so it can be neither disabled nor deleted.
-              </p>
             </div>
           }
 
@@ -328,10 +333,14 @@ interface EditRow {
               <div class="row-actions">
                 <brand-button size="sm" (clicked)="doExport()" [disabled]="busy()">Download</brand-button>
                 <brand-button variant="secondary" size="sm" (clicked)="exportAllLocales()" [disabled]="busy() || !locales().length"
-                              title="Download this format for every configured language, one file each">
+                              title="Download one .zip containing this format for every configured language">
                   Export all languages
                 </brand-button>
               </div>
+              <p class="muted small">
+                "Export all languages" bundles one file per language into a single <code>.zip</code> —
+                unzip it to get back the individual per-language files, each importable on its own below.
+              </p>
             </brand-card>
 
             <brand-card [heading]="i18n.t('common.actions.import')">
@@ -547,49 +556,53 @@ interface EditRow {
           </table>
 
           @if (configDraft; as d) {
-            <div class="form card">
-              <h3>{{ isNewConfig ? 'New configuration key' : 'Edit ' + d.key }}</h3>
-              <div class="grid-3">
-                <label class="field"><span>Key</span>
-                  <input class="input" [(ngModel)]="d.key" [readonly]="!isNewConfig"
-                         placeholder="ui.icon.home"></label>
-                <label class="field"><span>Group</span>
-                  <input class="input" [(ngModel)]="d.group" placeholder="icons"></label>
-                <label class="field"><span>Type</span>
-                  <select class="input" [(ngModel)]="d.valueType" [disabled]="configIsSystem">
-                    @for (t of valueTypes(); track t) { <option [value]="t">{{ t }}</option> }
-                  </select></label>
-                <label class="field"><span>Scope</span>
-                  <select class="input" [(ngModel)]="d.scope" [disabled]="configIsSystem">
-                    @for (s of scopes(); track s) { <option [value]="s">{{ s }}</option> }
-                  </select></label>
-                <label class="field"><span>Default value</span>
-                  <input class="input" [(ngModel)]="d.defaultValue"></label>
+            <div class="modal-backdrop" (click)="configDraft = null">
+              <div class="modal-panel" (click)="$event.stopPropagation()">
+                <div class="form card">
+                  <h3>{{ isNewConfig ? 'New configuration key' : 'Edit ' + d.key }}</h3>
+                  <div class="grid-3">
+                    <label class="field"><span>Key</span>
+                      <input class="input" [(ngModel)]="d.key" [readonly]="!isNewConfig"
+                             placeholder="ui.icon.home"></label>
+                    <label class="field"><span>Group</span>
+                      <input class="input" [(ngModel)]="d.group" placeholder="icons"></label>
+                    <label class="field"><span>Type</span>
+                      <select class="input" [(ngModel)]="d.valueType" [disabled]="configIsSystem">
+                        @for (t of valueTypes(); track t) { <option [value]="t">{{ t }}</option> }
+                      </select></label>
+                    <label class="field"><span>Scope</span>
+                      <select class="input" [(ngModel)]="d.scope" [disabled]="configIsSystem">
+                        @for (s of scopes(); track s) { <option [value]="s">{{ s }}</option> }
+                      </select></label>
+                    <label class="field"><span>Default value</span>
+                      <input class="input" [(ngModel)]="d.defaultValue"></label>
+                  </div>
+                  <label class="field"><span>Value @if (configIsSecret) { <em>(write-only)</em> }</span>
+                    <textarea class="input mono" rows="3" [(ngModel)]="d.value" spellcheck="false"
+                              [placeholder]="configIsSecret ? 'Leave blank to keep the stored secret' : ''"></textarea></label>
+                  <label class="field"><span>Description</span>
+                    <input class="input" [(ngModel)]="d.description"></label>
+                  <div class="row-actions">
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="d.localized" [disabled]="configIsSecret">
+                      Value is a translation key
+                    </label>
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="d.isSecret" [disabled]="configIsSystem">
+                      Secret (encrypted, never served)
+                    </label>
+                    <span class="spacer"></span>
+                    <brand-button size="sm" (clicked)="saveConfigEntry()" [disabled]="busy()">Save</brand-button>
+                    <brand-button variant="secondary" size="sm" (clicked)="configDraft = null">Cancel</brand-button>
+                  </div>
+                  @if (configIsSystem) {
+                    <p class="muted small">
+                      A built-in key: other apps rely on its type and scope, so those are fixed. The value,
+                      default and description are editable, and it cannot be deleted.
+                    </p>
+                  }
+                </div>
               </div>
-              <label class="field"><span>Value @if (configIsSecret) { <em>(write-only)</em> }</span>
-                <textarea class="input mono" rows="3" [(ngModel)]="d.value" spellcheck="false"
-                          [placeholder]="configIsSecret ? 'Leave blank to keep the stored secret' : ''"></textarea></label>
-              <label class="field"><span>Description</span>
-                <input class="input" [(ngModel)]="d.description"></label>
-              <div class="row-actions">
-                <label class="check">
-                  <input type="checkbox" [(ngModel)]="d.localized" [disabled]="configIsSecret">
-                  Value is a translation key
-                </label>
-                <label class="check">
-                  <input type="checkbox" [(ngModel)]="d.isSecret" [disabled]="configIsSystem">
-                  Secret (encrypted, never served)
-                </label>
-                <span class="spacer"></span>
-                <button class="btn primary sm" (click)="saveConfigEntry()" [disabled]="busy()">Save</button>
-                <button class="btn secondary sm" (click)="configDraft = null">Cancel</button>
-              </div>
-              @if (configIsSystem) {
-                <p class="muted small">
-                  A built-in key: other apps rely on its type and scope, so those are fixed. The value,
-                  default and description are editable, and it cannot be deleted.
-                </p>
-              }
             </div>
           }
         </section>
@@ -638,6 +651,10 @@ interface EditRow {
     .row-actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-top:.8rem; }
     .row-actions.sticky { position:sticky; bottom:0; background:var(--bg); padding:.6rem 0; border-top:1px solid var(--border); }
     .spacer { flex:1; }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(10, 16, 28, .55); display:flex;
+      align-items:flex-start; justify-content:center; padding:6vh 1rem; overflow-y:auto; z-index:200; }
+    .modal-panel { width:100%; max-width:640px; }
+    .modal-panel .form.card { margin-top:0; box-shadow:0 16px 40px rgba(0, 0, 0, .35); }
     .muted { color:var(--muted); }
     .small { font-size:.78rem; }
     .pad { padding:.9rem; }
@@ -763,6 +780,13 @@ export class LocalizationComponent implements OnInit {
 
   ngOnInit(): void {
     this.reloadAll();
+  }
+
+  /** Closes whichever editor popup is open — matches the click-outside-the-panel behaviour. */
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.localeDraft = null;
+    this.configDraft = null;
   }
 
   reloadAll(): void {
@@ -1007,31 +1031,33 @@ export class LocalizationComponent implements OnInit {
     return 'json';
   }
 
-  /** Downloads the current format/namespace selection for every configured language, one file each. */
+  /** Downloads the current format/namespace selection for every configured language, bundled into one .zip. */
   exportAllLocales(): void {
     const codes = this.locales().map((l) => l.code);
     if (!codes.length) return;
     this.busy.set(true);
     const suffix = this.exportNamespace ? `-${this.exportNamespace}` : '';
     const ext = this.extFor(this.exportFormat);
-    let index = 0;
-    const next = (): void => {
-      if (index >= codes.length) {
-        this.busy.set(false);
-        this.note(`Exported ${codes.length} language(s).`);
-        return;
-      }
-      const code = codes[index++];
-      this.api.export(code, this.exportFormat, this.exportNamespace || undefined).subscribe({
-        next: (blob) => {
-          this.download(blob, `translations-${code}${suffix}.${ext}`);
-          // Staggered so the browser does not treat a burst of downloads as a popup/spam attempt.
-          setTimeout(next, 300);
-        },
-        error: (e) => this.fail(e),
-      });
-    };
-    next();
+    const requests = codes.map((code) =>
+      this.api.export(code, this.exportFormat, this.exportNamespace || undefined).pipe(
+        map((blob) => ({ code, blob })),
+      ),
+    );
+    forkJoin(requests).subscribe({
+      next: (results) => {
+        Promise.all(results.map(async (r) => ({ code: r.code, bytes: new Uint8Array(await r.blob.arrayBuffer()) })))
+          .then((files) => {
+            const archive: Record<string, Uint8Array> = {};
+            for (const f of files) archive[`translations-${f.code}${suffix}.${ext}`] = f.bytes;
+            const zipped = zipSync(archive, { level: 6 });
+            this.busy.set(false);
+            this.download(new Blob([zipped], { type: 'application/zip' }), `translations-all-languages${suffix}.zip`);
+            this.note(`Exported ${codes.length} language(s) into one .zip.`);
+          })
+          .catch((e) => this.fail(e));
+      },
+      error: (e) => this.fail(e),
+    });
   }
 
   /**

@@ -20,6 +20,7 @@
     "@keshavsingh3197/web-config": "^0.1.0",
     "@keshavsingh3197/web-ui": "^0.1.0",
     "@microsoft/signalr": "^8.0.17",
+    "fflate": "^0.8.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
