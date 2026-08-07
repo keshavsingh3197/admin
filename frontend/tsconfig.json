@@ -14,6 +14,10 @@
       "@keshavsingh3197/web-config": [
         "./node_modules/@keshavsingh3197/web-config",
         "../../KeshavSingh-Packages-Web/dist"
+      ],
+      "@keshavsingh3197/web-ui": [
+        "./node_modules/@keshavsingh3197/web-ui",
+        "../../KeshavSingh-Packages-WebUi/dist"
       ]
     },
     "noImplicitOverride": true,

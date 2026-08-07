@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { forkJoin, map } from 'rxjs';
 import { LocalizationAdminService } from '../../core/services/localization-admin.service';
 import { ConfigRegistryService } from '../../core/services/config-registry.service';
 import { ConfigService } from '../../core/services/config.service';
@@ -22,8 +23,24 @@ import {
   ConfigValueType,
   UpsertConfigEntryRequest,
 } from '../../core/models/config-registry.models';
+import {
+  BrandBarChartComponent,
+  BrandBarChartPoint,
+  BrandButtonComponent,
+  BrandCardComponent,
+  BrandPageTitleComponent,
+  BrandPaginationComponent,
+} from '@keshavsingh3197/web-ui';
 
-type Tab = 'locales' | 'translate' | 'io' | 'config';
+type Tab = 'locales' | 'translate' | 'io' | 'compare' | 'config';
+
+/** One row of the multi-language comparison matrix: a key, its source text, and each compared locale's value. */
+interface CompareRow {
+  namespace: string;
+  key: string;
+  source: string;
+  values: Record<string, string>;
+}
 
 /** A row in the side-by-side translation editor, with the edit held locally until saved. */
 interface EditRow {
@@ -47,25 +64,26 @@ interface EditRow {
   selector: 'app-localization',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    BrandButtonComponent,
+    BrandCardComponent,
+    BrandPageTitleComponent,
+    BrandPaginationComponent,
+    BrandBarChartComponent,
+  ],
   template: `
     <div class="page">
-      <header class="head">
-        <div>
-          <h1>{{ i18n.t('admin.i18n.title') }}</h1>
-          <p class="subtitle">
-            Languages, the strings behind every screen, and the runtime configuration that keeps URLs,
-            icons and feature flags out of the builds. Changes take effect without a redeploy.
-          </p>
-        </div>
-        <div class="ops">
-          <button class="btn ghost sm" (click)="reloadAll()" [disabled]="busy()">Reload</button>
-          <button class="btn secondary sm" (click)="refreshServerCaches()" [disabled]="busy()"
-                  title="Re-read languages, strings and configuration from the database">
-            Refresh server caches
-          </button>
-        </div>
-      </header>
+      <brand-page-title
+        [heading]="i18n.t('admin.i18n.title')"
+        subtitle="Languages, the strings behind every screen, and the runtime configuration that keeps URLs, icons and feature flags out of the builds. Changes take effect without a redeploy.">
+        <brand-button variant="ghost" size="sm" (clicked)="reloadAll()" [disabled]="busy()">Reload</brand-button>
+        <brand-button variant="secondary" size="sm" (clicked)="refreshServerCaches()" [disabled]="busy()"
+                      title="Re-read languages, strings and configuration from the database">
+          Refresh server caches
+        </brand-button>
+      </brand-page-title>
 
       <nav class="tabs" role="tablist">
         <button role="tab" [class.on]="tab() === 'locales'" (click)="tab.set('locales')">
@@ -76,6 +94,9 @@ interface EditRow {
         </button>
         <button role="tab" [class.on]="tab() === 'io'" (click)="tab.set('io')">
           {{ i18n.t('admin.i18n.tab.importExport') }}
+        </button>
+        <button role="tab" [class.on]="tab() === 'compare'" (click)="tab.set('compare')">
+          Compare languages
         </button>
         <button role="tab" [class.on]="tab() === 'config'" (click)="tab.set('config')">
           {{ i18n.t('admin.i18n.tab.config') }}
@@ -170,8 +191,8 @@ interface EditRow {
           }
 
           @if (coverage().length) {
-            <div class="card">
-              <h3>{{ i18n.t('admin.i18n.coverage') }}</h3>
+            <brand-card [heading]="i18n.t('admin.i18n.coverage')">
+              <brand-bar-chart [points]="coverageChartPoints()"></brand-bar-chart>
               <table class="table compact">
                 <thead><tr><th>Language</th><th class="num">Keys</th><th class="num">Translated</th>
                   <th class="num">Missing</th><th class="num">Needs review</th><th>Complete</th></tr></thead>
@@ -181,7 +202,14 @@ interface EditRow {
                       <td><code>{{ c.locale }}</code></td>
                       <td class="num">{{ c.totalKeys }}</td>
                       <td class="num">{{ c.translatedKeys }}</td>
-                      <td class="num" [class.warn]="c.missingKeys > 0">{{ c.missingKeys }}</td>
+                      <td class="num" [class.warn]="c.missingKeys > 0">
+                        @if (c.missingKeys > 0) {
+                          <button class="link-btn" (click)="viewMissing(c.locale)"
+                                  title="Show the missing keys for this language and configure them">
+                            {{ c.missingKeys }}
+                          </button>
+                        } @else { {{ c.missingKeys }} }
+                      </td>
                       <td class="num">{{ c.needsReviewKeys }}</td>
                       <td>
                         <div class="bar"><span [style.width.%]="percent(c)"></span></div>
@@ -191,7 +219,7 @@ interface EditRow {
                   }
                 </tbody>
               </table>
-            </div>
+            </brand-card>
           }
         </section>
       }
@@ -256,15 +284,12 @@ interface EditRow {
           </table>
 
           <div class="row-actions sticky">
-            <span class="muted small">
+            <brand-pagination [skip]="skip()" [take]="take" [total]="total()" [busy]="busy()" (pageChange)="page($event)">
               {{ total() }} keys · showing {{ rows().length }} · {{ dirtyCount() }} unsaved
-            </span>
-            <span class="spacer"></span>
-            <button class="btn ghost sm" (click)="page(-1)" [disabled]="skip() === 0 || busy()">Previous</button>
-            <button class="btn ghost sm" (click)="page(1)" [disabled]="skip() + take >= total() || busy()">Next</button>
-            <button class="btn primary sm" (click)="saveRows()" [disabled]="busy() || dirtyCount() === 0">
+            </brand-pagination>
+            <brand-button size="sm" (clicked)="saveRows()" [disabled]="busy() || dirtyCount() === 0">
               {{ i18n.t('common.actions.save') }} ({{ dirtyCount() }})
-            </button>
+            </brand-button>
           </div>
         </section>
       }
@@ -273,8 +298,7 @@ interface EditRow {
       @if (tab() === 'io') {
         <section class="panel">
           <div class="grid-2 wide">
-            <div class="card">
-              <h3>{{ i18n.t('common.actions.export') }}</h3>
+            <brand-card [heading]="i18n.t('common.actions.export')">
               <p class="muted small">
                 Download a language's strings to translate elsewhere, keep in version control, or move
                 between environments. <strong>Excel</strong> is the one to hand a translator: one sheet
@@ -301,11 +325,16 @@ interface EditRow {
                     @for (ns of namespaces(); track ns) { <option [value]="ns">{{ ns }}</option> }
                   </select></label>
               </div>
-              <button class="btn primary sm" (click)="doExport()" [disabled]="busy()">Download</button>
-            </div>
+              <div class="row-actions">
+                <brand-button size="sm" (clicked)="doExport()" [disabled]="busy()">Download</brand-button>
+                <brand-button variant="secondary" size="sm" (clicked)="exportAllLocales()" [disabled]="busy() || !locales().length"
+                              title="Download this format for every configured language, one file each">
+                  Export all languages
+                </brand-button>
+              </div>
+            </brand-card>
 
-            <div class="card">
-              <h3>{{ i18n.t('common.actions.import') }}</h3>
+            <brand-card [heading]="i18n.t('common.actions.import')">
               <p class="muted small">
                 Upload a <code>.xlsx</code>, <code>.csv</code> or <code>.json</code> file, or paste a
                 payload below. JSON may be flat (<code>"blog.nav.home": "Home"</code>) or nested; CSV
@@ -366,8 +395,81 @@ interface EditRow {
                   }
                 </div>
               }
-            </div>
+            </brand-card>
           </div>
+        </section>
+      }
+
+      <!-- ============================ Compare languages ============================ -->
+      @if (tab() === 'compare') {
+        <section class="panel">
+          <brand-card heading="Compare languages">
+            <p class="muted small">
+              Pick two or more languages to see, key by key, which are configured and which are still
+              missing. Click a missing cell to jump straight to that key in the translation editor.
+            </p>
+            <div class="filters">
+              @for (l of locales(); track l.code) {
+                <label class="check">
+                  <input type="checkbox" [checked]="compareLocales().includes(l.code)"
+                         (change)="toggleCompareLocale(l.code, $any($event.target).checked)">
+                  {{ l.code }} — {{ l.englishName }}
+                </label>
+              }
+            </div>
+            <div class="row-actions">
+              <label class="check">
+                <input type="checkbox" [ngModel]="compareOnlyDiffs()" (ngModelChange)="compareOnlyDiffs.set($event)">
+                Only show differences
+              </label>
+              <span class="spacer"></span>
+              <brand-button size="sm" (clicked)="runCompare()" [disabled]="compareLocales().length < 2 || compareLoading()">
+                Compare
+              </brand-button>
+            </div>
+          </brand-card>
+
+          @if (compareLoading()) {
+            <p class="muted small pad">Loading…</p>
+          } @else if (compareRows().length) {
+            <brand-card>
+              <table class="table compact">
+                <thead>
+                  <tr>
+                    <th>Key</th><th>Source</th>
+                    @for (code of compareLocales(); track code) { <th>{{ code }}</th> }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of compareVisibleRows(); track row.namespace + '.' + row.key) {
+                    <tr [class.dirty]="hasDifferences(row)">
+                      <td class="k"><code>{{ row.namespace }}.{{ row.key }}</code></td>
+                      <td class="src">{{ row.source }}</td>
+                      @for (code of compareLocales(); track code) {
+                        <td>
+                          @if (isMissing(row, code)) {
+                            <button class="btn danger xs" (click)="configureMissing(row, code)">
+                              Missing — configure
+                            </button>
+                          } @else {
+                            <span class="tag live">configured</span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
+                  @if (!compareVisibleRows().length) {
+                    <tr><td [attr.colspan]="2 + compareLocales().length" class="muted pad">
+                      No differences among the selected languages.
+                    </td></tr>
+                  }
+                </tbody>
+              </table>
+              <p class="muted small">
+                {{ compareVisibleRows().length }} of {{ compareRows().length }} keys shown.
+              </p>
+            </brand-card>
+          }
         </section>
       }
 
@@ -499,8 +601,6 @@ interface EditRow {
   `,
   styles: [`
     .page { padding:1.5rem; max-width:1250px; margin:0 auto; }
-    .head { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
-    h1 { margin:0; }
     h2 { margin:0; font-size:1.05rem; }
     h3 { margin:0 0 .6rem; font-size:.95rem; }
     .subtitle { color:var(--muted); font-size:.88rem; margin:.2rem 0 0; max-width:70ch; }
@@ -541,11 +641,16 @@ interface EditRow {
     .muted { color:var(--muted); }
     .small { font-size:.78rem; }
     .pad { padding:.9rem; }
-    .warn { color:#c2410c; font-weight:600; }
+    /* Status hues stay fixed across themes (a red is still a warning in dark mode); blending them with
+       var(--surface)/var(--border) via color-mix keeps contrast correct in light, dark and brand themes. */
+    :host { --st-good:#0ca30c; --st-warning:#c2410c; --st-critical:#c5221f; }
+    .warn { color:var(--st-warning); font-weight:600; }
     .tag { font-size:.68rem; background:var(--bg); border:1px solid var(--border); border-radius:99px;
       padding:.05rem .45rem; color:var(--muted); }
-    .tag.live { color:#15803d; border-color:#86efac; }
-    .tag.warn-tag { color:#b45309; border-color:#fcd34d; }
+    .tag.live { color:var(--st-good); border-color:color-mix(in srgb, var(--st-good) 55%, var(--border)); }
+    .tag.warn-tag { color:var(--st-warning); border-color:color-mix(in srgb, var(--st-warning) 55%, var(--border)); }
+    .link-btn { background:none; border:none; padding:0; margin:0; font:inherit; color:inherit;
+      text-decoration:underline; cursor:pointer; }
     .bar { height:6px; background:var(--bg); border-radius:99px; overflow:hidden; min-width:80px; }
     .bar span { display:block; height:100%; background:var(--brand); }
     .swatch { display:inline-block; width:14px; height:14px; border-radius:4px; border:1px solid var(--border);
@@ -553,10 +658,10 @@ interface EditRow {
     .icon-preview { font-size:1.05rem; margin-right:.35rem; }
     .mono { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
     .result { margin-top:.7rem; font-size:.82rem; }
-    .result ul { margin:.3rem 0 0; padding-left:1.1rem; color:#b45309; }
-    .message { margin-top:1rem; color:#15803d; font-size:.85rem; }
-    .toast { position:fixed; right:1rem; bottom:1rem; background:#7f1d1d; color:#fff; padding:.6rem .9rem;
-      border-radius:10px; font-size:.85rem; cursor:pointer; max-width:44ch; }
+    .result ul { margin:.3rem 0 0; padding-left:1.1rem; color:var(--st-warning); }
+    .message { margin-top:1rem; color:var(--st-good); font-size:.85rem; }
+    .toast { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:#fce8e6; color:#c5221f;
+      border:1px solid #f5c6c6; border-radius:8px; padding:.6rem 1rem; z-index:50; cursor:pointer; }
     @media (max-width: 760px) { .k, .src { width:auto; } }
   `],
 })
@@ -621,6 +726,21 @@ export class LocalizationComponent implements OnInit {
   readonly importResult = signal<{
     created: number; updated: number; deleted: number; skipped: number; errors: string[];
   } | null>(null);
+
+  // ---- Compare languages ----
+  readonly compareLocales = signal<string[]>([]);
+  readonly compareRows = signal<CompareRow[]>([]);
+  readonly compareOnlyDiffs = signal(false);
+  readonly compareLoading = signal(false);
+  readonly compareVisibleRows = computed(() => {
+    const rows = this.compareRows();
+    return this.compareOnlyDiffs() ? rows.filter((r) => this.hasDifferences(r)) : rows;
+  });
+
+  /** Coverage-% per language, for the bar chart above the coverage table. */
+  readonly coverageChartPoints = computed<BrandBarChartPoint[]>(() =>
+    this.coverage().map((c) => ({ label: c.locale, value: this.percent(c) })),
+  );
 
   // ---- Config registry ----
   readonly configEntries = signal<ConfigEntryView[]>([]);
@@ -787,6 +907,15 @@ export class LocalizationComponent implements OnInit {
     this.loadRows();
   }
 
+  /** From the coverage table's "Missing" count: jumps to the translate grid, filtered to just those rows. */
+  viewMissing(locale: string): void {
+    this.tab.set('translate');
+    this.namespace.set('');
+    this.search.set('');
+    this.missingOnly.set(true);
+    this.selectEditLocale(locale);
+  }
+
   page(direction: number): void {
     const next = this.skip() + direction * this.take;
     this.skip.set(Math.max(0, next));
@@ -860,12 +989,49 @@ export class LocalizationComponent implements OnInit {
     this.api.export(this.exportLocale, this.exportFormat, this.exportNamespace || undefined).subscribe({
       next: (blob) => {
         this.busy.set(false);
-        const ext = this.exportFormat === 'csv' ? 'csv' : 'json';
         const suffix = this.exportNamespace ? `-${this.exportNamespace}` : '';
-        this.download(blob, `translations-${this.exportLocale}${suffix}.${ext}`);
+        this.download(blob, `translations-${this.exportLocale}${suffix}.${this.extFor(this.exportFormat)}`);
       },
       error: (e) => this.fail(e),
     });
+  }
+
+  /**
+   * The file extension a saved download should have for a given export format. `nested` is still
+   * JSON; every other format keeps its own name. Previously this only special-cased `csv`, so
+   * choosing Excel saved a real `.xlsx` workbook under a `.json` name — this is the fix for that.
+   */
+  private extFor(format: ExportFormat): string {
+    if (format === 'xlsx') return 'xlsx';
+    if (format === 'csv') return 'csv';
+    return 'json';
+  }
+
+  /** Downloads the current format/namespace selection for every configured language, one file each. */
+  exportAllLocales(): void {
+    const codes = this.locales().map((l) => l.code);
+    if (!codes.length) return;
+    this.busy.set(true);
+    const suffix = this.exportNamespace ? `-${this.exportNamespace}` : '';
+    const ext = this.extFor(this.exportFormat);
+    let index = 0;
+    const next = (): void => {
+      if (index >= codes.length) {
+        this.busy.set(false);
+        this.note(`Exported ${codes.length} language(s).`);
+        return;
+      }
+      const code = codes[index++];
+      this.api.export(code, this.exportFormat, this.exportNamespace || undefined).subscribe({
+        next: (blob) => {
+          this.download(blob, `translations-${code}${suffix}.${ext}`);
+          // Staggered so the browser does not treat a burst of downloads as a popup/spam attempt.
+          setTimeout(next, 300);
+        },
+        error: (e) => this.fail(e),
+      });
+    };
+    next();
   }
 
   /**
@@ -934,6 +1100,74 @@ export class LocalizationComponent implements OnInit {
     if (locale === this.editLocaleCode()) this.loadRows();
     // The import may have changed strings this very screen renders.
     this.i18n.reload();
+  }
+
+  // ---------------------------------------------------------------- Compare languages
+
+  toggleCompareLocale(code: string, checked: boolean): void {
+    const set = new Set(this.compareLocales());
+    if (checked) set.add(code);
+    else set.delete(code);
+    this.compareLocales.set(Array.from(set));
+  }
+
+  /**
+   * Builds the key × language matrix from the same `listForTranslating` endpoint the side-by-side
+   * editor uses — it already pairs every key known in the default locale with a given locale's value
+   * (empty when missing), which is exactly what a diff needs. No new API surface required.
+   */
+  runCompare(): void {
+    const codes = this.compareLocales();
+    if (codes.length < 2) {
+      this.error.set('Pick at least two languages to compare.');
+      return;
+    }
+    this.compareLoading.set(true);
+    this.compareRows.set([]);
+    const requests = codes.map((code) =>
+      this.api.listForTranslating(code, { take: 5000 }).pipe(map((page) => ({ code, page }))),
+    );
+    forkJoin(requests).subscribe({
+      next: (results) => {
+        const byKey = new Map<string, CompareRow>();
+        for (const { code, page } of results) {
+          for (const item of page.items) {
+            const k = `${item.namespace}.${item.key}`;
+            let row = byKey.get(k);
+            if (!row) {
+              row = { namespace: item.namespace, key: item.key, source: item.notes, values: {} };
+              byKey.set(k, row);
+            }
+            row.values[code] = item.value;
+          }
+        }
+        this.compareRows.set(
+          Array.from(byKey.values()).sort((a, b) => (a.namespace + a.key).localeCompare(b.namespace + b.key)),
+        );
+        this.compareLoading.set(false);
+      },
+      error: (e) => {
+        this.compareLoading.set(false);
+        this.fail(e);
+      },
+    });
+  }
+
+  isMissing(row: CompareRow, code: string): boolean {
+    return !row.values[code];
+  }
+
+  hasDifferences(row: CompareRow): boolean {
+    return this.compareLocales().some((code) => this.isMissing(row, code));
+  }
+
+  /** Clicking a missing cell jumps to the translate tab, pre-filtered to that exact key, ready to fill in. */
+  configureMissing(row: CompareRow, code: string): void {
+    this.tab.set('translate');
+    this.namespace.set(row.namespace);
+    this.search.set(row.key);
+    this.missingOnly.set(false);
+    this.selectEditLocale(code);
   }
 
   // ---------------------------------------------------------------- Config registry
