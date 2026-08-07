@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, finalize, shareReplay, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ConfirmTwoFactorDeviceEnrollmentResponse,
@@ -72,11 +72,23 @@ export class AuthService {
 
   // ---- Session (silent SSO) ----
 
+  /** Shared in-flight session check: a route guard and the login page's own resume check can both
+   *  fire on the same navigation (e.g. a guard redirects to /login, which immediately re-checks);
+   *  without this they'd double up as two identical /sso/session calls on every cold load. */
+  private sessionCheck$: Observable<SsoSessionResponse> | null = null;
+
   /** Exchange the shared SSO cookie for a fresh access token. 401 => no active session. */
   session(): Observable<SsoSessionResponse> {
-    return this.http
-      .post<SsoSessionResponse>(`${this.base}/sso/session`, {}, { withCredentials: true })
-      .pipe(tap(session => this.setSession(session)));
+    if (!this.sessionCheck$) {
+      this.sessionCheck$ = this.http
+        .post<SsoSessionResponse>(`${this.base}/sso/session`, {}, { withCredentials: true })
+        .pipe(
+          tap(session => this.setSession(session)),
+          finalize(() => { this.sessionCheck$ = null; }),
+          shareReplay(1),
+        );
+    }
+    return this.sessionCheck$;
   }
 
   logout(): Observable<void> {
