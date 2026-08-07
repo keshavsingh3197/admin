@@ -2,52 +2,65 @@ import { Component, DestroyRef, HostListener, effect, inject, signal } from '@an
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
 import { AuthService } from './core/services/auth.service';
 import { AnalyticsService } from './core/services/analytics.service';
 import { ChatService } from './core/services/chat.service';
 import { CallService } from './core/services/call.service';
+import { ConfigService } from './core/services/config.service';
+import { I18nService } from './core/services/i18n.service';
+import { CONFIG_KEYS } from './core/models/config.models';
 import { CallOverlayComponent } from './features/messages/call-overlay.component';
 import { MeetingReminderComponent } from './features/meetings/meeting-reminder.component';
 
 interface NavLink {
   path: string;
-  label: string;
+  /**
+   * Translation key resolved through {@link I18nService}, so the nav follows the chosen language.
+   * The English text lives in the catalogue (namespace `admin`), not here.
+   */
+  labelKey: string;
   icon: string;
   exact: boolean;
 }
 
 /**
  * Everyday pages stay on the bar; admin pages live behind the Manage menu (see app.html).
- * There is no Dashboard entry — the 🏠 brand on the left is the link home.
+ * There is no Dashboard entry — the brand on the left is the link home.
+ *
+ * Icons are the fallback glyph only: the live one comes from the config registry (`ui.icon.*`) when
+ * an admin has configured it — see {@link App.icon}.
  */
 const PRIMARY_LINKS: NavLink[] = [
   // One entry for every conversation — team chat, visitors and the contact form are tabs inside it.
-  { path: '/inbox', label: 'Inbox', icon: '💬', exact: false },
-  { path: '/meetings', label: 'Meetings', icon: '📅', exact: false },
-  { path: '/notes', label: 'Notes', icon: '📝', exact: false },
-  { path: '/files', label: 'Files', icon: '📁', exact: false },
-  { path: '/finance', label: 'Finance', icon: '💰', exact: false },
-  { path: '/security', label: 'Security', icon: '🔐', exact: false },
+  { path: '/inbox', labelKey: 'admin.nav.inbox', icon: '💬', exact: false },
+  { path: '/meetings', labelKey: 'admin.nav.meetings', icon: '📅', exact: false },
+  { path: '/notes', labelKey: 'admin.nav.notes', icon: '📝', exact: false },
+  { path: '/files', labelKey: 'admin.nav.files', icon: '📁', exact: false },
+  { path: '/finance', labelKey: 'admin.nav.finance', icon: '💰', exact: false },
+  { path: '/security', labelKey: 'admin.nav.security', icon: '🔐', exact: false },
 ];
 
 const ADMIN_LINKS: NavLink[] = [
-  { path: '/website', label: 'Websites', icon: '🌐', exact: false },
-  { path: '/database', label: 'Database', icon: '🗃️', exact: false },
-  { path: '/users', label: 'Users', icon: '👤', exact: false },
-  { path: '/groups', label: 'Groups', icon: '👪', exact: false },
-  { path: '/roles', label: 'Roles', icon: '🎫', exact: false },
-  { path: '/messages/moderation', label: 'Chat moderation', icon: '🛡️', exact: false },
-  { path: '/analytics', label: 'Analytics', icon: '📊', exact: false },
-  { path: '/data-retention', label: 'Data retention', icon: '🗄️', exact: false },
-  { path: '/health', label: 'Health', icon: '❤️', exact: false },
-  { path: '/settings', label: 'Settings', icon: '⚙️', exact: false },
+  { path: '/localization', labelKey: 'admin.nav.localization', icon: '🌍', exact: false },
+  { path: '/website', labelKey: 'admin.nav.websites', icon: '🌐', exact: false },
+  { path: '/database', labelKey: 'admin.nav.database', icon: '🗃️', exact: false },
+  { path: '/users', labelKey: 'admin.nav.users', icon: '👤', exact: false },
+  { path: '/groups', labelKey: 'admin.nav.groups', icon: '👪', exact: false },
+  { path: '/roles', labelKey: 'admin.nav.roles', icon: '🎫', exact: false },
+  { path: '/messages/moderation', labelKey: 'admin.nav.moderation', icon: '🛡️', exact: false },
+  { path: '/analytics', labelKey: 'admin.nav.analytics', icon: '📊', exact: false },
+  { path: '/data-retention', labelKey: 'admin.nav.dataRetention', icon: '🗄️', exact: false },
+  { path: '/health', labelKey: 'admin.nav.health', icon: '❤️', exact: false },
+  { path: '/settings', labelKey: 'admin.nav.settings', icon: '⚙️', exact: false },
 ];
 
 type UiMode = 'modern' | 'basic';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, CallOverlayComponent, MeetingReminderComponent],
+  // FormsModule: the language picker in the header is an ngModel-bound <select>.
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule, CallOverlayComponent, MeetingReminderComponent],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -59,6 +72,9 @@ export class App {
   private chat = inject(ChatService);
   // Injected so the call service is alive shell-wide and can ring on any page, not just Messages.
   private calls = inject(CallService);
+  protected readonly config = inject(ConfigService);
+  protected readonly i18n = inject(I18nService);
+  protected readonly keys = CONFIG_KEYS;
 
   readonly primaryLinks = PRIMARY_LINKS;
   readonly adminLinks = ADMIN_LINKS;
@@ -71,6 +87,11 @@ export class App {
   readonly uiMode = signal<UiMode>(this.detectInitialUiMode());
 
   constructor() {
+    // Central config first (it holds the i18n persistence key and poll interval), then the strings.
+    // Both fail soft: a config outage leaves the shell rendering its fallback glyphs and key names
+    // rather than a blank page.
+    this.config.load().subscribe(() => this.i18n.init(['common', 'admin', 'brand']).subscribe());
+
     effect(() => {
       const nextTheme = this.theme();
       document.body.dataset['theme'] = nextTheme;
@@ -118,6 +139,24 @@ export class App {
 
   logout(): void {
     this.auth.logout().subscribe({ next: () => this.router.navigate(['/login']) });
+  }
+
+  /**
+   * The configured glyph for a UI slot, falling back to the one compiled in. Icons live in the config
+   * registry so they can be changed at runtime; `fallback` is only what shows before the config
+   * arrives (or if it never does).
+   */
+  icon(key: string, fallback: string): string {
+    return this.config.icon(key, fallback);
+  }
+
+  /** The brand label — a configured value that is itself a translation key. */
+  brandName(): string {
+    return this.i18n.configText(CONFIG_KEYS.brandName, 'Admin');
+  }
+
+  switchLanguage(code: string): void {
+    this.i18n.use(code);
   }
 
   toggleNav(): void {

@@ -13,9 +13,11 @@ export class WebsiteContentService {
   private http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/website-content`;
 
-  list(siteKey?: string): Observable<WebsiteContentView[]> {
-    const query = siteKey ? `?siteKey=${encodeURIComponent(siteKey)}` : '';
-    return this.http.get<WebsiteContentView[]>(`${this.baseUrl}${query}`);
+  list(siteKey?: string, locale?: string): Observable<WebsiteContentView[]> {
+    const params: Record<string, string> = {};
+    if (siteKey) params['siteKey'] = siteKey;
+    if (locale) params['locale'] = locale;
+    return this.http.get<WebsiteContentView[]>(this.baseUrl, { params });
   }
 
   upsert(request: UpsertWebsiteContentRequest): Observable<WebsiteContentView> {
@@ -26,8 +28,13 @@ export class WebsiteContentService {
     return this.http.delete<void>(`${this.baseUrl}/${encodeURIComponent(id)}`);
   }
 
-  /** Where a site reads this entry from once it is published — shown in the UI so it can be copied. */
-  publicUrl(siteKey: string, contentKey: string): string {
-    return `${this.baseUrl}/public/${encodeURIComponent(siteKey)}/${encodeURIComponent(contentKey)}`;
+  /**
+   * Where a site reads this entry from once it is published — shown in the UI so it can be copied.
+   * The `locale` query selects the language; a key with no row for it falls back down the locale's
+   * chain server-side.
+   */
+  publicUrl(siteKey: string, contentKey: string, locale?: string): string {
+    const query = locale ? `?locale=${encodeURIComponent(locale)}` : '';
+    return `${this.baseUrl}/public/${encodeURIComponent(siteKey)}/${encodeURIComponent(contentKey)}${query}`;
   }
 }

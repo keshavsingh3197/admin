@@ -130,6 +130,17 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/search/search.component').then((m) => m.SearchComponent),
   },
+  /**
+   * Languages, translations and the runtime config registry. Editors may translate; only an Admin can
+   * add a language or change a config key, which the API enforces per endpoint — this guard is the
+   * outer layer, not the only one.
+   */
+  {
+    path: 'localization',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/localization/localization.component').then((m) => m.LocalizationComponent),
+  },
   {
     path: 'settings',
     canActivate: [adminGuard],

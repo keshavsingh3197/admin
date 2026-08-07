@@ -69,3 +69,28 @@ public sealed record PublicConfigView(
     string BlogUrl,
     string BlogAdminUrl,
     DateTime UpdatedAt);
+
+/// <summary>
+/// What <c>GET /api/config</c> actually returns: the settings projection above, plus the runtime
+/// config registry and the localisation manifest, so an app can boot knowing its URLs, icons,
+/// feature flags and languages without any of them being compiled into its build.
+///
+/// <para><see cref="Values"/> holds only the entries whose stored scope permits the caller — public
+/// for anonymous, public + authenticated for a signed-in one. Secret and internal entries are never
+/// present. <see cref="Types"/> gives each key's declared type so the client can parse it without
+/// guessing.</para>
+///
+/// <para><see cref="Version"/> changes whenever anything in here does; it is the ETag and the signal
+/// for a client to re-fetch.</para>
+/// </summary>
+public sealed record AppConfigEnvelopeView(
+    string SiteTitle,
+    string BlogUrl,
+    string BlogAdminUrl,
+    string Version,
+    string DefaultLocale,
+    IReadOnlyList<PublicLocaleView> Locales,
+    IReadOnlyDictionary<string, string> Values,
+    IReadOnlyDictionary<string, string> Types,
+    IReadOnlyDictionary<string, string> LocaleVersions,
+    DateTime UpdatedAt);

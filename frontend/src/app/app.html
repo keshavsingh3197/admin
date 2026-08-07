@@ -1,7 +1,11 @@
 <div class="app-shell">
   <header class="app-header">
-    <!-- Also the home link: there is no separate Dashboard entry in the nav. -->
-    <a class="brand" routerLink="/" title="Home" aria-label="Home">🏠 Admin</a>
+    <!-- Also the home link: there is no separate Dashboard entry in the nav. The glyph and the label
+         both come from the runtime config / translation catalogue, not from this template. -->
+    <a class="brand" routerLink="/" [title]="i18n.t('admin.nav.dashboard')"
+       [attr.aria-label]="i18n.t('admin.nav.dashboard')">
+      <span aria-hidden="true">{{ icon(keys.iconHome, '🏠') }}</span> {{ brandName() }}
+    </a>
 
     @if (auth.isAuthenticated()) {
       <button
@@ -11,7 +15,7 @@
         (click)="toggleNav()"
         [attr.aria-expanded]="navOpen()"
         aria-controls="app-nav"
-        aria-label="Toggle navigation menu">
+        [attr.aria-label]="i18n.t('admin.nav.toggleMenu')">
         <span class="hamburger" aria-hidden="true"></span>
       </button>
 
@@ -23,7 +27,7 @@
         @for (link of primaryLinks; track link.path) {
           <a [routerLink]="link.path" routerLinkActive="active"
              [routerLinkActiveOptions]="{exact: link.exact}" (click)="closeNav()">
-            <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ link.label }}
+            <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
           </a>
         }
 
@@ -32,13 +36,13 @@
           <div class="nav-group" [class.open]="manageOpen()">
             <button class="nav-group-btn" type="button" (click)="toggleManage()"
                     [attr.aria-expanded]="manageOpen()">
-              <span class="nav-ico" aria-hidden="true">⚙️</span>Manage
+              <span class="nav-ico" aria-hidden="true">{{ icon(keys.iconSettings, '⚙️') }}</span>{{ i18n.t('admin.nav.manage') }}
               <span class="caret" aria-hidden="true">▾</span>
             </button>
             <div class="nav-menu">
               @for (link of adminLinks; track link.path) {
                 <a [routerLink]="link.path" routerLinkActive="active" (click)="closeNav()">
-                  <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ link.label }}
+                  <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
                 </a>
               }
             </div>
@@ -49,31 +53,55 @@
       <div class="spacer"></div>
 
       <div class="user-chip">
-        <a class="chip-btn" routerLink="/search" aria-label="Search" title="Search">
-          <span aria-hidden="true">🔍</span>
+        <a class="chip-btn" routerLink="/search" [attr.aria-label]="i18n.t('common.actions.search')"
+           [title]="i18n.t('common.actions.search')">
+          <span aria-hidden="true">{{ icon(keys.iconSearch, '🔍') }}</span>
         </a>
+
+        <!--
+          Language picker. Rendered only when the languages are known and an admin has left the picker
+          enabled in the config registry — both are runtime values, not build-time ones.
+        -->
+        @if (i18n.showPicker() && i18n.locales().length > 1) {
+          <label class="lang-picker">
+            <span class="sr-only">{{ i18n.t('common.label.language') }}</span>
+            <span aria-hidden="true" class="lang-ico">{{ icon(keys.iconLanguage, '🌐') }}</span>
+            <select [ngModel]="i18n.locale()" (ngModelChange)="switchLanguage($event)"
+                    [title]="i18n.t('common.label.language')">
+              @for (l of i18n.locales(); track l.code) {
+                <option [value]="l.code">{{ l.nativeName }}</option>
+              }
+            </select>
+          </label>
+        }
+
         <button class="chip-btn" type="button" (click)="toggleUiMode()"
                 [attr.aria-label]="'Switch interface style, current: ' + uiMode()"
                 [title]="'Interface: ' + uiMode() + ' — click for ' + (uiMode() === 'modern' ? 'basic' : 'modern')">
           <span aria-hidden="true">{{ uiMode() === 'modern' ? '✨' : '▭' }}</span>
         </button>
         <button class="chip-btn" type="button" (click)="toggleTheme()"
-                [attr.aria-label]="'Switch theme, current: ' + theme()" [title]="'Theme: ' + theme()">
-          <span aria-hidden="true">{{ theme() === 'light' ? '☀' : (theme() === 'dark' ? '☾' : '✦') }}</span>
+                [attr.aria-label]="i18n.t('common.label.theme') + ': ' + theme()"
+                [title]="i18n.t('common.label.theme') + ': ' + theme()">
+          <span aria-hidden="true">{{
+            theme() === 'light' ? icon(keys.iconThemeLight, '☀')
+              : (theme() === 'dark' ? icon(keys.iconThemeDark, '☾') : icon(keys.iconThemeAuto, '✦'))
+          }}</span>
         </button>
         <span class="user-name">{{ auth.user()?.displayName }}</span>
-        <button class="chip-btn" type="button" (click)="logout()" aria-label="Sign out" title="Sign out">
-          <span aria-hidden="true">⏻</span>
+        <button class="chip-btn" type="button" (click)="logout()"
+                [attr.aria-label]="i18n.t('admin.nav.signout')" [title]="i18n.t('admin.nav.signout')">
+          <span aria-hidden="true">{{ icon(keys.iconSignOut, '⏻') }}</span>
         </button>
       </div>
     }
   </header>
 
   @if (routeLoading()) {
-    <div class="route-loader" role="status" aria-live="polite" aria-label="Loading page">
+    <div class="route-loader" role="status" aria-live="polite" [attr.aria-label]="i18n.t('common.state.loading')">
       <div class="route-loader-card">
         <div class="logo-pulse" aria-hidden="true">KS</div>
-        <p>Loading your admin workspace...</p>
+        <p>{{ i18n.t('common.state.loading') }}</p>
       </div>
     </div>
   }

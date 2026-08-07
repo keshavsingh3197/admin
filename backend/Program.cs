@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using Admin.Api.Auth;
 using Admin.Api.Services;
 using Admin.Api.Dtos;
+using Admin.Api.Localization;
 using Fido2NetLib;
 using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
@@ -72,6 +73,14 @@ builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
 builder.Services.AddSingleton<WebsiteVisitService>();
 builder.Services.AddSingleton<WebsiteContentService>();
+// ---- Localisation + runtime config registry (KeshavSingh.Localization) ----
+// Every user-facing string and every previously hard-coded value (URLs, icons, flags, limits) lives in
+// Mongo and is served from here, so a language or a label changes without a redeploy. The whole engine
+// — locale registry, catalogue, JSON/CSV/Excel import-export, config registry, controllers — is in the
+// package; this app supplies only its own content, through the two seed sources below.
+builder.Services.AddKeshavLocalization(builder.Configuration);
+builder.Services.AddLocalizationSeeds<AdminAppSeeds>();
+builder.Services.AddLocalizationSeeds<PublicSiteSeeds>();
 builder.Services.AddSingleton<TwoFactorDeviceService>();
 builder.Services.AddSingleton<SessionRetentionService>();
 builder.Services.AddSingleton<CustomRoleService>();
@@ -139,6 +148,8 @@ builder.Services
     .AddControllers()
     .AddKeshavAuthControllers()
     .AddKeshavChatControllers()
+    // /api/i18n/** (public reads + the editorial surface) and /api/app-config/** (Admin-only).
+    .AddKeshavLocalizationControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 // ---- CORS: allow the SSO family — any keshavsingh.in subdomain (admin, id, git, blog, …)
@@ -202,6 +213,17 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = 5,
             Window = TimeSpan.FromMinutes(10),
+            QueueLimit = 0,
+        }));
+    // The anonymous config + localisation reads. Every public page load fetches these, and clients
+    // poll the manifest, so the budget is generous — it exists to stop one address hammering them,
+    // not to pace a normal visit. Responses are ETagged, so a poll that finds nothing new is a 304.
+    options.AddPolicy("public-config", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 240,
+            Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         }));
     // Visitor chat polls every few seconds while the widget is open, so this has to be roomy — it is
@@ -275,6 +297,10 @@ await app.Services.GetRequiredService<WebsiteRegistryService>()
     .EnsureIndexesAsync();
 await app.Services.GetRequiredService<WebsiteVisitService>()
     .EnsureIndexesAsync();
+// Localisation first, and before the localised-content index: it supplies the default language that
+// index and its backfill need. Creates the indexes, applies both seed sources (additively — an
+// editor's change is never overwritten) and leaves the caches warm.
+await app.Services.InitKeshavLocalizationAsync();
 await app.Services.GetRequiredService<WebsiteContentService>()
     .EnsureIndexesAsync();
 await app.Services.GetRequiredService<TwoFactorDeviceService>()

@@ -4,3 +4,5 @@ global using KeshavSingh.Core.Models;
 global using KeshavSingh.Finance;
 global using KeshavSingh.Finance.Models;
 global using KeshavSingh.Finance.Advisory;
+global using KeshavSingh.Localization;
+global using KeshavSingh.Localization.Dtos;

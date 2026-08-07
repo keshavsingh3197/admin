@@ -1,11 +1,14 @@
 /**
- * Public, non-secret app config served by the identity provider at GET /api/config. Centralised in
- * the IdP's database so every *.keshavsingh.in app reads one source instead of duplicating these in
- * its own build. Mirrors the backend PublicConfigView. Never carries secrets or security settings.
+ * The runtime-config shapes and the key list now live in `@keshavsingh3197/web-config`, shared with the
+ * blog and the portfolio so the three cannot drift. Re-exported here because a lot of this app imports
+ * them from `core/models/config.models`, and that is a reasonable place to keep looking.
+ *
+ * `PublicConfig` is kept as an alias for the older name used across this app's components.
  */
-export interface PublicConfig {
-  siteTitle: string;
-  blogUrl: string;
-  blogAdminUrl: string;
-  updatedAt: string;
-}
+export { CONFIG_KEYS } from '@keshavsingh3197/web-config';
+export type { ConfigKey, PublicLocale, RuntimeConfig } from '@keshavsingh3197/web-config';
+
+import type { RuntimeConfig } from '@keshavsingh3197/web-config';
+
+/** @deprecated Prefer `RuntimeConfig`. Kept so existing imports keep compiling. */
+export type PublicConfig = RuntimeConfig;

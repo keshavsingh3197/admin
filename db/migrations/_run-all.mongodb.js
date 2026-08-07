@@ -11,6 +11,8 @@
 const MIGRATIONS = [
   '001_seed-app-settings',
   '002_seed-app-config',
+  '003_localization',
+  '004_portfolio-structured-content',
 ];
 
 print(`Applying ${MIGRATIONS.length} migration(s)…`);

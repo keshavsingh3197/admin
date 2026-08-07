@@ -5,8 +5,10 @@ import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { WebsiteContentService } from '../../core/services/website.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { LocalizationAdminService } from '../../core/services/localization-admin.service';
 import { WebsiteContentView } from '../../core/models/website.models';
 import { WebsiteLinkView } from '../../core/models/settings.models';
+import { LocaleView } from '../../core/models/localization.models';
 
 /**
  * The content behind the public sites: each entry is a JSON payload addressed by site key + content key
@@ -50,7 +52,10 @@ import { WebsiteLinkView } from '../../core/models/settings.models';
                 <span class="key">{{ c.siteKey }} / {{ c.contentKey }}</span>
                 <span class="tag" [class.live]="c.isPublished">{{ c.isPublished ? 'published' : 'draft' }}</span>
               </span>
-              <span class="when">v{{ c.version }} · {{ c.updatedAt | date:'d MMM yyyy, HH:mm' }}</span>
+              <span class="when">
+                <span class="tag">{{ c.locale }}</span>
+                v{{ c.version }} · {{ c.updatedAt | date:'d MMM yyyy, HH:mm' }}
+              </span>
             </button>
           }
           @if (!entries().length && !loading()) { <p class="muted pad">Nothing here yet.</p> }
@@ -66,8 +71,17 @@ import { WebsiteLinkView } from '../../core/models/settings.models';
                 <label class="field"><span>Content key</span>
                   <input class="input" [(ngModel)]="draft.contentKey" [readonly]="!isNew()" placeholder="about"></label>
               </div>
+              <label class="field"><span>Language</span>
+                <select class="input" [(ngModel)]="draft.locale" [disabled]="!isNew()">
+                  <option value="">(default language)</option>
+                  @for (l of locales(); track l.code) {
+                    <option [value]="l.code">{{ l.code }} — {{ l.englishName }}</option>
+                  }
+                </select></label>
               <p class="muted small">Keys are lower case letters, numbers, <code>-</code> and <code>_</code>,
-                2–64 characters. They cannot be changed once created — the pair is the address a site fetches.</p>
+                2–64 characters. They cannot be changed once created — the key plus the language is the
+                address a site fetches. A site asking for a language with no entry here falls back to
+                the language's fallback chain, so a page never renders empty.</p>
 
               <label class="field"><span>Payload (JSON)</span>
                 <textarea class="input mono" rows="18" [(ngModel)]="draft.payloadJson" spellcheck="false"></textarea></label>
@@ -87,6 +101,16 @@ import { WebsiteLinkView } from '../../core/models/settings.models';
                   <code>{{ publicUrl(c) }}</code>
                   @if (!c.isPublished) { — <strong>not while it is a draft</strong> }
                 </p>
+                @if (missingLocalesFor(c).length) {
+                  <p class="muted small">Not yet available in:
+                    @for (l of missingLocalesFor(c); track l.code) {
+                      <button class="btn ghost sm" (click)="translateFrom(c, l.code)"
+                              [title]="'Start a ' + l.englishName + ' version from this one'">
+                        + {{ l.englishName }}
+                      </button>
+                    }
+                  </p>
+                }
                 <button class="btn danger sm" (click)="remove(c)">Delete this entry</button>
               }
             </div>
@@ -149,7 +173,10 @@ import { WebsiteLinkView } from '../../core/models/settings.models';
 export class WebsiteManageComponent implements OnInit {
   private api = inject(WebsiteContentService);
   private settings = inject(SettingsService);
+  private localization = inject(LocalizationAdminService);
 
+  /** Registered languages: content is authored one row per language for the same key. */
+  locales = signal<LocaleView[]>([]);
   sites = signal<WebsiteLinkView[]>([]);
   entries = signal<WebsiteContentView[]>([]);
   active = signal<WebsiteContentView | null>(null);
@@ -167,6 +194,11 @@ export class WebsiteManageComponent implements OnInit {
     this.settings.listWebsites().subscribe({
       next: list => this.sites.set(list),
       error: () => this.error.set('Could not load the website registry.'),
+    });
+    this.localization.listLocales().subscribe({
+      // Non-fatal: without the list the editor falls back to the default language server-side.
+      next: list => this.locales.set(list),
+      error: () => {},
     });
     this.load();
   }
@@ -204,9 +236,38 @@ export class WebsiteManageComponent implements OnInit {
     this.draft = {
       siteKey: entry.siteKey,
       contentKey: entry.contentKey,
+      locale: entry.locale,
       payloadJson: this.pretty(entry.payloadJson),
       isPublished: entry.isPublished,
     };
+  }
+
+  /**
+   * Starts a translation of the open entry: same keys, a different language, the current payload as a
+   * starting point. Saving creates a second row rather than overwriting the first.
+   */
+  translateFrom(entry: WebsiteContentView, locale: string): void {
+    this.active.set(null);
+    this.isNew.set(true);
+    this.editing.set(true);
+    this.message.set(null);
+    this.draft = {
+      siteKey: entry.siteKey,
+      contentKey: entry.contentKey,
+      locale,
+      payloadJson: this.pretty(entry.payloadJson),
+      isPublished: false,
+    };
+  }
+
+  /** Languages this key has no row for yet — the ones worth offering a "translate" shortcut. */
+  missingLocalesFor(entry: WebsiteContentView): LocaleView[] {
+    const present = new Set(
+      this.entries()
+        .filter(e => e.siteKey === entry.siteKey && e.contentKey === entry.contentKey)
+        .map(e => e.locale),
+    );
+    return this.locales().filter(l => !present.has(l.code));
   }
 
   openNew(): void {
@@ -250,12 +311,15 @@ export class WebsiteManageComponent implements OnInit {
     this.api.upsert({
       siteKey: this.draft.siteKey.trim(),
       contentKey: this.draft.contentKey.trim(),
+      // Blank means "the default language" — the API resolves it, so this stays valid if the default
+      // changes.
+      locale: this.draft.locale || undefined,
       payloadJson: this.draft.payloadJson,
       isPublished: this.draft.isPublished,
     }).subscribe({
       next: saved => {
         this.busy.set(false);
-        this.message.set(`Saved ${saved.siteKey}/${saved.contentKey} (v${saved.version}).`);
+        this.message.set(`Saved ${saved.siteKey}/${saved.contentKey} [${saved.locale}] (v${saved.version}).`);
         this.load();
         this.open(saved);
       },
@@ -275,7 +339,7 @@ export class WebsiteManageComponent implements OnInit {
   }
 
   publicUrl(entry: WebsiteContentView): string {
-    return this.api.publicUrl(entry.siteKey, entry.contentKey);
+    return this.api.publicUrl(entry.siteKey, entry.contentKey, entry.locale);
   }
 
   private pretty(json: string): string {
@@ -284,6 +348,7 @@ export class WebsiteManageComponent implements OnInit {
   }
 
   private blank() {
-    return { siteKey: '', contentKey: '', payloadJson: '{\n  \n}', isPublished: false };
+    // Blank locale = the default language; the API resolves it on save.
+    return { siteKey: '', contentKey: '', locale: '', payloadJson: '{\n  \n}', isPublished: false };
   }
 }

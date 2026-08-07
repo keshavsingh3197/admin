@@ -40,6 +40,9 @@
     <PackageReference Include="KeshavSingh.Core" Version="0.3.0" />
     <PackageReference Include="KeshavSingh.Storage" Version="0.2.1" />
     <PackageReference Include="KeshavSingh.Finance" Version="0.3.0" />
+    <!-- Runtime localisation + the config registry: languages, the string catalogue with JSON/CSV/Excel
+         import-export, and the typed key/value store that keeps URLs, icons and flags out of builds. -->
+    <PackageReference Include="KeshavSingh.Localization" Version="0.1.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(SkipPrivatePackages)' == 'true'">
@@ -50,6 +53,7 @@
     <ProjectReference Include="..\..\KeshavSingh-Packages-Core\src\KeshavSingh.Core\KeshavSingh.Core.csproj" />
     <ProjectReference Include="..\..\KeshavSingh-Packages-Files\src\KeshavSingh.Storage\KeshavSingh.Storage.csproj" />
     <ProjectReference Include="..\..\KeshavSingh-Packages-Finance\src\KeshavSingh.Finance\KeshavSingh.Finance.csproj" />
+    <ProjectReference Include="..\..\KeshavSingh-Packages-Localization\src\KeshavSingh.Localization\KeshavSingh.Localization.csproj" />
   </ItemGroup>
 
 </Project>
