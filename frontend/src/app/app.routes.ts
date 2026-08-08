@@ -30,6 +30,12 @@ export const routes: Routes = [
       import('./features/files/files.component').then((m) => m.FilesComponent),
   },
   {
+    path: 'short-links',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/short-links/short-links.component').then((m) => m.ShortLinksComponent),
+  },
+  {
     path: 'finance',
     canActivate: [authGuard],
     loadComponent: () =>

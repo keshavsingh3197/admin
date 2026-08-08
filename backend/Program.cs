@@ -61,6 +61,7 @@ builder.Services.AddSingleton<IChatUserDirectory, AdminChatUserDirectory>();
 builder.Services.AddKeshavCalls(builder.Configuration);
 builder.Services.AddKeshavMeetings(builder.Configuration);
 builder.Services.AddSingleton<NoteService>();
+builder.Services.AddSingleton<ShortLinkService>();
 // Family finance: persistence + the KeshavSingh.Finance advisory engine (pure, no secrets/I-O).
 builder.Services.AddSingleton<FinanceService>();
 builder.Services.AddKeshavFinance();
@@ -246,6 +247,16 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromHours(1),
             QueueLimit = 0,
         }));
+    // Public short-link redirects: generous, since a shared link can get a real burst of clicks — this
+    // exists to blunt scripted abuse, not to pace normal traffic.
+    options.AddPolicy("shortlink-redirect", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
 });
 
 builder.Services.AddHealthChecks();
@@ -312,6 +323,7 @@ await app.Services.GetRequiredService<CustomRoleService>().SeedSystemRolesAsync(
 await app.Services.GetRequiredService<GroupService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<FolderService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<FileService>().EnsureIndexesAsync();
+await app.Services.GetRequiredService<ShortLinkService>().EnsureIndexesAsync();
 var publicConfig = app.Services.GetRequiredService<SettingsService>().ToPublicConfig();
 // The portfolio's URL isn't part of the shared PublicConfig (nothing else needs it), so it comes from
 // Websites:PortfolioUrl — only ever used to seed the registry row, which is editable on Settings after.

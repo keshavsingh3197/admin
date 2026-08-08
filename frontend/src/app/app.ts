@@ -37,6 +37,7 @@ const PRIMARY_LINKS: NavLink[] = [
   { path: '/meetings', labelKey: 'admin.nav.meetings', icon: '📅', exact: false },
   { path: '/notes', labelKey: 'admin.nav.notes', icon: '📝', exact: false },
   { path: '/files', labelKey: 'admin.nav.files', icon: '📁', exact: false },
+  { path: '/short-links', labelKey: 'admin.nav.shortLinks', icon: '🔗', exact: false },
   { path: '/finance', labelKey: 'admin.nav.finance', icon: '💰', exact: false },
   { path: '/security', labelKey: 'admin.nav.security', icon: '🔐', exact: false },
 ];

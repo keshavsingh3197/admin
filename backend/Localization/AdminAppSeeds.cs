@@ -28,6 +28,7 @@ public sealed class AdminAppSeeds : ILocalizationSeedSource
         ("admin", "nav.meetings", "Meetings", "मीटिंग"),
         ("admin", "nav.notes", "Notes", "नोट्स"),
         ("admin", "nav.files", "Files", "फ़ाइलें"),
+        ("admin", "nav.shortLinks", "Short Links", "छोटे लिंक"),
         ("admin", "nav.finance", "Finance", "वित्त"),
         ("admin", "nav.security", "Security", "सुरक्षा"),
         ("admin", "nav.localization", "Localization", "स्थानीयकरण"),

@@ -14,6 +14,7 @@ public sealed class SearchService
 {
     private readonly IMongoCollection<User> _users;
     private readonly IMongoCollection<Note> _notes;
+    private readonly IMongoCollection<ShortLink> _shortLinks;
     private readonly WebsiteRegistryService _websites;
     private readonly CustomRoleService _roles;
     private readonly GroupService _groups;
@@ -22,6 +23,7 @@ public sealed class SearchService
     {
         _users = db.GetCollection<User>("users");
         _notes = db.GetCollection<Note>("notes");
+        _shortLinks = db.GetCollection<ShortLink>("short_links");
         _websites = websites;
         _roles = roles;
         _groups = groups;
@@ -40,6 +42,12 @@ public sealed class SearchService
                 Builders<Note>.Filter.Regex(x => x.Content, regex)))
             .Limit(8).ToListAsync(ct);
         results.AddRange(notes.Select(n => new SearchResultDto("Note", n.Id ?? "", n.Title, n.Category, "/notes")));
+
+        var shortLinks = await _shortLinks.Find(Builders<ShortLink>.Filter.Or(
+                Builders<ShortLink>.Filter.Regex(x => x.Code, regex),
+                Builders<ShortLink>.Filter.Regex(x => x.TargetUrl, regex)))
+            .Limit(8).ToListAsync(ct);
+        results.AddRange(shortLinks.Select(s => new SearchResultDto("Short link", s.Id ?? "", s.Code, s.TargetUrl, "/short-links")));
 
         if (!isAdmin) return results;
 
