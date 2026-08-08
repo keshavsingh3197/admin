@@ -1,35 +1,35 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService, Note } from '../../core/services/api.service';
 
+type Category = 'general' | 'family' | 'finance' | 'work';
+
+const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
+
 @Component({
   selector: 'app-notes',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule],
   template: `
     <div class="notes">
-      <div class="notes-header">
-        <h1>Notes</h1>
-        <button class="btn-primary" (click)="openForm()">+ New Note</button>
-      </div>
-
-      @if (showForm()) {
-        <div class="form-card">
-          <h2>{{ editingNote ? 'Edit Note' : 'New Note' }}</h2>
-          <input class="input" placeholder="Title" [(ngModel)]="form.title" />
-          <select class="input" [(ngModel)]="form.category">
-            <option value="general">General</option>
-            <option value="family">Family</option>
-            <option value="finance">Finance</option>
-            <option value="work">Work</option>
-          </select>
-          <textarea class="input" rows="4" placeholder="Content" [(ngModel)]="form.content"></textarea>
-          <div class="form-actions">
-            <button class="btn-primary" (click)="save()">Save</button>
-            <button class="btn-secondary" (click)="cancelForm()">Cancel</button>
-          </div>
+      <header class="notes-header">
+        <div>
+          <h1>📝 Notes</h1>
+          <p class="subtitle">{{ notes().length }} note{{ notes().length === 1 ? '' : 's' }} in your workspace</p>
         </div>
-      }
+        <button class="btn-primary" type="button" (click)="openForm()">+ New Note</button>
+      </header>
+
+      <div class="toolbar">
+        <input class="input search" type="search" placeholder="🔍 Search notes…" [(ngModel)]="search" />
+        <div class="chips">
+          <button class="chip" type="button" [class.active]="categoryFilter() === 'all'" (click)="categoryFilter.set('all')">All</button>
+          @for (c of categories; track c) {
+            <button class="chip" type="button" [class.active]="categoryFilter() === c" (click)="categoryFilter.set(c)">{{ c }}</button>
+          }
+        </div>
+      </div>
 
       @if (errorMessage()) {
         <div class="error-banner">⚠️ {{ errorMessage() }}</div>
@@ -38,55 +38,145 @@ import { ApiService, Note } from '../../core/services/api.service';
       @if (loading()) {
         <p class="loading">Loading notes…</p>
       } @else if (notes().length === 0) {
-        <p class="empty">No notes yet. Create your first one!</p>
+        <div class="empty-state">
+          <span class="empty-icon" aria-hidden="true">🗒️</span>
+          <p>No notes yet. Create your first one!</p>
+          <button class="btn-primary" type="button" (click)="openForm()">+ New Note</button>
+        </div>
+      } @else if (filteredNotes().length === 0) {
+        <p class="empty">No notes match your search or filter.</p>
       } @else {
-        <div class="notes-list">
-          @for (note of notes(); track note.id) {
+        <div class="notes-grid">
+          @for (note of filteredNotes(); track note.id) {
             <div class="note-card">
               <div class="note-meta">
-                <span class="badge">{{ note.category }}</span>
-                <small>{{ note.updatedAt | date:'short' }}</small>
+                <span class="badge cat-{{ note.category }}">{{ note.category }}</span>
+                <small class="updated">{{ note.updatedAt | date:'short' }}</small>
               </div>
               <h3>{{ note.title }}</h3>
-              <p>{{ note.content }}</p>
+              <p class="content">{{ note.content }}</p>
               <div class="note-actions">
-                <button class="btn-secondary" (click)="edit(note)">Edit</button>
-                <button class="btn-danger" (click)="delete(note.id!)">Delete</button>
+                <button class="icon-btn" type="button" (click)="edit(note)" title="Edit">✏️</button>
+                <button class="icon-btn danger" type="button" (click)="delete(note.id!)" title="Delete">🗑️</button>
               </div>
             </div>
           }
         </div>
       }
+
+      @if (showForm()) {
+        <div class="scrim" (click)="cancelForm()">
+          <div class="dialog" (click)="$event.stopPropagation()">
+            <h2>{{ editingNote ? 'Edit note' : 'New note' }}</h2>
+            <label class="field"><span>Title</span>
+              <input class="input" placeholder="Title" [(ngModel)]="form.title" />
+            </label>
+            <label class="field"><span>Category</span>
+              <select class="input" [(ngModel)]="form.category">
+                @for (c of categories; track c) { <option [value]="c">{{ c }}</option> }
+              </select>
+            </label>
+            <label class="field"><span>Content</span>
+              <textarea class="input" rows="5" placeholder="Content" [(ngModel)]="form.content"></textarea>
+            </label>
+            <div class="form-actions">
+              <button class="btn-secondary" type="button" (click)="cancelForm()">Cancel</button>
+              <button class="btn-primary" type="button" (click)="save()">Save</button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
-    .notes { padding: 2rem; }
-    .notes-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-    .form-card { background: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; }
-    .form-card h2 { margin: 0 0 1rem; }
-    .input { display: block; width: 100%; margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; box-sizing: border-box; }
+    .notes { padding: 2rem; max-width: 1100px; margin: 0 auto; }
+    .notes-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; }
+    .notes-header h1 { margin: 0; font-size: 1.5rem; }
+    .subtitle { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .search { max-width: 280px; margin: 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .chip {
+      background: var(--surface); color: var(--muted); border: 1px solid var(--border);
+      border-radius: 99px; padding: 0.3rem 0.85rem; font-size: 0.82rem; cursor: pointer;
+      text-transform: capitalize; transition: .12s;
+    }
+    .chip:hover { border-color: var(--brand); color: var(--brand); }
+    .chip.active { background: var(--brand); color: var(--brand-text); border-color: var(--brand); }
+
+    .input {
+      display: block; width: 100%; margin-bottom: 0; padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      border-radius: 6px; font-size: 1rem; box-sizing: border-box;
+    }
     textarea.input { resize: vertical; }
-    .form-actions { display: flex; gap: 0.75rem; }
-    .notes-list { display: flex; flex-direction: column; gap: 1rem; }
-    .note-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.25rem; }
-    .note-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-    .badge { background: #e8f0fe; color: #1a73e8; padding: 0.15rem 0.6rem; border-radius: 99px; font-size: 0.8rem; text-transform: capitalize; }
-    .note-card h3 { margin: 0 0 0.5rem; }
-    .note-card p { margin: 0 0 1rem; color: #555; }
-    .note-actions { display: flex; gap: 0.5rem; }
-    .btn-primary { background: #1a73e8; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-    .btn-secondary { background: transparent; border: 1px solid #ccc; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-    .btn-danger { background: transparent; border: 1px solid #d93025; color: #d93025; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-    .loading, .empty { color: #666; }
-    .error-banner { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 4px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
+    .field { display: block; margin-bottom: 0.85rem; }
+    .field span { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+    .form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem; }
+
+    .notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+    .note-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.25rem; box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s;
+      display: flex; flex-direction: column;
+    }
+    .note-card:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(19, 35, 58, 0.16); }
+    .note-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+    .badge { background: var(--brand); color: var(--brand-text); padding: 0.15rem 0.6rem; border-radius: 99px; font-size: 0.75rem; text-transform: capitalize; }
+    .updated { color: var(--muted); }
+    .note-card h3 { margin: 0 0 0.4rem; }
+    .note-card .content {
+      margin: 0 0 1rem; color: var(--muted); flex: 1;
+      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .note-actions { display: flex; justify-content: flex-end; gap: 0.4rem; }
+    .icon-btn {
+      display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px;
+      border: 1px solid var(--border); background: var(--surface); border-radius: 7px; cursor: pointer; transition: .12s;
+    }
+    .icon-btn:hover { border-color: var(--brand); }
+    .icon-btn.danger:hover { border-color: #d93025; }
+
+    .btn-primary { background: var(--brand); color: var(--brand-text); border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
+    .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
+
+    .loading, .empty { color: var(--muted); }
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+      padding: 3rem 1rem; color: var(--muted); text-align: center;
+    }
+    .empty-icon { font-size: 2.5rem; }
+    .error-banner { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
+
+    .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
+    .dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 100%; max-width: 440px; box-shadow: var(--shadow-sm); }
+    .dialog h2 { margin: 0 0 1rem; }
   `]
 })
 export class NotesComponent implements OnInit {
+  readonly categories = CATEGORIES;
+
   notes = signal<Note[]>([]);
   loading = signal(false);
   showForm = signal(false);
   errorMessage = signal<string | null>(null);
   editingNote: Note | null = null;
+
+  search = signal('');
+  categoryFilter = signal<Category | 'all'>('all');
+
+  readonly filteredNotes = computed(() => {
+    const term = this.search().trim().toLowerCase();
+    const category = this.categoryFilter();
+    return this.notes().filter((note) => {
+      const matchesCategory = category === 'all' || note.category === category;
+      const matchesSearch = !term
+        || note.title.toLowerCase().includes(term)
+        || note.content.toLowerCase().includes(term);
+      return matchesCategory && matchesSearch;
+    });
+  });
 
   form: Note = { title: '', content: '', category: 'general' };
 
