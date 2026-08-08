@@ -55,8 +55,6 @@ const ADMIN_LINKS: NavLink[] = [
   { path: '/settings', labelKey: 'admin.nav.settings', icon: '⚙️', exact: false },
 ];
 
-type UiMode = 'modern' | 'basic';
-
 @Component({
   selector: 'app-root',
   // FormsModule: the language picker in the header is an ngModel-bound <select>.
@@ -83,8 +81,6 @@ export class App {
   readonly navOpen = signal(false);
   readonly manageOpen = signal(false);
   readonly theme = signal<'light' | 'dark' | 'brand'>(this.detectInitialTheme());
-  /** Visual density/styling: "modern" is elevated and rounded, "basic" is flat and compact. */
-  readonly uiMode = signal<UiMode>(this.detectInitialUiMode());
 
   constructor() {
     // Central config first (it holds the i18n persistence key and poll interval), then the strings.
@@ -96,12 +92,6 @@ export class App {
       const nextTheme = this.theme();
       document.body.dataset['theme'] = nextTheme;
       localStorage.setItem('admin.theme', nextTheme);
-    });
-
-    effect(() => {
-      const mode = this.uiMode();
-      document.body.dataset['ui'] = mode;
-      localStorage.setItem('admin.ui', mode);
     });
 
     // Hold the chat hub open for the whole session (not just the Messages page) so incoming
@@ -193,10 +183,6 @@ export class App {
     });
   }
 
-  toggleUiMode(): void {
-    this.uiMode.update((current) => (current === 'modern' ? 'basic' : 'modern'));
-  }
-
   private detectInitialTheme(): 'light' | 'dark' | 'brand' {
     const stored = localStorage.getItem('admin.theme');
     if (stored === 'light' || stored === 'dark' || stored === 'brand') {
@@ -204,9 +190,5 @@ export class App {
     }
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-
-  private detectInitialUiMode(): UiMode {
-    return localStorage.getItem('admin.ui') === 'basic' ? 'basic' : 'modern';
   }
 }

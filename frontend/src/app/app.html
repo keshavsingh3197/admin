@@ -75,11 +75,6 @@
           </label>
         }
 
-        <button class="chip-btn" type="button" (click)="toggleUiMode()"
-                [attr.aria-label]="'Switch interface style, current: ' + uiMode()"
-                [title]="'Interface: ' + uiMode() + ' — click for ' + (uiMode() === 'modern' ? 'basic' : 'modern')">
-          <span aria-hidden="true">{{ uiMode() === 'modern' ? '✨' : '▭' }}</span>
-        </button>
         <button class="chip-btn" type="button" (click)="toggleTheme()"
                 [attr.aria-label]="i18n.t('common.label.theme') + ': ' + theme()"
                 [title]="i18n.t('common.label.theme') + ': ' + theme()">

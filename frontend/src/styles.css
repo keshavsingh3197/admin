@@ -188,41 +188,19 @@ body[data-theme='brand'] .status.down {
   background: color-mix(in srgb, #c5221f 16%, var(--surface)) !important;
 }
 
-/* ---- Interface style (Basic ⇄ Modern) -------------------------------------
-   Set by the App shell as body[data-ui]. "modern" is the default: elevated,
-   rounded, roomier. "basic" strips the decoration back to flat and compact for
-   density over polish. Both work off the shared container classes, so a page
-   follows along without knowing the setting exists. -------------------------- */
+/* ---- Interface style: always the "modern" look — elevated, rounded, roomier. ---- */
 
-body[data-ui='modern'] .app-header {
+.app-header {
   background: linear-gradient(100deg, var(--brand), color-mix(in srgb, var(--brand) 68%, #7b5cff));
 }
 
-body[data-ui='modern'] .app-nav > a,
-body[data-ui='modern'] .nav-group-btn { border-radius: 99px; }
+.app-nav > a,
+.nav-group-btn { border-radius: 99px; }
 
-body[data-ui='modern'] .app-main { padding: 2rem 1.5rem; }
+.app-main { padding: 2rem 1.5rem; }
 
-body[data-ui='modern'] :is(.card, .panel, .call-card, .route-loader-card, .table-wrap, .form-card,
-                           .note-card, .login-card, .reminder, .cal, .col, .side, .thread-pane) {
+:is(.card, .panel, .call-card, .route-loader-card, .table-wrap, .form-card,
+    .note-card, .login-card, .reminder, .cal, .col, .side, .thread-pane) {
   border-radius: 14px;
   box-shadow: var(--shadow-sm);
 }
-
-body[data-ui='basic'] { --shadow-sm: none; }
-
-body[data-ui='basic'] .app-header { background: var(--brand); }
-
-body[data-ui='basic'] .app-main { padding: 1rem; max-width: 1180px; }
-
-body[data-ui='basic'] :is(.card, .panel, .call-card, .route-loader-card, .table-wrap, .form-card,
-                          .note-card, .login-card, .reminder, .cal, .col, .side, .thread-pane,
-                          .input, .btn, .seg, .tbl) {
-  border-radius: 4px;
-  box-shadow: none;
-}
-
-/* Compact rows: basic mode is for fitting more on screen. */
-body[data-ui='basic'] :is(.tbl th, .tbl td) { padding: 0.35rem 0.5rem; }
-body[data-ui='basic'] .app-nav > a { padding: 0.25rem 0.45rem; }
-body[data-ui='basic'] .card { padding: 0.75rem; }
