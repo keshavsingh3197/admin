@@ -19,7 +19,14 @@ export interface SsoSessionResponse {
   user: UserProfile;
 }
 
-/** Result of the password step: either a 2FA challenge or an established session. */
+/** One other active session on the same site, offered for removal in the conflict prompt. */
+export interface SessionConflictInfo {
+  id: string;
+  deviceLabel?: string | null;
+  createdAt: string;
+}
+
+/** Result of the password step: a 2FA challenge, a session-conflict prompt, or an established session. */
 export interface SsoLoginResponse {
   twoFactorRequired: boolean;
   twoFactorToken?: string;
@@ -27,6 +34,9 @@ export interface SsoLoginResponse {
   smsFallbackAvailable: boolean;
   whatsAppFallbackAvailable: boolean;
   session?: SsoSessionResponse;
+  requiresSessionConfirmation: boolean;
+  sessionConfirmationTicket?: string | null;
+  conflictingSessions?: SessionConflictInfo[] | null;
 }
 
 export type TwoFactorMethod = 'Totp' | 'Email' | 'BackupCode' | 'Sms' | 'WhatsApp';

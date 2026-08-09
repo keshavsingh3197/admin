@@ -110,12 +110,10 @@ builder.Services.AddSingleton<JwtService>();
 
 // ---- Shared auth engine (KeshavSingh.Auth) + this app's storage adapters ----
 // MongoRefreshTokenStore/MongoAuditSink come from KeshavSingh.Core (shared with content-blog).
-// Admin is the only app that enforces single-session-per-user, so it's wired via a callback
-// into the DB-backed SettingsService rather than being baked into the shared store.
+// Single-session-per-user is enforced by AuthEngine itself now (scoped per site via AppKey, with
+// a block-and-confirm prompt), so the store no longer needs a settings callback wired into it.
 builder.Services.AddScoped<IAuthUserStore, MongoAuthUserStore>();
-builder.Services.AddScoped<IRefreshTokenStore>(sp => new MongoRefreshTokenStore(
-    sp.GetRequiredService<MongoDbService>(),
-    () => sp.GetRequiredService<SettingsService>().EnforceSingleSessionPerUser));
+builder.Services.AddScoped<IRefreshTokenStore, MongoRefreshTokenStore>();
 builder.Services.AddScoped<IAuthAuditSink, MongoAuditSink>();
 // Auth settings are DB-backed (editable at runtime on the Settings screen) and also serve as the
 // engine's IAuthSettings. Seeded from the "Auth" config on first run (see SettingsService.InitAsync).

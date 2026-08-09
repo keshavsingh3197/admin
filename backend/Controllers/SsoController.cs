@@ -43,16 +43,17 @@ public sealed class SsoController : ControllerBase
         _twoFactorDevices = twoFactorDevices;
     }
 
-    /// <summary>Step 1: verify email + password. Sets the SSO cookie, or returns a 2FA challenge.</summary>
+    /// <summary>Step 1: verify email + password. Sets the SSO cookie, or returns a 2FA challenge
+    /// or a session-conflict prompt (another session already active for this same site).</summary>
     [HttpPost("login")]
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<SsoLoginResponse>> Login(LoginRequest request)
     {
-        var result = await _auth.LoginAsync(request);
+        var result = await _auth.LoginAsync(request, DeviceLabel());
 
         // 2FA required — hand back the step token; no cookie, no access token yet.
-        if (result.TwoFactorRequired || result.Tokens is null)
+        if (result.TwoFactorRequired)
             return Ok(new SsoLoginResponse(
                 TwoFactorRequired: true,
                 TwoFactorToken: result.TwoFactorToken,
@@ -61,23 +62,50 @@ public sealed class SsoController : ControllerBase
                 WhatsAppFallbackAvailable: result.WhatsAppFallbackAvailable,
                 Session: null));
 
-        return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens)));
+        // Another session already active for this site — ask before removing anything.
+        if (result.RequiresSessionConfirmation)
+            return Ok(new SsoLoginResponse(
+                false, null, false, false, false, Session: null,
+                RequiresSessionConfirmation: true,
+                SessionConfirmationTicket: result.SessionConfirmationTicket,
+                ConflictingSessions: result.ConflictingSessions));
+
+        return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
     }
 
-    /// <summary>Step 2: verify a TOTP, email, SMS, or backup code and establish the session.</summary>
+    /// <summary>Step 2: verify a TOTP, email, SMS, or backup code. Establishes the session, unless
+    /// another session is already active for this same site (then it's a conflict prompt too).</summary>
     [HttpPost("2fa/verify")]
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
-    public async Task<ActionResult<SsoSessionResponse>> VerifyTwoFactor(TwoFactorVerifyRequest request)
+    public async Task<ActionResult<SsoLoginResponse>> VerifyTwoFactor(TwoFactorVerifyRequest request)
     {
-        var tokens = await _auth.VerifyTwoFactorAsync(request);
+        var result = await _auth.VerifyTwoFactorAsync(request, DeviceLabel());
+
+        if (result.RequiresSessionConfirmation)
+            return Ok(new SsoLoginResponse(
+                false, null, false, false, false, Session: null,
+                RequiresSessionConfirmation: true,
+                SessionConfirmationTicket: result.SessionConfirmationTicket,
+                ConflictingSessions: result.ConflictingSessions));
 
         if (request.Method == TwoFactorMethod.Totp)
         {
-            await _twoFactorDevices.MarkUsedAsync(tokens.User.Id);
+            await _twoFactorDevices.MarkUsedAsync(result.Tokens!.User.Id);
         }
 
-        return Ok(IssueSession(tokens));
+        return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
+    }
+
+    /// <summary>Answers a session-conflict prompt: removes whichever other sessions on this same
+    /// site the user chose (or all of them), then finishes the login and sets the SSO cookie.</summary>
+    [HttpPost("session/confirm")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<SsoSessionResponse>> ConfirmSession(SessionConfirmRequest request)
+    {
+        var result = await _auth.ConfirmSessionAsync(request, DeviceLabel());
+        return Ok(IssueSession(result.Tokens!));
     }
 
     /// <summary>Sends the email-fallback OTP for a pending two-factor session.</summary>
@@ -153,6 +181,9 @@ public sealed class SsoController : ControllerBase
     }
 
     // ---- Helpers ----
+
+    /// <summary>Best-effort "Chrome on Windows" label for the session-conflict picker.</summary>
+    private string? DeviceLabel() => DeviceLabelHelper.FromUserAgent(Request.Headers.UserAgent.ToString());
 
     /// <summary>Writes the rotating refresh token to the SSO cookie; returns the in-body session.</summary>
     private SsoSessionResponse IssueSession(AuthTokens tokens)

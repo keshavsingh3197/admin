@@ -10,8 +10,9 @@ namespace Admin.Api.Auth;
 public sealed record SsoSessionResponse(string AccessToken, DateTime AccessTokenExpiresAt, UserProfile User);
 
 /// <summary>
-/// Result of the password step: either a two-factor challenge (no session yet) or an established
-/// <see cref="Session"/> (with the SSO cookie already set).
+/// Result of the password step: either a two-factor challenge, a session-conflict prompt (another
+/// session already active for this same site), or an established <see cref="Session"/> (with the
+/// SSO cookie already set).
 /// </summary>
 public sealed record SsoLoginResponse(
     bool TwoFactorRequired,
@@ -19,4 +20,7 @@ public sealed record SsoLoginResponse(
     bool EmailFallbackAvailable,
     bool SmsFallbackAvailable,
     bool WhatsAppFallbackAvailable,
-    SsoSessionResponse? Session);
+    SsoSessionResponse? Session,
+    bool RequiresSessionConfirmation = false,
+    string? SessionConfirmationTicket = null,
+    IReadOnlyList<SessionConflictInfo>? ConflictingSessions = null);

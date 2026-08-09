@@ -46,15 +46,26 @@ export class AuthService {
 
   // ---- Login flow ----
 
-  login(email: string, password: string): Observable<SsoLoginResponse> {
+  login(email: string, password: string, appKey: string): Observable<SsoLoginResponse> {
     return this.http
-      .post<SsoLoginResponse>(`${this.base}/sso/login`, { email, password }, { withCredentials: true })
+      .post<SsoLoginResponse>(`${this.base}/sso/login`, { email, password, appKey }, { withCredentials: true })
       .pipe(tap(res => { if (res.session) this.setSession(res.session); }));
   }
 
-  verifyTwoFactor(twoFactorToken: string, code: string, method: TwoFactorMethod): Observable<SsoSessionResponse> {
+  verifyTwoFactor(twoFactorToken: string, code: string, method: TwoFactorMethod): Observable<SsoLoginResponse> {
     return this.http
-      .post<SsoSessionResponse>(`${this.base}/sso/2fa/verify`, { twoFactorToken, code, method }, { withCredentials: true })
+      .post<SsoLoginResponse>(`${this.base}/sso/2fa/verify`, { twoFactorToken, code, method }, { withCredentials: true })
+      .pipe(tap(res => { if (res.session) this.setSession(res.session); }));
+  }
+
+  /** Answers a session-conflict prompt: which other sessions (if any) to remove before finishing. */
+  confirmSession(sessionConfirmationTicket: string, opts: { revokeSessionIds?: string[]; revokeAllOthers?: boolean }): Observable<SsoSessionResponse> {
+    return this.http
+      .post<SsoSessionResponse>(`${this.base}/sso/session/confirm`, {
+        sessionConfirmationTicket,
+        revokeSessionIds: opts.revokeSessionIds ?? null,
+        revokeAllOthers: opts.revokeAllOthers ?? false,
+      }, { withCredentials: true })
       .pipe(tap(session => this.setSession(session)));
   }
 
