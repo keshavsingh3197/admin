@@ -1,13 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { WebsiteContentService } from '../../core/services/website.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { LocalizationAdminService } from '../../core/services/localization-admin.service';
 import { WebsiteContentView } from '../../core/models/website.models';
-import { WebsiteLinkView } from '../../core/models/settings.models';
+import { ApplicationMetrics, WebsiteLinkView } from '../../core/models/settings.models';
 import { LocaleView } from '../../core/models/localization.models';
 
 /**
@@ -22,14 +21,13 @@ import { LocaleView } from '../../core/models/localization.models';
   selector: 'app-website-manage',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="page">
       <header class="head">
         <div>
           <h1>Websites</h1>
-          <p class="subtitle">Content the public sites read from this API. Add sites in
-            <a routerLink="/settings">Settings</a>.</p>
+          <p class="subtitle">Manage registered applications, access footprint, and published content.</p>
         </div>
         <div class="ops">
           <label class="inline">
@@ -44,6 +42,9 @@ import { LocaleView } from '../../core/models/localization.models';
         </div>
       </header>
 
+      <div class="tabs"><button [class.active]="tab() === 'applications'" (click)="tab.set('applications')">Applications</button><button [class.active]="tab() === 'content'" (click)="tab.set('content')">Content</button></div>
+
+      @if (tab() === 'content') {
       <div class="grid">
         <div class="col list">
           @for (c of entries(); track c.id) {
@@ -119,6 +120,27 @@ import { LocaleView } from '../../core/models/localization.models';
           }
         </div>
       </div>
+      } @else {
+        <div class="app-layout">
+          <section class="col app-list">
+            @for (app of sites(); track app.id) {
+              <button class="app-row" [class.on]="selectedApp()?.id === app.id" (click)="selectApp(app)"><span><strong>{{ app.name }}</strong><small>{{ app.key }} · {{ app.isEnabled ? 'Enabled' : 'Disabled' }}</small></span><span aria-hidden="true">›</span></button>
+            }
+            <button class="btn primary new-app" (click)="newApplication()">+ New application</button>
+          </section>
+          <section class="col app-detail">
+            @if (selectedApp() && appMetrics(); as metrics) {
+              <div class="metric-grid"><article><span>Users</span><strong>{{ metrics.userCount }}</strong></article><article><span>Roles</span><strong>{{ metrics.roleCount }}</strong></article><article><span>Groups</span><strong>{{ metrics.groupCount }}</strong></article><article><span>Sessions</span><strong>{{ metrics.activeSessionCount }}</strong></article></div>
+            }
+            <div class="app-form">
+              <div class="grid-2"><label class="field"><span>Application key</span><input class="input" [(ngModel)]="appDraft.key" [readonly]="!!editingAppId" placeholder="portfolio"></label><label class="field"><span>Name</span><input class="input" [(ngModel)]="appDraft.name" placeholder="Portfolio"></label></div>
+              <label class="field"><span>URL</span><input class="input" type="url" [(ngModel)]="appDraft.url" placeholder="https://example.keshavsingh.in"></label>
+              <div class="grid-2"><label class="field"><span>Sort order</span><input class="input" type="number" [(ngModel)]="appDraft.sortOrder"></label><label class="check app-enabled"><input type="checkbox" [(ngModel)]="appDraft.isEnabled"> Enabled</label></div>
+              <div class="row-actions"><button class="btn primary" [disabled]="busy()" (click)="saveApplication()">{{ editingAppId ? 'Update application' : 'Create application' }}</button>@if (editingAppId) { <button class="btn danger" [disabled]="busy()" (click)="deleteApplication()">Delete</button> }</div>
+            </div>
+          </section>
+        </div>
+      }
 
       @if (message()) { <p class="message">{{ message() }}</p> }
       @if (error()) { <div class="toast" (click)="error.set(null)">{{ error() }}</div> }
@@ -130,6 +152,7 @@ import { LocaleView } from '../../core/models/localization.models';
     h1 { margin:0; }
     .subtitle { color:var(--muted); font-size:.88rem; margin:.2rem 0 0; }
     .ops { display:flex; gap:.5rem; align-items:flex-end; flex-wrap:wrap; }
+    .tabs{display:flex;gap:1rem;border-bottom:1px solid var(--border);margin-top:1rem}.tabs button{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);padding:.65rem .1rem;cursor:pointer;font-weight:600}.tabs button.active{color:var(--text);border-color:var(--brand)}
     .inline { display:flex; flex-direction:column; gap:.15rem; font-size:.78rem; color:var(--muted); }
     .grid { display:grid; grid-template-columns:320px 1fr; gap:1rem; margin-top:1rem; align-items:start; }
     .col { border:1px solid var(--border); border-radius:12px; background:var(--surface); overflow:hidden; }
@@ -167,7 +190,7 @@ import { LocaleView } from '../../core/models/localization.models';
     .message { color:var(--muted); font-size:.82rem; margin-top:.5rem; }
     .toast { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:#fce8e6; color:#c5221f;
       border:1px solid #f5c6c6; border-radius:8px; padding:.6rem 1rem; z-index:50; cursor:pointer; }
-    @media (max-width: 900px) { .grid { grid-template-columns:1fr; } }
+    .app-layout{display:grid;grid-template-columns:300px 1fr;gap:1rem;margin-top:1rem;align-items:start}.app-list{padding:.4rem}.app-row{display:flex;align-items:center;justify-content:space-between;width:100%;padding:.7rem;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;text-align:left}.app-row span:first-child{display:flex;flex-direction:column;gap:.15rem}.app-row small{color:var(--muted)}.app-row.on{background:color-mix(in srgb,var(--brand) 10%,var(--surface))}.new-app{margin:.7rem}.app-detail{padding:1rem}.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem}.metric-grid article{border:1px solid var(--border);padding:.7rem;border-radius:7px}.metric-grid span{display:block;color:var(--muted);font-size:.72rem}.metric-grid strong{font-size:1.2rem}.app-form{border-top:1px solid var(--border);padding-top:1rem}.app-enabled{align-self:end;padding:.55rem 0}@media (max-width: 900px) { .grid,.app-layout { grid-template-columns:1fr; }.metric-grid{grid-template-columns:repeat(2,1fr)} }
   `],
 })
 export class WebsiteManageComponent implements OnInit {
@@ -178,6 +201,9 @@ export class WebsiteManageComponent implements OnInit {
   /** Registered languages: content is authored one row per language for the same key. */
   locales = signal<LocaleView[]>([]);
   sites = signal<WebsiteLinkView[]>([]);
+  tab = signal<'applications' | 'content'>('applications');
+  selectedApp = signal<WebsiteLinkView | null>(null);
+  appMetrics = signal<ApplicationMetrics | null>(null);
   entries = signal<WebsiteContentView[]>([]);
   active = signal<WebsiteContentView | null>(null);
   site = signal('');
@@ -189,10 +215,12 @@ export class WebsiteManageComponent implements OnInit {
   error = signal<string | null>(null);
 
   draft = this.blank();
+  editingAppId: string | null = null;
+  appDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 0 };
 
   ngOnInit(): void {
     this.settings.listWebsites().subscribe({
-      next: list => this.sites.set(list),
+      next: list => { this.sites.set(list); if (list.length) this.selectApp(list[0]); },
       error: () => this.error.set('Could not load the website registry.'),
     });
     this.localization.listLocales().subscribe({
@@ -213,6 +241,36 @@ export class WebsiteManageComponent implements OnInit {
     this.site.set(key);
     this.cancel();
     this.load();
+  }
+
+  selectApp(app: WebsiteLinkView): void {
+    this.selectedApp.set(app);
+    this.editingAppId = app.id;
+    this.appDraft = { key: app.key, name: app.name, url: app.url, isEnabled: app.isEnabled, sortOrder: app.sortOrder };
+    this.appMetrics.set(null);
+    this.settings.websiteMetrics(app.key).subscribe({ next: metrics => this.appMetrics.set(metrics), error: () => this.error.set('Could not load application metrics.') });
+  }
+
+  newApplication(): void {
+    this.selectedApp.set(null);
+    this.appMetrics.set(null);
+    this.editingAppId = null;
+    this.appDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: this.sites().length };
+  }
+
+  saveApplication(): void {
+    if (!this.appDraft.key.trim() || !this.appDraft.name.trim() || !this.appDraft.url.trim()) { this.error.set('Key, name, and URL are required.'); return; }
+    this.busy.set(true);
+    const request = { ...this.appDraft, key: this.appDraft.key.trim(), name: this.appDraft.name.trim(), url: this.appDraft.url.trim() };
+    const operation = this.editingAppId ? this.settings.updateWebsite(this.editingAppId, request) : this.settings.createWebsite(request);
+    operation.subscribe({ next: saved => { this.busy.set(false); this.sites.update(items => [...items.filter(item => item.id !== saved.id), saved].sort((a, b) => a.sortOrder - b.sortOrder)); this.selectApp(saved); this.message.set(`Saved application ${saved.name}.`); }, error: (err: HttpErrorResponse) => { this.busy.set(false); this.error.set(err.error?.error ?? 'Could not save the application.'); } });
+  }
+
+  deleteApplication(): void {
+    const app = this.selectedApp();
+    if (!app || !confirm(`Delete application "${app.name}"? Its content records are not deleted.`)) return;
+    this.busy.set(true);
+    this.settings.deleteWebsite(app.id).subscribe({ next: () => { this.busy.set(false); this.sites.update(items => items.filter(item => item.id !== app.id)); this.newApplication(); }, error: () => { this.busy.set(false); this.error.set('Could not delete the application.'); } });
   }
 
   load(): void {

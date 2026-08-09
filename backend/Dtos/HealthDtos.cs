@@ -7,7 +7,9 @@ public sealed record HealthCheckDto(
     string Label,
     string Status,
     string Message,
-    DateTime CheckedAtUtc
+    DateTime CheckedAtUtc,
+    long? DurationMs = null,
+    string? ActionRoute = null
 );
 
 public sealed record HealthReportDto(

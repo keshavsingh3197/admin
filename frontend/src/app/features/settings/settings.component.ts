@@ -49,48 +49,8 @@ interface SettingsImportPayload {
           <label class="field"><span>Blog admin URL</span>
             <input class="input" type="url" name="blogadmin" [(ngModel)]="m.blogAdminUrl" /></label>
 
-          <h2>Website registry (DB)</h2>
-          <p class="hint">These records are stored in the Mongo collection <strong>websites</strong>. Analytics and launcher targets read from this registry.</p>
-          <div class="website-editor">
-            <div class="grid">
-              <label class="field"><span>Key</span>
-                <input class="input" type="text" name="wkey" [(ngModel)]="websiteDraft.key" /></label>
-              <label class="field"><span>Name</span>
-                <input class="input" type="text" name="wname" [(ngModel)]="websiteDraft.name" /></label>
-              <label class="field"><span>URL</span>
-                <input class="input" type="url" name="wurl" [(ngModel)]="websiteDraft.url" /></label>
-              <label class="field"><span>Sort order</span>
-                <input class="input" type="number" name="wsort" [(ngModel)]="websiteDraft.sortOrder" /></label>
-            </div>
-            <label class="chk"><input type="checkbox" name="wenabled" [(ngModel)]="websiteDraft.isEnabled" /> Enabled</label>
-            <div class="row-actions">
-              <button class="btn-secondary" type="button" [disabled]="busy()" (click)="saveWebsite()">{{ editingWebsiteId ? 'Update website' : 'Add website' }}</button>
-              <button class="btn-secondary" type="button" [disabled]="busy()" (click)="resetWebsiteDraft()">Clear</button>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table class="tbl">
-              <thead>
-                <tr><th>Key</th><th>Name</th><th>URL</th><th>Enabled</th><th>Order</th><th></th></tr>
-              </thead>
-              <tbody>
-                @for (w of websites(); track w.id) {
-                  <tr>
-                    <td>{{ w.key }}</td>
-                    <td>{{ w.name }}</td>
-                    <td><a [href]="w.url" target="_blank" rel="noopener">{{ w.url }}</a></td>
-                    <td>{{ w.isEnabled ? 'Yes' : 'No' }}</td>
-                    <td>{{ w.sortOrder }}</td>
-                    <td class="row-actions">
-                      <button class="btn-link" type="button" [disabled]="busy()" (click)="editWebsite(w)">Edit</button>
-                      <button class="btn-link danger" type="button" [disabled]="busy()" (click)="deleteWebsite(w.id)">Delete</button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+          <h2>Applications</h2>
+          <p class="hint">Application registry, access counts, and website content are managed together on the <a routerLink="/website">Websites</a> page.</p>
 
           <h2>Session lifetime</h2>
           <p class="hint">These values are stored in Mongo and affect newly issued tokens. Existing tokens keep their current expiry.</p>
@@ -299,8 +259,6 @@ export class SettingsComponent implements OnInit {
   whatsAppAccessTokenInput = '';
   /** Write-only draft for the R2 secret access key; blank means "leave the stored secret unchanged". */
   storageS3SecretInput = '';
-  editingWebsiteId: string | null = null;
-  websiteDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 100 };
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
@@ -346,72 +304,6 @@ export class SettingsComponent implements OnInit {
       },
       error: (err: HttpErrorResponse) => { this.busy.set(false); this.fail(err, 'Could not save settings.'); },
     });
-  }
-
-  saveWebsite(): void {
-    const draft = this.websiteDraft;
-    this.busy.set(true);
-    this.message.set(null);
-
-    const payload = {
-      key: draft.key.trim(),
-      name: draft.name.trim(),
-      url: draft.url.trim(),
-      isEnabled: draft.isEnabled,
-      sortOrder: Number(draft.sortOrder),
-    };
-
-    const request$ = this.editingWebsiteId
-      ? this.api.updateWebsite(this.editingWebsiteId, payload)
-      : this.api.createWebsite(payload);
-
-    request$.subscribe({
-      next: () => {
-        this.busy.set(false);
-        this.ok.set(true);
-        this.message.set(this.editingWebsiteId ? 'Website updated.' : 'Website added.');
-        this.resetWebsiteDraft();
-        this.api.listWebsites().subscribe({ next: list => this.websites.set(list) });
-      },
-      error: (err: HttpErrorResponse) => {
-        this.busy.set(false);
-        this.fail(err, 'Could not save website.');
-      }
-    });
-  }
-
-  editWebsite(w: WebsiteLinkView): void {
-    this.editingWebsiteId = w.id;
-    this.websiteDraft = {
-      key: w.key,
-      name: w.name,
-      url: w.url,
-      isEnabled: w.isEnabled,
-      sortOrder: w.sortOrder,
-    };
-  }
-
-  deleteWebsite(id: string): void {
-    this.busy.set(true);
-    this.message.set(null);
-    this.api.deleteWebsite(id).subscribe({
-      next: () => {
-        this.busy.set(false);
-        this.ok.set(true);
-        this.message.set('Website deleted.');
-        this.resetWebsiteDraft();
-        this.api.listWebsites().subscribe({ next: list => this.websites.set(list) });
-      },
-      error: (err: HttpErrorResponse) => {
-        this.busy.set(false);
-        this.fail(err, 'Could not delete website.');
-      }
-    });
-  }
-
-  resetWebsiteDraft(): void {
-    this.editingWebsiteId = null;
-    this.websiteDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 100 };
   }
 
   exportConfig(): void {

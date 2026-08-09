@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { SettingsView, UpdateSettingsRequest, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../models/settings.models';
+import { ApplicationMetrics, SettingsView, UpdateSettingsRequest, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../models/settings.models';
 
 /** Client for the identity provider's runtime auth-security settings (/api/settings). */
 @Injectable({ providedIn: 'root' })
@@ -32,5 +32,9 @@ export class SettingsService {
 
   deleteWebsite(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/settings/websites/${encodeURIComponent(id)}`);
+  }
+
+  websiteMetrics(key: string): Observable<ApplicationMetrics> {
+    return this.http.get<ApplicationMetrics>(`${this.base}/settings/websites/${encodeURIComponent(key)}/metrics`);
   }
 }

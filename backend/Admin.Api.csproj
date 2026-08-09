@@ -32,12 +32,12 @@
     <!-- Shared auth + crypto from GitHub Packages. Restore reads the "github" source in
          the repo-root nuget.config, which needs the PACKAGES_READ_TOKEN env var. -->
     <PackageReference Include="KeshavSingh.Security" Version="0.4.0" />
-    <PackageReference Include="KeshavSingh.Auth" Version="0.6.0" />
+    <PackageReference Include="KeshavSingh.Auth" Version="0.6.1" />
     <!-- 0.2.0 adds the guarded query console used by DbConsoleController. -->
     <PackageReference Include="KeshavSingh.Mongo.NoSql" Version="0.2.0" />
     <!-- 0.6.0 adds the chat hub typing indicator. -->
     <PackageReference Include="KeshavSingh.Realtime" Version="0.6.0" />
-    <PackageReference Include="KeshavSingh.Core" Version="0.4.0" />
+    <PackageReference Include="KeshavSingh.Core" Version="0.4.1" />
     <PackageReference Include="KeshavSingh.Storage" Version="0.2.1" />
     <PackageReference Include="KeshavSingh.Finance" Version="0.3.0" />
     <!-- Runtime localisation + the config registry: languages, the string catalogue with JSON/CSV/Excel

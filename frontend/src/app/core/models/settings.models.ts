@@ -54,3 +54,10 @@ export interface UpsertWebsiteLinkRequest {
   isEnabled: boolean;
   sortOrder: number;
 }
+
+export interface ApplicationMetrics {
+  userCount: number;
+  roleCount: number;
+  groupCount: number;
+  activeSessionCount: number;
+}

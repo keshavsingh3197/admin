@@ -24,11 +24,14 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
       <div class="toolbar">
         <input class="input search" type="search" placeholder="🔍 Search notes…" [(ngModel)]="search" />
         <div class="chips">
-          <button class="chip" type="button" [class.active]="categoryFilter() === 'all'" (click)="categoryFilter.set('all')">All</button>
+          <button class="chip" type="button" [class.active]="categoryFilter() === 'all'" (click)="selectCategory('all')">All <span>{{ notes().length }}</span></button>
           @for (c of categories; track c) {
-            <button class="chip" type="button" [class.active]="categoryFilter() === c" (click)="categoryFilter.set(c)">{{ c }}</button>
+            <button class="chip" type="button" [class.active]="categoryFilter() === c" (click)="selectCategory(c)">{{ c }} <span>{{ categoryCount(c) }}</span></button>
           }
         </div>
+        <select class="input sort" [(ngModel)]="sortOrder" (ngModelChange)="page.set(1)" aria-label="Sort notes">
+          <option value="updated">Recently updated</option><option value="created">Recently created</option><option value="title">Title A–Z</option>
+        </select>
       </div>
 
       @if (errorMessage()) {
@@ -47,21 +50,23 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
         <p class="empty">No notes match your search or filter.</p>
       } @else {
         <div class="notes-grid">
-          @for (note of filteredNotes(); track note.id) {
-            <div class="note-card">
+          @for (note of pagedNotes(); track note.id) {
+            <article class="note-card">
               <div class="note-meta">
                 <span class="badge cat-{{ note.category }}">{{ note.category }}</span>
                 <small class="updated">{{ note.updatedAt | date:'short' }}</small>
               </div>
               <h3>{{ note.title }}</h3>
-              <p class="content">{{ note.content }}</p>
+              <p class="content" [class.expanded]="expandedId() === note.id">{{ note.content }}</p>
               <div class="note-actions">
+                <button class="text-btn" type="button" (click)="toggleExpanded(note.id!)">{{ expandedId() === note.id ? 'Show less' : 'Read note' }}</button>
                 <button class="icon-btn" type="button" (click)="edit(note)" title="Edit">✏️</button>
                 <button class="icon-btn danger" type="button" (click)="delete(note.id!)" title="Delete">🗑️</button>
               </div>
-            </div>
+            </article>
           }
         </div>
+        @if (pageCount() > 1) { <div class="pagination"><button class="btn-secondary" [disabled]="page() === 1" (click)="page.set(page() - 1)">Previous</button><span>Page {{ page() }} of {{ pageCount() }}</span><button class="btn-secondary" [disabled]="page() === pageCount()" (click)="page.set(page() + 1)">Next</button></div> }
       }
 
       @if (showForm()) {
@@ -80,8 +85,8 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
               <textarea class="input" rows="5" placeholder="Content" [(ngModel)]="form.content"></textarea>
             </label>
             <div class="form-actions">
-              <button class="btn-secondary" type="button" (click)="cancelForm()">Cancel</button>
-              <button class="btn-primary" type="button" (click)="save()">Save</button>
+              <button class="btn-secondary" type="button" [disabled]="saving()" (click)="cancelForm()">Cancel</button>
+              <button class="btn-primary" type="button" [disabled]="saving() || !form.title.trim() || !form.content.trim()" (click)="save()">{{ saving() ? 'Saving…' : 'Save' }}</button>
             </div>
           </div>
         </div>
@@ -96,6 +101,7 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
 
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
     .search { max-width: 280px; margin: 0; }
+    .sort { max-width: 180px; margin-left: auto; }
     .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .chip {
       background: var(--surface); color: var(--muted); border: 1px solid var(--border);
@@ -104,6 +110,7 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
     }
     .chip:hover { border-color: var(--brand); color: var(--brand); }
     .chip.active { background: var(--brand); color: var(--brand-text); border-color: var(--brand); }
+    .chip span { opacity: .72; margin-left: .2rem; }
 
     .input {
       display: block; width: 100%; margin-bottom: 0; padding: 0.5rem 0.75rem;
@@ -117,7 +124,7 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
 
     .notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
     .note-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
       padding: 1.25rem; box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s;
       display: flex; flex-direction: column;
     }
@@ -130,7 +137,9 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
       margin: 0 0 1rem; color: var(--muted); flex: 1;
       display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
     }
+    .note-card .content.expanded { display: block; overflow: visible; white-space: pre-wrap; }
     .note-actions { display: flex; justify-content: flex-end; gap: 0.4rem; }
+    .text-btn { margin-right: auto; border: 0; background: transparent; color: var(--brand); cursor: pointer; font-size: .82rem; }
     .icon-btn {
       display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px;
       border: 1px solid var(--border); background: var(--surface); border-radius: 7px; cursor: pointer; transition: .12s;
@@ -140,6 +149,8 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
 
     .btn-primary { background: var(--brand); color: var(--brand-text); border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
     .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: default; }
+    .pagination { display: flex; align-items: center; justify-content: flex-end; gap: .75rem; margin-top: 1rem; color: var(--muted); font-size: .82rem; }
 
     .loading, .empty { color: var(--muted); }
     .empty-state {
@@ -159,12 +170,16 @@ export class NotesComponent implements OnInit {
 
   notes = signal<Note[]>([]);
   loading = signal(false);
+  saving = signal(false);
   showForm = signal(false);
   errorMessage = signal<string | null>(null);
   editingNote: Note | null = null;
 
   search = signal('');
   categoryFilter = signal<Category | 'all'>('all');
+  sortOrder = signal<'updated' | 'created' | 'title'>('updated');
+  page = signal(1);
+  expandedId = signal<string | null>(null);
 
   readonly filteredNotes = computed(() => {
     const term = this.search().trim().toLowerCase();
@@ -175,8 +190,14 @@ export class NotesComponent implements OnInit {
         || note.title.toLowerCase().includes(term)
         || note.content.toLowerCase().includes(term);
       return matchesCategory && matchesSearch;
+    }).sort((a, b) => {
+      if (this.sortOrder() === 'title') return a.title.localeCompare(b.title);
+      const field = this.sortOrder() === 'created' ? 'createdAt' : 'updatedAt';
+      return String(b[field] ?? '').localeCompare(String(a[field] ?? ''));
     });
   });
+  readonly pageCount = computed(() => Math.max(1, Math.ceil(this.filteredNotes().length / 9)));
+  readonly pagedNotes = computed(() => this.filteredNotes().slice((this.page() - 1) * 9, this.page() * 9));
 
   form: Note = { title: '', content: '', category: 'general' };
 
@@ -204,6 +225,10 @@ export class NotesComponent implements OnInit {
     this.showForm.set(true);
   }
 
+  selectCategory(category: Category | 'all') { this.categoryFilter.set(category); this.page.set(1); }
+  categoryCount(category: Category) { return this.notes().filter((note) => note.category === category).length; }
+  toggleExpanded(id: string) { this.expandedId.update((current) => current === id ? null : id); }
+
   edit(note: Note) {
     this.editingNote = note;
     this.form = { ...note };
@@ -216,15 +241,20 @@ export class NotesComponent implements OnInit {
   }
 
   save() {
+    this.form.title = this.form.title.trim();
+    this.form.content = this.form.content.trim();
+    if (!this.form.title || !this.form.content) return;
+    this.saving.set(true);
     if (this.editingNote?.id) {
-      this.api.updateNote(this.editingNote.id, this.form).subscribe({
-        next: () => { this.cancelForm(); this.loadNotes(); },
-        error: () => this.errorMessage.set('Failed to update note. Please try again.')
+      const id = this.editingNote.id;
+      this.api.updateNote(id, this.form).subscribe({
+        next: () => { this.notes.update((notes) => notes.map((note) => note.id === id ? { ...note, ...this.form, updatedAt: new Date().toISOString() } : note)); this.saving.set(false); this.cancelForm(); },
+        error: () => { this.saving.set(false); this.errorMessage.set('Failed to update note. Please try again.'); }
       });
     } else {
       this.api.createNote(this.form).subscribe({
-        next: () => { this.cancelForm(); this.loadNotes(); },
-        error: () => this.errorMessage.set('Failed to create note. Please try again.')
+        next: (created) => { this.notes.update((notes) => [created, ...notes]); this.saving.set(false); this.cancelForm(); },
+        error: () => { this.saving.set(false); this.errorMessage.set('Failed to create note. Please try again.'); }
       });
     }
   }
@@ -232,7 +262,7 @@ export class NotesComponent implements OnInit {
   delete(id: string) {
     if (confirm('Delete this note?')) {
       this.api.deleteNote(id).subscribe({
-        next: () => this.loadNotes(),
+        next: () => { this.notes.update((notes) => notes.filter((note) => note.id !== id)); if (this.page() > this.pageCount()) this.page.set(this.pageCount()); },
         error: () => this.errorMessage.set('Failed to delete note. Please try again.')
       });
     }

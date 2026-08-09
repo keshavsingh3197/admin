@@ -1,5 +1,6 @@
 using Admin.Api.Models;
 using Admin.Api.Services;
+using KeshavSingh.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,30 +22,36 @@ public class NotesController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<List<Note>>> GetAll() =>
-        Ok(await _noteService.GetAllAsync());
+        Ok(await _noteService.GetAllAsync(User.GetUserId()));
 
     [HttpGet("{id}")]
     public async Task<ActionResult<Note>> GetById(string id)
     {
-        var note = await _noteService.GetByIdAsync(id);
+        var note = await _noteService.GetByIdAsync(id, User.GetUserId());
         return note is null ? NotFound() : Ok(note);
     }
 
     [HttpPost]
     public async Task<ActionResult<Note>> Create([FromBody] Note note)
     {
-        var created = await _noteService.CreateAsync(note);
+        if (string.IsNullOrWhiteSpace(note.Title) || string.IsNullOrWhiteSpace(note.Content))
+            return BadRequest("Title and content are required.");
+
+        var created = await _noteService.CreateAsync(note, User.GetUserId());
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, [FromBody] Note note)
     {
-        var existing = await _noteService.GetByIdAsync(id);
+        var userId = User.GetUserId();
+        var existing = await _noteService.GetByIdAsync(id, userId);
         if (existing is null) return NotFound();
+        if (string.IsNullOrWhiteSpace(note.Title) || string.IsNullOrWhiteSpace(note.Content))
+            return BadRequest("Title and content are required.");
 
-        note.Id = id;
-        var updated = await _noteService.UpdateAsync(id, note);
+        note.CreatedAt = existing.CreatedAt;
+        var updated = await _noteService.UpdateAsync(id, userId, note);
         if (!updated)
         {
             _logger.LogWarning("Update operation for note {NoteId} was acknowledged but modified 0 documents.", id);
@@ -57,7 +64,7 @@ public class NotesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
-        var deleted = await _noteService.DeleteAsync(id);
+        var deleted = await _noteService.DeleteAsync(id, User.GetUserId());
         return deleted ? NoContent() : NotFound();
     }
 }

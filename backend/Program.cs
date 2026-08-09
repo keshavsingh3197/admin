@@ -88,6 +88,7 @@ builder.Services.AddSingleton<CustomRoleService>();
 builder.Services.AddSingleton<GroupService>();
 builder.Services.AddSingleton<PermissionsService>();
 builder.Services.AddSingleton<SearchService>();
+builder.Services.AddScoped<ApplicationMetricsService>();
 // The database console (KeshavSingh.Mongo.NoSql): an Admin-only query editor over this app's own Mongo.
 // Writes are opt-in and single-document only; the package guard refuses server-side JavaScript, $out /
 // $merge and system collections, and redacts secret fields on the way out. See DbConsoleController.

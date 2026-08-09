@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { HealthService } from '../../core/services/health.service';
 import { HealthCheck, HealthReport, HealthStatus } from '../../core/models/health.models';
@@ -14,7 +15,7 @@ type StatusFilter = 'all' | HealthStatus;
  */
 @Component({
   selector: 'app-health',
-  imports: [DatePipe, FormsModule],
+  imports: [DatePipe, FormsModule, RouterLink],
   template: `
     <div class="wrap">
       <div class="head">
@@ -31,6 +32,7 @@ type StatusFilter = 'all' | HealthStatus;
         <div class="initial-loading"><span class="spinner"></span> Running checks…</div>
       } @else if (report(); as r) {
         <div class="summary">
+          <div class="overall" [class.healthy]="r.errorCount === 0 && r.warningCount === 0" [class.degraded]="r.errorCount === 0 && r.warningCount > 0"><strong>{{ overallLabel() }}</strong><span>{{ overallMessage() }}</span></div>
           <div class="pill ok">{{ r.okCount }} OK</div>
           <div class="pill warning">{{ r.warningCount }} Warning</div>
           <div class="pill error">{{ r.errorCount }} Error</div>
@@ -63,6 +65,7 @@ type StatusFilter = 'all' | HealthStatus;
                       <strong>{{ c.label }}</strong>
                     </div>
                     <p>{{ c.message }}</p>
+                    <div class="check-foot">@if (c.durationMs !== null && c.durationMs !== undefined) { <span>{{ c.durationMs }} ms</span> } @if (c.actionRoute && c.status !== 'ok') { <a [routerLink]="c.actionRoute">Review</a> }</div>
                   </div>
                 }
               </div>
@@ -90,6 +93,8 @@ type StatusFilter = 'all' | HealthStatus;
     .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.8rem 0; }
+    .overall { flex: 1 0 100%; display: flex; flex-direction: column; gap: .2rem; border-left: 4px solid #c5221f; background: var(--surface); padding: .75rem 1rem; border-radius: 6px; }
+    .overall.healthy { border-color: #137333; } .overall.degraded { border-color: #b06000; } .overall span { color: var(--muted); font-size: .82rem; }
     .pill { padding: 0.3rem 0.7rem; border-radius: 999px; font-weight: 600; font-size: 0.85rem; }
     .pill.ok { background: #e6f4ea; color: #137333; }
     .pill.warning { background: #fef7e0; color: #b06000; }
@@ -105,6 +110,7 @@ type StatusFilter = 'all' | HealthStatus;
     .check-head { display: flex; align-items: center; gap: 0.45rem; }
     .check-head strong { color: var(--text); font-size: 0.92rem; }
     .check p { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.85rem; }
+    .check-foot { display:flex; justify-content:space-between; margin-top:.55rem; color:var(--muted); font-size:.72rem; }.check-foot a{color:var(--brand);text-decoration:none;font-weight:600}
     .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
     .check.ok .dot { background: #137333; }
     .check.warning .dot { background: #b06000; }
@@ -135,6 +141,9 @@ export class HealthComponent implements OnInit {
     }
     return Array.from(byCategory.entries()).map(([category, items]) => ({ category, checks: items }));
   });
+
+  overallLabel(): string { const report = this.report(); return report?.errorCount ? 'Action required' : report?.warningCount ? 'Degraded' : 'All systems operational'; }
+  overallMessage(): string { const report = this.report(); return report?.errorCount ? `${report.errorCount} check(s) require attention.` : report?.warningCount ? `${report.warningCount} warning(s) should be reviewed.` : 'All diagnostic checks completed successfully.'; }
 
   ngOnInit(): void {
     this.reload();

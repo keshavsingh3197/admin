@@ -7,6 +7,8 @@ export interface HealthCheck {
   status: HealthStatus;
   message: string;
   checkedAtUtc: string;
+  durationMs?: number | null;
+  actionRoute?: string | null;
 }
 
 export interface HealthReport {

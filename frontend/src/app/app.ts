@@ -39,7 +39,6 @@ const PRIMARY_LINKS: NavLink[] = [
   { path: '/files', labelKey: 'admin.nav.files', icon: '📁', exact: false },
   { path: '/short-links', labelKey: 'admin.nav.shortLinks', icon: '🔗', exact: false },
   { path: '/finance', labelKey: 'admin.nav.finance', icon: '💰', exact: false },
-  { path: '/security', labelKey: 'admin.nav.security', icon: '🔐', exact: false },
 ];
 
 const ADMIN_LINKS: NavLink[] = [
@@ -81,6 +80,7 @@ export class App {
   readonly routeLoading = signal(false);
   readonly navOpen = signal(false);
   readonly manageOpen = signal(false);
+  readonly accountOpen = signal(false);
   readonly theme = signal<'light' | 'dark' | 'brand'>(this.detectInitialTheme());
 
   constructor() {
@@ -117,6 +117,7 @@ export class App {
           this.routeLoading.set(false);
           this.navOpen.set(false);
           this.manageOpen.set(false);
+          this.accountOpen.set(false);
         }
 
         // Track this admin app itself as a website in Analytics, same as the external sites.
@@ -161,18 +162,26 @@ export class App {
 
   toggleManage(): void {
     this.manageOpen.update((open) => !open);
+    this.accountOpen.set(false);
+  }
+
+  toggleAccount(): void {
+    this.accountOpen.update((open) => !open);
+    this.manageOpen.set(false);
   }
 
   /** Clicking anywhere outside the Manage menu closes it, the way a menu is expected to behave. */
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    if (!this.manageOpen()) return;
-    if (!(event.target as HTMLElement)?.closest('.nav-group')) this.manageOpen.set(false);
+    const target = event.target as HTMLElement;
+    if (this.manageOpen() && !target?.closest('.nav-group')) this.manageOpen.set(false);
+    if (this.accountOpen() && !target?.closest('.account-menu')) this.accountOpen.set(false);
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
     this.manageOpen.set(false);
+    this.accountOpen.set(false);
     this.navOpen.set(false);
   }
 

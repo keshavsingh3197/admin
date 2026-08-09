@@ -1,5 +1,6 @@
 using Admin.Api.Dtos;
 using Admin.Api.Models;
+using System.Diagnostics;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -59,14 +60,15 @@ public sealed class HealthCheckService
     private async Task<HealthCheckDto> CheckDatabaseAsync(CancellationToken ct)
     {
         var now = DateTime.UtcNow;
+        var timer = Stopwatch.StartNew();
         try
         {
             await _db.Database.RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1), cancellationToken: ct);
-            return new HealthCheckDto("database.ping", "Database", "MongoDB connectivity", "ok", "Ping succeeded.", now);
+            return new HealthCheckDto("database.ping", "Database", "MongoDB connectivity", "ok", "Ping succeeded.", now, timer.ElapsedMilliseconds, "/database");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return new HealthCheckDto("database.ping", "Database", "MongoDB connectivity", "error", $"Ping failed: {ex.Message}", now);
+            return new HealthCheckDto("database.ping", "Database", "MongoDB connectivity", "error", "Database did not respond to the connectivity check.", now, timer.ElapsedMilliseconds, "/database");
         }
     }
 
@@ -171,28 +173,26 @@ public sealed class HealthCheckService
 
     private async Task<IReadOnlyList<HealthCheckDto>> CheckWebsitesAsync(CancellationToken ct)
     {
-        var now = DateTime.UtcNow;
         var sites = await _websites.ListAsync(ct);
-        var results = new List<HealthCheckDto>();
-
-        foreach (var site in sites.Where(x => x.IsEnabled))
-        {
+        var checks = sites.Where(x => x.IsEnabled).Select(async site => {
+            var now = DateTime.UtcNow;
+            var timer = Stopwatch.StartNew();
             var key = $"website.{site.Key}";
             try
             {
                 var client = _httpClientFactory.CreateClient();
                 client.Timeout = TimeSpan.FromSeconds(6);
                 using var response = await client.GetAsync(site.Url, HttpCompletionOption.ResponseHeadersRead, ct);
-                results.Add(response.IsSuccessStatusCode
-                    ? new HealthCheckDto(key, "Websites", site.Name, "ok", $"Reachable (HTTP {(int)response.StatusCode}).", now)
-                    : new HealthCheckDto(key, "Websites", site.Name, "warning", $"Responded with HTTP {(int)response.StatusCode}.", now));
+                return response.IsSuccessStatusCode
+                    ? new HealthCheckDto(key, "Websites", site.Name, "ok", $"Reachable (HTTP {(int)response.StatusCode}).", now, timer.ElapsedMilliseconds, "/website")
+                    : new HealthCheckDto(key, "Websites", site.Name, "warning", $"Responded with HTTP {(int)response.StatusCode}.", now, timer.ElapsedMilliseconds, "/website");
             }
-            catch (Exception ex)
+            catch (Exception) when (!ct.IsCancellationRequested)
             {
-                results.Add(new HealthCheckDto(key, "Websites", site.Name, "error", $"Unreachable: {ex.Message}", now));
+                return new HealthCheckDto(key, "Websites", site.Name, "error", "The website did not respond within the health-check window.", now, timer.ElapsedMilliseconds, "/website");
             }
-        }
+        });
 
-        return results;
+        return await Task.WhenAll(checks);
     }
 }

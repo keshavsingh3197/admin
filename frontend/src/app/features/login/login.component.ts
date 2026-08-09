@@ -33,28 +33,24 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
 
         @if (removedSessionCount() !== null) {
           <div class="info-banner">
-            Removed {{ removedSessionCount() }} other session{{ removedSessionCount() === 1 ? '' : 's' }} on this app.
+            Deleted {{ removedSessionCount() }} previous session{{ removedSessionCount() === 1 ? '' : 's' }} for this app. This is now the only active session.
             <button type="button" class="btn-primary" style="margin-top: 0.75rem;" (click)="finish()">Continue</button>
           </div>
         } @else if (sessionConflict()) {
           <div class="conflict-panel">
-            <p class="login-sub">You're already signed in to this app elsewhere. Remove those sessions to continue, or cancel.</p>
+            <p class="login-sub">This app allows one active session. Continuing will delete the previous session{{ sessionConflict()!.sessions.length === 1 ? '' : 's' }} listed below.</p>
             <ul class="session-list">
               @for (s of sessionConflict()!.sessions; track s.id) {
-                <li class="session-row" [class.kept]="!isMarkedForRemoval(s.id)">
+                <li class="session-row">
                   <span class="session-info">
                     <strong>{{ s.deviceLabel || 'Unknown device' }}</strong>
                     <small>Signed in {{ s.createdAt | date: 'medium' }}</small>
                   </span>
-                  <button type="button" class="icon-btn" [attr.aria-label]="isMarkedForRemoval(s.id) ? 'Keep this session' : 'Remove this session'"
-                          (click)="toggleRemoval(s.id)">
-                    {{ isMarkedForRemoval(s.id) ? '🗑️' : '↩️' }}
-                  </button>
                 </li>
               }
             </ul>
             <button class="btn-primary" type="button" [disabled]="loading()" (click)="confirmSessionRemoval()">
-              {{ loading() ? 'Signing in…' : 'Remove selected & sign in' }}
+              {{ loading() ? 'Replacing session…' : 'Delete previous & sign in' }}
             </button>
             <button type="button" class="linkish back" (click)="cancelSessionConflict()">← Cancel</button>
           </div>
@@ -173,14 +169,8 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
       display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
       padding: 0.6rem 0; border-bottom: 1px solid var(--border);
     }
-    .session-row.kept { opacity: 0.55; }
     .session-info { display: flex; flex-direction: column; font-size: 0.85rem; }
     .session-info small { color: var(--muted); }
-    .icon-btn {
-      background: none; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
-      padding: 0.3rem 0.5rem; font-size: 1rem; line-height: 1;
-    }
-    .icon-btn:hover { background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
   `]
 })
 export class LoginComponent implements OnInit {
@@ -224,30 +214,18 @@ export class LoginComponent implements OnInit {
   }
 
   readonly sessionConflict = signal<{ ticket: string; sessions: SessionConflictInfo[] } | null>(null);
-  private removalSet = signal<Set<string>>(new Set());
   readonly removedSessionCount = signal<number | null>(null);
-
-  isMarkedForRemoval(id: string): boolean {
-    return this.removalSet().has(id);
-  }
-
-  toggleRemoval(id: string): void {
-    const next = new Set(this.removalSet());
-    if (next.has(id)) next.delete(id); else next.add(id);
-    this.removalSet.set(next);
-  }
 
   confirmSessionRemoval(): void {
     const conflict = this.sessionConflict();
     if (!conflict) return;
     this.loading.set(true);
     this.errorMessage.set(null);
-    const revokeSessionIds = [...this.removalSet()];
-    this.auth.confirmSession(conflict.ticket, { revokeSessionIds }).subscribe({
+    this.auth.confirmSession(conflict.ticket, { revokeAllOthers: true }).subscribe({
       next: () => {
         this.loading.set(false);
         this.sessionConflict.set(null);
-        this.removedSessionCount.set(revokeSessionIds.length);
+        this.removedSessionCount.set(conflict.sessions.length);
       },
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
@@ -280,7 +258,6 @@ export class LoginComponent implements OnInit {
       next: res => {
         this.loading.set(false);
         if (res.requiresSessionConfirmation && res.sessionConfirmationTicket) {
-          this.removalSet.set(new Set((res.conflictingSessions ?? []).map(s => s.id)));
           this.sessionConflict.set({ ticket: res.sessionConfirmationTicket, sessions: res.conflictingSessions ?? [] });
         } else if (res.twoFactorRequired && res.twoFactorToken) {
           this.twoFactorToken = res.twoFactorToken;
@@ -308,7 +285,6 @@ export class LoginComponent implements OnInit {
       next: res => {
         this.loading.set(false);
         if (res.requiresSessionConfirmation && res.sessionConfirmationTicket) {
-          this.removalSet.set(new Set((res.conflictingSessions ?? []).map(s => s.id)));
           this.sessionConflict.set({ ticket: res.sessionConfirmationTicket, sessions: res.conflictingSessions ?? [] });
         } else {
           this.finish();

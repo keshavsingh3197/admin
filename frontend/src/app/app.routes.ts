@@ -113,6 +113,12 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'sessions',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/sessions/sessions.component').then((m) => m.SessionsComponent),
+  },
+  {
     path: 'users',
     canActivate: [adminGuard],
     loadComponent: () =>

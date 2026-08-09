@@ -14,11 +14,13 @@ public sealed class SettingsController : ControllerBase
 {
     private readonly SettingsService _settings;
     private readonly WebsiteRegistryService _websites;
+    private readonly ApplicationMetricsService _applicationMetrics;
 
-    public SettingsController(SettingsService settings, WebsiteRegistryService websites)
+    public SettingsController(SettingsService settings, WebsiteRegistryService websites, ApplicationMetricsService applicationMetrics)
     {
         _settings = settings;
         _websites = websites;
+        _applicationMetrics = applicationMetrics;
     }
 
     [HttpGet]
@@ -53,6 +55,14 @@ public sealed class SettingsController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    [HttpGet("websites/{key}/metrics")]
+    public async Task<ActionResult<ApplicationMetricsDto>> GetWebsiteMetrics(string key, CancellationToken ct)
+    {
+        var website = (await _websites.ListAsync(ct)).FirstOrDefault(item =>
+            item.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+        return website is null ? NotFound() : Ok(await _applicationMetrics.GetAsync(website.Key, ct));
     }
 
     [HttpPut("websites/{id}")]

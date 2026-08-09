@@ -83,11 +83,19 @@
               : (theme() === 'dark' ? icon(keys.iconThemeDark, '☾') : icon(keys.iconThemeAuto, '✦'))
           }}</span>
         </button>
-        <span class="user-name">{{ auth.user()?.displayName }}</span>
-        <button class="chip-btn" type="button" (click)="logout()"
-                [attr.aria-label]="i18n.t('admin.nav.signout')" [title]="i18n.t('admin.nav.signout')">
-          <span aria-hidden="true">{{ icon(keys.iconSignOut, '⏻') }}</span>
-        </button>
+        <div class="account-menu" [class.open]="accountOpen()">
+          <button class="account-trigger" type="button" (click)="toggleAccount()" [attr.aria-expanded]="accountOpen()">
+            <span class="avatar" aria-hidden="true">{{ (auth.user()?.displayName || 'U').slice(0, 1).toUpperCase() }}</span>
+            <span class="user-name">{{ auth.user()?.displayName }}</span><span class="caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="account-panel">
+            <div class="account-summary"><strong>{{ auth.user()?.displayName }}</strong><small>{{ auth.user()?.email }}</small></div>
+            <a routerLink="/security" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">🔐</span> Security &amp; 2FA</a>
+            <a routerLink="/sessions" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">▣</span> Active sessions</a>
+            @if (auth.hasRole('Admin')) { <a routerLink="/settings" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">⚙️</span> Application settings</a> }
+            <button type="button" (click)="logout()"><span aria-hidden="true">{{ icon(keys.iconSignOut, '⏻') }}</span> {{ i18n.t('admin.nav.signout') }}</button>
+          </div>
+        </div>
       </div>
     }
   </header>
