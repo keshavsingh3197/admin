@@ -104,20 +104,36 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/database/db-console.component').then((m) => m.DbConsoleComponent),
   },
+  /**
+   * The self-service account area: one "Profile" entry with tabs, replacing three separate top-level
+   * routes. The old addresses still work (bookmarks, the account menu on another cached build).
+   */
   {
-    path: 'security',
+    path: 'profile',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/security/security.component').then(
-        (m) => m.SecurityComponent
-      ),
+      import('./features/profile/profile.component').then((m) => m.ProfileComponent),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'info' },
+      {
+        path: 'info',
+        loadComponent: () =>
+          import('./features/profile/profile-info.component').then((m) => m.ProfileInfoComponent),
+      },
+      {
+        path: 'security',
+        loadComponent: () =>
+          import('./features/security/security.component').then((m) => m.SecurityComponent),
+      },
+      {
+        path: 'sessions',
+        loadComponent: () =>
+          import('./features/sessions/sessions.component').then((m) => m.SessionsComponent),
+      },
+    ],
   },
-  {
-    path: 'sessions',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/sessions/sessions.component').then((m) => m.SessionsComponent),
-  },
+  { path: 'security', pathMatch: 'full', redirectTo: 'profile/security' },
+  { path: 'sessions', pathMatch: 'full', redirectTo: 'profile/sessions' },
   {
     path: 'users',
     canActivate: [adminGuard],

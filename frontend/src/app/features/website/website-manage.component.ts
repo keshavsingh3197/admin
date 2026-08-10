@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { WebsiteContentService } from '../../core/services/website.service';
 import { SettingsService } from '../../core/services/settings.service';
@@ -21,7 +22,7 @@ import { LocaleView } from '../../core/models/localization.models';
   selector: 'app-website-manage',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <div class="page">
       <header class="head">
@@ -130,7 +131,14 @@ import { LocaleView } from '../../core/models/localization.models';
           </section>
           <section class="col app-detail">
             @if (selectedApp() && appMetrics(); as metrics) {
-              <div class="metric-grid"><article><span>Users</span><strong>{{ metrics.userCount }}</strong></article><article><span>Roles</span><strong>{{ metrics.roleCount }}</strong></article><article><span>Groups</span><strong>{{ metrics.groupCount }}</strong></article><article><span>Sessions</span><strong>{{ metrics.activeSessionCount }}</strong></article></div>
+              <div class="metric-grid">
+                <a class="metric-tile" [routerLink]="['/users']" [queryParams]="{ app: selectedApp()!.key }"><span>Users</span><strong>{{ metrics.userCount }}</strong></a>
+                <a class="metric-tile" [routerLink]="['/roles']" [queryParams]="{ app: selectedApp()!.key }"><span>Roles</span><strong>{{ metrics.roleCount }}</strong></a>
+                <a class="metric-tile" [routerLink]="['/groups']" [queryParams]="{ app: selectedApp()!.key }"><span>Groups</span><strong>{{ metrics.groupCount }}</strong></a>
+                <a class="metric-tile" [routerLink]="['/sessions']"><span>Sessions</span><strong>{{ metrics.activeSessionCount }}</strong></a>
+                <a class="metric-tile" [routerLink]="['/analytics']" [queryParams]="{ app: selectedApp()!.key }"><span>Analytics</span><strong>→</strong></a>
+                <a class="metric-tile" [routerLink]="['/health']"><span>Health</span><strong>→</strong></a>
+              </div>
             }
             <div class="app-form">
               <div class="grid-2"><label class="field"><span>Application key</span><input class="input" [(ngModel)]="appDraft.key" [readonly]="!!editingAppId" placeholder="portfolio"></label><label class="field"><span>Name</span><input class="input" [(ngModel)]="appDraft.name" placeholder="Portfolio"></label></div>
@@ -190,7 +198,7 @@ import { LocaleView } from '../../core/models/localization.models';
     .message { color:var(--muted); font-size:.82rem; margin-top:.5rem; }
     .toast { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:#fce8e6; color:#c5221f;
       border:1px solid #f5c6c6; border-radius:8px; padding:.6rem 1rem; z-index:50; cursor:pointer; }
-    .app-layout{display:grid;grid-template-columns:300px 1fr;gap:1rem;margin-top:1rem;align-items:start}.app-list{padding:.4rem}.app-row{display:flex;align-items:center;justify-content:space-between;width:100%;padding:.7rem;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;text-align:left}.app-row span:first-child{display:flex;flex-direction:column;gap:.15rem}.app-row small{color:var(--muted)}.app-row.on{background:color-mix(in srgb,var(--brand) 10%,var(--surface))}.new-app{margin:.7rem}.app-detail{padding:1rem}.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem}.metric-grid article{border:1px solid var(--border);padding:.7rem;border-radius:7px}.metric-grid span{display:block;color:var(--muted);font-size:.72rem}.metric-grid strong{font-size:1.2rem}.app-form{border-top:1px solid var(--border);padding-top:1rem}.app-enabled{align-self:end;padding:.55rem 0}@media (max-width: 900px) { .grid,.app-layout { grid-template-columns:1fr; }.metric-grid{grid-template-columns:repeat(2,1fr)} }
+    .app-layout{display:grid;grid-template-columns:300px 1fr;gap:1rem;margin-top:1rem;align-items:start}.app-list{padding:.4rem}.app-row{display:flex;align-items:center;justify-content:space-between;width:100%;padding:.7rem;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;text-align:left}.app-row span:first-child{display:flex;flex-direction:column;gap:.15rem}.app-row small{color:var(--muted)}.app-row.on{background:color-mix(in srgb,var(--brand) 10%,var(--surface))}.new-app{margin:.7rem}.app-detail{padding:1rem}.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-bottom:1rem}.metric-grid article,.metric-grid .metric-tile{border:1px solid var(--border);padding:.7rem;border-radius:7px}.metric-tile{display:block;text-decoration:none;color:inherit;transition:border-color .15s,background .15s}.metric-tile:hover{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 6%,var(--surface))}.metric-grid span{display:block;color:var(--muted);font-size:.72rem}.metric-grid strong{font-size:1.2rem}.app-form{border-top:1px solid var(--border);padding-top:1rem}.app-enabled{align-self:end;padding:.55rem 0}@media (max-width: 900px) { .grid,.app-layout { grid-template-columns:1fr; }.metric-grid{grid-template-columns:repeat(2,1fr)} }
   `],
 })
 export class WebsiteManageComponent implements OnInit {

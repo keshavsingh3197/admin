@@ -136,6 +136,16 @@ interface SettingsImportPayload {
             </div>
           }
 
+          <h2>Package inventory (GitHub)</h2>
+          <p class="hint">Powers the <a routerLink="/packages">Packages</a> screen: a token with
+             <code>read:packages</code> (and <code>repo</code> if any workspace repo is private) lets it
+             read manifests and published versions straight from GitHub — works the same in production
+             as it does locally, no server-side checkout required.</p>
+          <label class="field"><span>GitHub token {{ m.gitHubPackagesTokenSet ? '(already set — leave blank to keep)' : '' }}</span>
+            <input class="input" type="password" name="ghToken" autocomplete="new-password"
+              placeholder="{{ m.gitHubPackagesTokenSet ? '••••••••' : 'ghp_… / github_pat_…' }}"
+              [(ngModel)]="gitHubPackagesTokenInput" /></label>
+
           <h2>First-run checklist</h2>
           <p class="hint">For a fresh deployment, keep bootstrap secrets in env or Key Vault and manage non-secret runtime settings here after sign-in.</p>
           <ul class="checklist">
@@ -259,6 +269,8 @@ export class SettingsComponent implements OnInit {
   whatsAppAccessTokenInput = '';
   /** Write-only draft for the R2 secret access key; blank means "leave the stored secret unchanged". */
   storageS3SecretInput = '';
+  /** Write-only draft for the GitHub Packages token; blank means "leave the stored token unchanged". */
+  gitHubPackagesTokenInput = '';
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
@@ -278,6 +290,7 @@ export class SettingsComponent implements OnInit {
         this.websites.set(websites);
         this.whatsAppAccessTokenInput = '';
         this.storageS3SecretInput = '';
+        this.gitHubPackagesTokenInput = '';
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -298,6 +311,7 @@ export class SettingsComponent implements OnInit {
         this.model.set(s);
         this.whatsAppAccessTokenInput = '';
         this.storageS3SecretInput = '';
+        this.gitHubPackagesTokenInput = '';
         this.config.refresh(); // Propagate launcher/branding changes to the cached central config.
         this.ok.set(true);
         this.message.set('Settings saved.');
@@ -434,6 +448,7 @@ export class SettingsComponent implements OnInit {
       storageS3Bucket: m.storageS3Bucket,
       storageS3AccessKeyId: m.storageS3AccessKeyId,
       ...(this.storageS3SecretInput ? { storageS3SecretAccessKey: this.storageS3SecretInput } : {}),
+      ...(this.gitHubPackagesTokenInput ? { gitHubPackagesToken: this.gitHubPackagesTokenInput } : {}),
     };
   }
 

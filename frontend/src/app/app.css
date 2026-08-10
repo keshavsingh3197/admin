@@ -152,7 +152,6 @@ body {
 
 .account-menu { position: relative; }
 .account-trigger { display: flex; align-items: center; gap: 0.45rem; border: 0; background: transparent; color: var(--brand-text); cursor: pointer; font: inherit; padding: 0.2rem; }
-.avatar { width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); font-weight: 800; }
 .account-panel { display: none; position: absolute; top: calc(100% + 0.55rem); right: 0; z-index: 18; width: 240px; padding: 0.35rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .account-menu.open .account-panel { display: grid; }
 .account-summary { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.6rem; border-bottom: 1px solid var(--border); margin-bottom: 0.25rem; color: var(--text); }

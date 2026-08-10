@@ -14,6 +14,7 @@ export interface UserListItem {
   chatVisibility: ChatVisibility;
   isActive: boolean;
   twoFactorEnabled: boolean;
+  hasAvatar: boolean;
   lastLoginAt?: string | null;
   createdAt: string;
 }

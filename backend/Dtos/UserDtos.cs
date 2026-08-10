@@ -27,6 +27,12 @@ public sealed record ResetPasswordRequest(
 /// <summary>Self-service: who can see the caller in the chat directory. "everyone" or "family".</summary>
 public sealed record UpdateChatVisibilityRequest([Required] string Visibility);
 
+/// <summary>Self-service profile edit — no roles/active-state here, that stays Admin-only via UpdateUserRequest.</summary>
+public sealed record UpdateMyProfileRequest(
+    [MaxLength(60)] string? Username,
+    [MaxLength(120)] string? DisplayName,
+    [Phone, MaxLength(20)] string? PhoneNumber);
+
 public sealed record UserListItem(
     string Id,
     string Email,
@@ -39,5 +45,6 @@ public sealed record UserListItem(
     string ChatVisibility,
     bool IsActive,
     bool TwoFactorEnabled,
+    bool HasAvatar,
     DateTime? LastLoginAt,
     DateTime CreatedAt);

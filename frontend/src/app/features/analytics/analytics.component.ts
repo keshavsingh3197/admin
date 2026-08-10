@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AnalyticsService } from '../../core/services/analytics.service';
 import { WebsiteDashboard, WebsiteOption } from '../../core/models/analytics.models';
@@ -323,6 +323,7 @@ export class AnalyticsComponent implements OnInit {
   private readonly analytics = inject(AnalyticsService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly websites = signal<WebsiteOption[]>([]);
   readonly dashboard = signal<WebsiteDashboard | null>(null);
@@ -368,7 +369,9 @@ export class AnalyticsComponent implements OnInit {
           return;
         }
 
-        const preferred = this.pickDefaultWebsite(websites);
+        // A Websites-page drill-through link (`?app=key`) wins over the usual default-website pick.
+        const requested = this.route.snapshot.queryParamMap.get('app');
+        const preferred = (requested && websites.find(w => w.key === requested)) || this.pickDefaultWebsite(websites);
         this.selectedKey.set(preferred.key);
         this.loadDashboard(preferred.key);
       },

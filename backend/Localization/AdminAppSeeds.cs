@@ -60,6 +60,26 @@ public sealed class AdminAppSeeds : ILocalizationSeedSource
         ("admin", "config.title", "Runtime configuration", "रनटाइम कॉन्फ़िगरेशन"),
         ("admin", "config.secretHint", "Stored secrets are never shown. Enter a value to replace one.",
             "संग्रहीत गुप्त मान कभी नहीं दिखाए जाते। बदलने के लिए नया मान भरें।"),
+
+        // ---- The dashboard (launcher) screen ----
+        ("admin", "dashboard.welcome", "Welcome", "स्वागत है"),
+        ("admin", "dashboard.welcomeNamed", "Welcome, {name}", "स्वागत है, {name}"),
+        ("admin", "dashboard.subtitle", "Your apps — one sign-in for all of them.", "आपके ऐप्स — सबके लिए एक ही साइन-इन।"),
+        ("admin", "dashboard.analytics.desc", "View website health and usage metrics by site.",
+            "साइट के अनुसार वेबसाइट स्वास्थ्य और उपयोग मैट्रिक्स देखें।"),
+        ("admin", "dashboard.notes.desc", "Manage your notes and important information.",
+            "अपने नोट्स और महत्वपूर्ण जानकारी प्रबंधित करें।"),
+        ("admin", "dashboard.inbox.desc", "Team chat, visitors on the public sites, and the contact form — all in one place.",
+            "टीम चैट, सार्वजनिक साइटों के आगंतुक, और संपर्क फ़ॉर्म — सब एक ही जगह।"),
+        ("admin", "dashboard.documents", "Documents", "दस्तावेज़"),
+        ("admin", "dashboard.documents.desc", "Private folders & documents — organize, preview, and share by permission.",
+            "निजी फ़ोल्डर और दस्तावेज़ — अनुमति के अनुसार व्यवस्थित, पूर्वावलोकन और साझा करें।"),
+        ("admin", "dashboard.finance.desc", "Household income, investments & goals — with suggestions to improve them.",
+            "घरेलू आय, निवेश और लक्ष्य — उन्हें बेहतर बनाने के सुझावों के साथ।"),
+        ("admin", "dashboard.blogAdmin", "Blog Admin", "ब्लॉग एडमिन"),
+        ("admin", "dashboard.blogAdmin.desc", "Write and manage content for the blog.", "ब्लॉग के लिए सामग्री लिखें और प्रबंधित करें।"),
+        ("admin", "dashboard.blog", "Blog", "ब्लॉग"),
+        ("admin", "dashboard.blog.desc", "Open the public blog.", "सार्वजनिक ब्लॉग खोलें।"),
     });
 
     public IEnumerable<ConfigEntrySeed> ConfigEntries() => new[]

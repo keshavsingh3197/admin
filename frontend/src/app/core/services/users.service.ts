@@ -16,6 +16,26 @@ export class UsersService {
     return this.http.get<UserListItem>(`${this.base}/users/me`);
   }
 
+  /** Self-service: display name, username, phone. Roles/active-state stay Admin-only via update(). */
+  updateMyProfile(patch: { displayName?: string; username?: string | null; phoneNumber?: string | null }): Observable<UserListItem> {
+    return this.http.put<UserListItem>(`${this.base}/users/me`, patch);
+  }
+
+  uploadMyAvatar(file: File): Observable<UserListItem> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.post<UserListItem>(`${this.base}/users/me/avatar`, form);
+  }
+
+  removeMyAvatar(): Observable<UserListItem> {
+    return this.http.delete<UserListItem>(`${this.base}/users/me/avatar`);
+  }
+
+  /** Blob URL source for `<img>` — avatars need an authenticated fetch, not a bare `src`. */
+  avatarBlob(userId: string): Observable<Blob> {
+    return this.http.get(`${this.base}/users/${userId}/avatar`, { responseType: 'blob' });
+  }
+
   updateChatVisibility(visibility: ChatVisibility): Observable<UserListItem> {
     return this.http.put<UserListItem>(`${this.base}/users/me/chat-visibility`, { visibility });
   }

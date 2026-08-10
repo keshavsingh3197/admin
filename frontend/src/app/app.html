@@ -85,13 +85,12 @@
         </button>
         <div class="account-menu" [class.open]="accountOpen()">
           <button class="account-trigger" type="button" (click)="toggleAccount()" [attr.aria-expanded]="accountOpen()">
-            <span class="avatar" aria-hidden="true">{{ (auth.user()?.displayName || 'U').slice(0, 1).toUpperCase() }}</span>
+            <app-avatar [userId]="auth.user()?.id" [displayName]="auth.user()?.displayName || 'U'" [hasAvatar]="!!auth.user()?.hasAvatar" [size]="28" />
             <span class="user-name">{{ auth.user()?.displayName }}</span><span class="caret" aria-hidden="true">▾</span>
           </button>
           <div class="account-panel">
             <div class="account-summary"><strong>{{ auth.user()?.displayName }}</strong><small>{{ auth.user()?.email }}</small></div>
-            <a routerLink="/security" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">🔐</span> Security &amp; 2FA</a>
-            <a routerLink="/sessions" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">▣</span> Active sessions</a>
+            <a routerLink="/profile" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">🙂</span> Profile</a>
             @if (auth.hasRole('Admin')) { <a routerLink="/settings" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">⚙️</span> Application settings</a> }
             <button type="button" (click)="logout()"><span aria-hidden="true">{{ icon(keys.iconSignOut, '⏻') }}</span> {{ i18n.t('admin.nav.signout') }}</button>
           </div>

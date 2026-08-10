@@ -10,6 +10,7 @@ export interface UserProfile {
   roles: Role[];
   twoFactorEnabled: boolean;
   mustChangePassword: boolean;
+  hasAvatar?: boolean;
 }
 
 /** Body returned once a session is established — the refresh token lives only in the SSO cookie. */

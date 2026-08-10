@@ -2,6 +2,8 @@ import { Component, OnInit, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ConfigService } from '../../core/services/config.service';
+import { I18nService } from '../../core/services/i18n.service';
+import { TranslatePipe } from '../../core/pipes/translate.pipe';
 
 /**
  * The launcher: the home of the identity provider. Signed in once here, every linked app is
@@ -10,58 +12,58 @@ import { ConfigService } from '../../core/services/config.service';
  */
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink],
+  imports: [RouterLink, TranslatePipe],
   template: `
     <div class="dashboard">
-      <h1>Welcome{{ firstName() ? ', ' + firstName() : '' }} 👋</h1>
-      <p class="subtitle">Your apps — one sign-in for all of them.</p>
+      <h1>{{ (firstName() ? i18n.t('admin.dashboard.welcomeNamed', { name: firstName() }) : i18n.t('admin.dashboard.welcome')) }} 👋</h1>
+      <p class="subtitle">{{ 'admin.dashboard.subtitle' | t }}</p>
 
       <div class="cards">
         @if (hasAdminAccess()) {
           <a class="card" routerLink="/analytics">
             <span class="card-icon">📊</span>
-            <h2>Analytics</h2>
-            <p>View website health and usage metrics by site.</p>
+            <h2>{{ 'admin.nav.analytics' | t }}</h2>
+            <p>{{ 'admin.dashboard.analytics.desc' | t }}</p>
           </a>
         }
 
         <a class="card" routerLink="/notes">
           <span class="card-icon">📝</span>
-          <h2>Notes</h2>
-          <p>Manage your notes and important information.</p>
+          <h2>{{ 'admin.nav.notes' | t }}</h2>
+          <p>{{ 'admin.dashboard.notes.desc' | t }}</p>
         </a>
 
         <a class="card" routerLink="/inbox">
           <span class="card-icon">💬</span>
-          <h2>Inbox</h2>
-          <p>Team chat, visitors on the public sites, and the contact form — all in one place.</p>
+          <h2>{{ 'admin.nav.inbox' | t }}</h2>
+          <p>{{ 'admin.dashboard.inbox.desc' | t }}</p>
         </a>
 
         <a class="card" routerLink="/files">
           <span class="card-icon">🗂️</span>
-          <h2>Documents</h2>
-          <p>Private folders &amp; documents — organize, preview, and share by permission.</p>
+          <h2>{{ 'admin.dashboard.documents' | t }}</h2>
+          <p>{{ 'admin.dashboard.documents.desc' | t }}</p>
         </a>
 
         <a class="card" routerLink="/finance">
           <span class="card-icon">💰</span>
-          <h2>Finance</h2>
-          <p>Household income, investments &amp; goals — with suggestions to improve them.</p>
+          <h2>{{ 'admin.nav.finance' | t }}</h2>
+          <p>{{ 'admin.dashboard.finance.desc' | t }}</p>
         </a>
 
         @if (blogAdminUrl()) {
           <a class="card" [href]="blogAdminUrl()" target="_blank" rel="noopener">
             <span class="card-icon">✍️</span>
-            <h2>Blog Admin</h2>
-            <p>Write and manage content for the blog.</p>
+            <h2>{{ 'admin.dashboard.blogAdmin' | t }}</h2>
+            <p>{{ 'admin.dashboard.blogAdmin.desc' | t }}</p>
           </a>
         }
 
         @if (blogUrl()) {
           <a class="card" [href]="blogUrl()" target="_blank" rel="noopener">
             <span class="card-icon">🌐</span>
-            <h2>Blog</h2>
-            <p>Open the public blog.</p>
+            <h2>{{ 'admin.dashboard.blog' | t }}</h2>
+            <p>{{ 'admin.dashboard.blog.desc' | t }}</p>
           </a>
         }
       </div>
@@ -86,6 +88,7 @@ import { ConfigService } from '../../core/services/config.service';
 export class DashboardComponent implements OnInit {
   private auth = inject(AuthService);
   private config = inject(ConfigService);
+  protected readonly i18n = inject(I18nService);
 
   // Launcher targets come from the IdP's central config (GET /api/config), not a hard-coded env.
   readonly blogUrl = computed(() => this.config.config()?.blogUrl ?? '');

@@ -1,10 +1,12 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { UsersService } from '../../core/services/users.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RbacService } from '../../core/services/rbac.service';
+import { scopedRoleKeys } from '../../core/services/rbac-scope.util';
 import { CreateUserRequest, UserListItem } from '../../core/models/user.models';
 import { CustomRoleView, GroupView } from '../../core/models/rbac.models';
 import { Role } from '../../core/models/auth.models';
@@ -16,7 +18,7 @@ import { Role } from '../../core/models/auth.models';
  */
 @Component({
   selector: 'app-users',
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, RouterLink],
   template: `
     <div class="users-wrap">
       <div class="head">
@@ -25,6 +27,11 @@ import { Role } from '../../core/models/auth.models';
           {{ showCreate() ? 'Cancel' : '+ New user' }}
         </button>
       </div>
+
+      @if (appFilter(); as app) {
+        <div class="scope-chip">Scoped to website: <strong>{{ app }}</strong>
+          <a routerLink="/users">✕ clear</a></div>
+      }
 
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
@@ -63,7 +70,7 @@ import { Role } from '../../core/models/auth.models';
               <tr><th>Email</th><th>Name</th><th>Roles</th><th>Status</th><th>2FA</th><th>Last login</th><th></th></tr>
             </thead>
             <tbody>
-              @for (u of users(); track u.id) {
+              @for (u of visibleUsers(); track u.id) {
                 <tr [class.inactive]="!u.isActive">
                   <td>{{ u.email }}</td>
                   <td>{{ u.displayName }}</td>
@@ -113,7 +120,7 @@ import { Role } from '../../core/models/auth.models';
                   </td></tr>
                 }
               }
-              @if (!users().length) { <tr><td colspan="7">No users.</td></tr> }
+              @if (!visibleUsers().length) { <tr><td colspan="7">No users.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -151,17 +158,32 @@ import { Role } from '../../core/models/auth.models';
     .banner { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c3; border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
     .banner.ok { background: #e6f4ea; color: #137333; border-color: #b7e1c4; }
     .muted-inline { font-size: 0.85rem; color: #999; }
+    .scope-chip { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--brand, #1a73e8) 10%, #fff); border: 1px solid color-mix(in srgb, var(--brand, #1a73e8) 30%, #e0e0e0); border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 1rem; font-size: 0.86rem; }
+    .scope-chip a { color: #1a73e8; text-decoration: none; margin-left: auto; }
   `]
 })
 export class UsersComponent implements OnInit {
   private api = inject(UsersService);
   private auth = inject(AuthService);
   private rbac = inject(RbacService);
+  private route = inject(ActivatedRoute);
 
   readonly users = signal<UserListItem[]>([]);
   readonly allRoles = signal<Role[]>(['Admin', 'Editor', 'Viewer']);
   readonly customRoles = signal<CustomRoleView[]>([]);
   readonly groups = signal<GroupView[]>([]);
+  /** Set from the `?app=` query param when reached via a Websites-page drill-through link. */
+  readonly appFilter = signal<string | null>(null);
+  readonly visibleUsers = computed(() => {
+    const app = this.appFilter();
+    if (!app) return this.users();
+    const roleKeys = scopedRoleKeys(this.customRoles(), app);
+    const groupIds = new Set(this.groups().filter(g => g.roleKeys.some(k => roleKeys.has(k))).map(g => g.id));
+    return this.users().filter(u =>
+      u.roles.includes('Admin') ||
+      u.customRoleKeys.some(k => roleKeys.has(k)) ||
+      u.groupIds.some(id => groupIds.has(id)));
+  });
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
@@ -180,6 +202,7 @@ export class UsersComponent implements OnInit {
   selfId(): string | undefined { return this.auth.user()?.id; }
 
   ngOnInit(): void {
+    this.appFilter.set(this.route.snapshot.queryParamMap.get('app'));
     this.reload();
     this.api.roles().subscribe({ next: r => this.allRoles.set(r), error: () => {} });
     this.rbac.listRoles().subscribe({ next: r => this.customRoles.set(r), error: () => {} });

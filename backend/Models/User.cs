@@ -15,6 +15,11 @@ public sealed class User
     public string DisplayName { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }                   // E.164, for SMS 2FA.
 
+    /// <summary>Object-store key for the uploaded avatar image, or null if none. See FileService's key
+    /// convention (random, never derived from user input) — key is `avatars/{userId}/{random}`.</summary>
+    public string? AvatarKey { get; set; }
+    public string? AvatarContentType { get; set; }
+
     /// <summary>PBKDF2 hash string (format iterations.salt.hash). Never the raw password.</summary>
     public string PasswordHash { get; set; } = string.Empty;
     public bool MustChangePassword { get; set; }

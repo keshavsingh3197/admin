@@ -12,6 +12,7 @@ import { I18nService } from './core/services/i18n.service';
 import { CONFIG_KEYS } from './core/models/config.models';
 import { CallOverlayComponent } from './features/messages/call-overlay.component';
 import { MeetingReminderComponent } from './features/meetings/meeting-reminder.component';
+import { AvatarComponent } from './shared/avatar.component';
 
 interface NavLink {
   path: string;
@@ -59,7 +60,7 @@ const ADMIN_LINKS: NavLink[] = [
 @Component({
   selector: 'app-root',
   // FormsModule: the language picker in the header is an ngModel-bound <select>.
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule, CallOverlayComponent, MeetingReminderComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule, CallOverlayComponent, MeetingReminderComponent, AvatarComponent],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })

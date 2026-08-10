@@ -56,5 +56,11 @@ public sealed class AppSettings
     public string StorageS3AccessKeyId { get; set; } = string.Empty;
     public string? StorageS3SecretAccessKeyEncrypted { get; set; }   // 🔒 AES-encrypted.
 
+    // ---- GitHub integration for the Packages inventory screen ----
+    // A PAT with read:packages (+ repo, for private repos) scope, used to discover producer/consumer
+    // manifests directly from GitHub (Git Trees + Contents API) and to read published package versions.
+    // Falls back to PackageInventory:GitHubToken / PACKAGES_READ_TOKEN in appsettings/env if unset here.
+    public string? GitHubPackagesTokenEncrypted { get; set; }   // 🔒 AES-encrypted.
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -26,6 +26,7 @@ export interface SettingsView {
   storageS3Bucket: string;
   storageS3AccessKeyId: string;
   storageS3SecretAccessKeySet: boolean;
+  gitHubPackagesTokenSet: boolean;
   updatedAt: string;
 }
 
@@ -34,8 +35,8 @@ export interface SettingsView {
  * via whatsAppAccessToken / storageS3SecretAccessKey instead — a blank value keeps the stored one.
  */
 export type UpdateSettingsRequest =
-  Partial<Omit<SettingsView, 'updatedAt' | 'whatsAppAccessTokenSet' | 'storageS3SecretAccessKeySet'>>
-  & { whatsAppAccessToken?: string; storageS3SecretAccessKey?: string };
+  Partial<Omit<SettingsView, 'updatedAt' | 'whatsAppAccessTokenSet' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet'>>
+  & { whatsAppAccessToken?: string; storageS3SecretAccessKey?: string; gitHubPackagesToken?: string };
 
 export interface WebsiteLinkView {
   id: string;

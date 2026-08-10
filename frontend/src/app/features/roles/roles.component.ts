@@ -1,8 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RbacService } from '../../core/services/rbac.service';
+import { scopedRoleKeys } from '../../core/services/rbac-scope.util';
 import {
   CustomRoleView,
   PermissionCatalogItem,
@@ -22,7 +24,7 @@ const ADMIN_WEBSITE_KEY = 'admin';
  */
 @Component({
   selector: 'app-roles',
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, RouterLink],
   template: `
     <div class="wrap">
       <div class="head">
@@ -31,6 +33,11 @@ const ADMIN_WEBSITE_KEY = 'admin';
           {{ showForm() && !editId() ? 'Cancel' : '+ New role' }}
         </button>
       </div>
+
+      @if (appFilter(); as app) {
+        <div class="scope-chip">Scoped to website: <strong>{{ app }}</strong>
+          <a routerLink="/roles">✕ clear</a></div>
+      }
 
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
@@ -128,7 +135,7 @@ const ADMIN_WEBSITE_KEY = 'admin';
               <tr><th>Name</th><th>Key</th><th>Websites configured</th><th>Updated</th><th></th></tr>
             </thead>
             <tbody>
-              @for (r of roles(); track r.id) {
+              @for (r of visibleRoles(); track r.id) {
                 <tr>
                   <td>{{ r.name }} @if (r.isSystem) { <span class="badge sys">System</span> }</td>
                   <td><code>{{ r.key }}</code></td>
@@ -158,7 +165,7 @@ const ADMIN_WEBSITE_KEY = 'admin';
                   </td></tr>
                 }
               }
-              @if (!roles().length) { <tr><td colspan="5">No roles.</td></tr> }
+              @if (!visibleRoles().length) { <tr><td colspan="5">No roles.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -198,6 +205,8 @@ const ADMIN_WEBSITE_KEY = 'admin';
     .tbl th { background: var(--bg); font-weight: 600; }
     .badge { display: inline-block; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.78rem; }
     .badge.sys { background: color-mix(in srgb, var(--brand) 18%, var(--surface)); color: var(--brand); margin-left: 0.4rem; font-size: 0.72rem; }
+    .scope-chip { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border)); border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 1rem; font-size: 0.86rem; }
+    .scope-chip a { color: var(--brand); text-decoration: none; margin-left: auto; }
     .linkish { background: none; border: none; color: var(--brand); cursor: pointer; padding: 0 0.3rem; }
     .linkish.danger { color: #d93025; }
     .view-row td { background: var(--bg); }
@@ -209,9 +218,18 @@ const ADMIN_WEBSITE_KEY = 'admin';
 })
 export class RolesComponent implements OnInit {
   private api = inject(RbacService);
+  private route = inject(ActivatedRoute);
   readonly adminKey = ADMIN_WEBSITE_KEY;
 
   readonly roles = signal<CustomRoleView[]>([]);
+  /** Set from the `?app=` query param when reached via a Websites-page drill-through link. */
+  readonly appFilter = signal<string | null>(null);
+  readonly visibleRoles = computed(() => {
+    const app = this.appFilter();
+    if (!app) return this.roles();
+    const keys = scopedRoleKeys(this.roles(), app);
+    return this.roles().filter(r => keys.has(r.key));
+  });
   readonly adminPermItems = signal<PermissionCatalogItem[]>([]);
   readonly siteActionItems = signal<PermissionCatalogItem[]>([]);
   readonly websites = signal<WebsiteAccessOption[]>([]);
@@ -241,6 +259,7 @@ export class RolesComponent implements OnInit {
   fGrantList(): WebsiteGrant[] { return [...this.fGrants.values()]; }
 
   ngOnInit(): void {
+    this.appFilter.set(this.route.snapshot.queryParamMap.get('app'));
     this.reload();
     this.api.catalog().subscribe({
       next: c => {

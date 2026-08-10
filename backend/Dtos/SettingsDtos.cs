@@ -28,6 +28,7 @@ public sealed record SettingsView(
     string StorageS3Bucket,
     string StorageS3AccessKeyId,
     bool StorageS3SecretAccessKeySet,
+    bool GitHubPackagesTokenSet,
     DateTime UpdatedAt);
 
 /// <summary>Partial update — only non-null fields are applied.</summary>
@@ -57,7 +58,8 @@ public sealed record UpdateSettingsRequest(
     string? StorageS3ServiceUrl,
     string? StorageS3Bucket,
     string? StorageS3AccessKeyId,
-    string? StorageS3SecretAccessKey);
+    string? StorageS3SecretAccessKey,
+    string? GitHubPackagesToken);
 
 /// <summary>
 /// The non-secret, shareable config served publicly at <c>GET /api/config</c> for every

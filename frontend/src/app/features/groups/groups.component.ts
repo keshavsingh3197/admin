@@ -1,8 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RbacService } from '../../core/services/rbac.service';
 import { UsersService } from '../../core/services/users.service';
+import { scopedRoleKeys } from '../../core/services/rbac-scope.util';
 import {
   CustomRoleView,
   EffectiveAccess,
@@ -19,7 +21,7 @@ import { UserListItem } from '../../core/models/user.models';
  */
 @Component({
   selector: 'app-groups',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <div class="wrap">
       <div class="head">
@@ -28,6 +30,11 @@ import { UserListItem } from '../../core/models/user.models';
           {{ showForm() && !editId() ? 'Cancel' : '+ New group' }}
         </button>
       </div>
+
+      @if (appFilter(); as app) {
+        <div class="scope-chip">Scoped to website: <strong>{{ app }}</strong>
+          <a routerLink="/groups">✕ clear</a></div>
+      }
 
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
@@ -69,7 +76,7 @@ import { UserListItem } from '../../core/models/user.models';
               <tr><th>Name</th><th>Roles</th><th>Members</th><th>Family</th><th></th></tr>
             </thead>
             <tbody>
-              @for (g of groups(); track g.id) {
+              @for (g of visibleGroups(); track g.id) {
                 <tr>
                   <td>{{ g.name }}</td>
                   <td>@for (k of g.roleKeys; track k) { <span class="badge">{{ k }}</span> }</td>
@@ -133,7 +140,7 @@ import { UserListItem } from '../../core/models/user.models';
                   </td></tr>
                 }
               }
-              @if (!groups().length) { <tr><td colspan="5">No groups.</td></tr> }
+              @if (!visibleGroups().length) { <tr><td colspan="5">No groups.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -144,6 +151,8 @@ import { UserListItem } from '../../core/models/user.models';
     .wrap { max-width: 1000px; margin: 0 auto; padding: 1rem; }
     .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
     .page-title { font-size: 1.5rem; margin: 0; color: var(--text); }
+    .scope-chip { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border)); border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 1rem; font-size: 0.86rem; }
+    .scope-chip a { color: var(--brand); text-decoration: none; margin-left: auto; }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
     .field.wide { grid-column: 1 / -1; }
@@ -184,9 +193,18 @@ import { UserListItem } from '../../core/models/user.models';
 export class GroupsComponent implements OnInit {
   private api = inject(RbacService);
   private usersApi = inject(UsersService);
+  private route = inject(ActivatedRoute);
 
   readonly groups = signal<GroupView[]>([]);
   readonly roles = signal<CustomRoleView[]>([]);
+  /** Set from the `?app=` query param when reached via a Websites-page drill-through link. */
+  readonly appFilter = signal<string | null>(null);
+  readonly visibleGroups = computed(() => {
+    const app = this.appFilter();
+    if (!app) return this.groups();
+    const keys = scopedRoleKeys(this.roles(), app);
+    return this.groups().filter(g => g.roleKeys.some(k => keys.has(k)));
+  });
   readonly users = signal<UserListItem[]>([]);
   readonly adminPermItems = signal<PermissionCatalogItem[]>([]);
   readonly siteActionItems = signal<PermissionCatalogItem[]>([]);
@@ -207,6 +225,7 @@ export class GroupsComponent implements OnInit {
   readonly fRoleKeys = new Set<string>();
 
   ngOnInit(): void {
+    this.appFilter.set(this.route.snapshot.queryParamMap.get('app'));
     this.reload();
     this.api.listRoles().subscribe({ next: r => this.roles.set(r), error: () => {} });
     this.usersApi.list().subscribe({ next: u => this.users.set(u), error: () => {} });

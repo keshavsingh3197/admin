@@ -61,6 +61,9 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     public string WhatsAppPhoneNumberId => _current.WhatsAppPhoneNumberId;
     public string WhatsAppAlertToNumber => _current.WhatsAppAlertToNumber;
 
+    // ---- GitHub Packages token (read by PackageInventoryService) ----
+    public string? GitHubPackagesToken => Decrypt(_current.GitHubPackagesTokenEncrypted);
+
     // ---- IStorageSettingsSource (read by the file-storage backend, live) ----
     // LocalRoot stays a deploy-time setting (dev only); the S3 secret is decrypted here in memory only.
     public ResolvedStorageSettings GetStorageSettings() => new()
@@ -124,6 +127,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
             s.WhatsAppPhoneNumberId, s.WhatsAppAlertToNumber,
             s.StorageProvider, s.StorageS3ServiceUrl, s.StorageS3Bucket, s.StorageS3AccessKeyId,
             !string.IsNullOrEmpty(s.StorageS3SecretAccessKeyEncrypted),
+            !string.IsNullOrEmpty(s.GitHubPackagesTokenEncrypted),
             s.UpdatedAt);
     }
 
@@ -173,6 +177,9 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         if (!string.IsNullOrEmpty(r.StorageS3SecretAccessKey))
             s.StorageS3SecretAccessKeyEncrypted = _protector.Encrypt(r.StorageS3SecretAccessKey);
 
+        if (!string.IsNullOrEmpty(r.GitHubPackagesToken))
+            s.GitHubPackagesTokenEncrypted = _protector.Encrypt(r.GitHubPackagesToken);
+
         s.UpdatedAt = DateTime.UtcNow;
         await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s,
             new ReplaceOptions { IsUpsert = true });
@@ -202,6 +209,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         StorageS3Bucket = s.StorageS3Bucket,
         StorageS3AccessKeyId = s.StorageS3AccessKeyId,
         StorageS3SecretAccessKeyEncrypted = s.StorageS3SecretAccessKeyEncrypted,
+        GitHubPackagesTokenEncrypted = s.GitHubPackagesTokenEncrypted,
     };
 
     /// <summary>Storage provider is an allowlist: only "Local" or "S3" (mapped to 400 otherwise).</summary>

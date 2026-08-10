@@ -206,4 +206,10 @@ export class AuthService {
     const u = this.user();
     if (u) this.user.set({ ...u, ...patch });
   }
+
+  /** Public hook for self-service edits made elsewhere (Profile info, avatar upload) to update the
+   *  cached session user without a full re-login. */
+  applyProfilePatch(patch: Partial<UserProfile>): void {
+    this.patchUser(patch);
+  }
 }
