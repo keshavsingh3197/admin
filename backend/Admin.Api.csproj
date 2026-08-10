@@ -10,19 +10,20 @@
       NuGet dependency submission (which has no access to repo secrets), while the real Docker /
       Render build — which exports PACKAGES_READ_TOKEN before restore — still includes them.
     -->
-    <SkipPrivatePackages Condition="'$(PACKAGES_READ_TOKEN)' == ''">true</SkipPrivatePackages>
+    <UseLocalProjectReferences Condition="'$(UseLocalProjectReferences)' == '' and Exists('..\..\shared-security\src\KeshavSingh.Security\KeshavSingh.Security.csproj')">true</UseLocalProjectReferences>
+    <SkipPrivatePackages Condition="'$(UseLocalProjectReferences)' == 'true' or '$(PACKAGES_READ_TOKEN)' == ''">true</SkipPrivatePackages>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="MongoDB.Driver" Version="3.10.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <!-- WebAuthn / FIDO2 passkeys (public nuget.org). Pinned; verifies attestation & assertion. -->
-    <PackageReference Include="Fido2" Version="4.0.0" />
+    <PackageReference Include="Fido2" Version="4.0.1" />
     <!-- Override Fido2's transitive Microsoft.Bcl.Memory 9.0.0 (advisory GHSA-73j8-2gch-69rq)
          with the patched build. Remove once Fido2 ships a fixed transitive pin. -->
-    <PackageReference Include="Microsoft.Bcl.Memory" Version="9.0.18" />
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.10" />
     <!-- Excel (.xlsx) export of finance data (public nuget.org). Pinned; Snyk-scanned. -->
-    <PackageReference Include="ClosedXML" Version="0.104.2" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
     <!-- Bank statement PDFs, including password-protected ones (public nuget.org, Apache-2.0).
          Pinned; Snyk-scanned. Used only by PdfStatementReader, to recover the statement table. -->
     <PackageReference Include="PdfPig" Version="0.1.15" />
@@ -31,18 +32,18 @@
   <ItemGroup Condition="'$(SkipPrivatePackages)' != 'true'">
     <!-- Shared auth + crypto from GitHub Packages. Restore reads the "github" source in
          the repo-root nuget.config, which needs the PACKAGES_READ_TOKEN env var. -->
-    <PackageReference Include="KeshavSingh.Security" Version="0.4.0" />
-    <PackageReference Include="KeshavSingh.Auth" Version="0.6.1" />
+    <PackageReference Include="KeshavSingh.Security" Version="0.5.0" />
+    <PackageReference Include="KeshavSingh.Auth" Version="0.7.0" />
     <!-- 0.2.0 adds the guarded query console used by DbConsoleController. -->
-    <PackageReference Include="KeshavSingh.Mongo.NoSql" Version="0.2.0" />
+    <PackageReference Include="KeshavSingh.Mongo.NoSql" Version="0.3.0" />
     <!-- 0.6.0 adds the chat hub typing indicator. -->
-    <PackageReference Include="KeshavSingh.Realtime" Version="0.6.0" />
-    <PackageReference Include="KeshavSingh.Core" Version="0.4.1" />
-    <PackageReference Include="KeshavSingh.Storage" Version="0.2.1" />
-    <PackageReference Include="KeshavSingh.Finance" Version="0.3.0" />
+    <PackageReference Include="KeshavSingh.Realtime" Version="0.7.0" />
+    <PackageReference Include="KeshavSingh.Core" Version="0.5.0" />
+    <PackageReference Include="KeshavSingh.Storage" Version="0.3.0" />
+    <PackageReference Include="KeshavSingh.Finance" Version="0.4.0" />
     <!-- Runtime localisation + the config registry: languages, the string catalogue with JSON/CSV/Excel
          import-export, and the typed key/value store that keeps URLs, icons and flags out of builds. -->
-    <PackageReference Include="KeshavSingh.Localization" Version="0.1.0" />
+    <PackageReference Include="KeshavSingh.Localization" Version="0.2.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(SkipPrivatePackages)' == 'true'">

@@ -52,6 +52,7 @@ const ADMIN_LINKS: NavLink[] = [
   { path: '/analytics', labelKey: 'admin.nav.analytics', icon: '📊', exact: false },
   { path: '/data-retention', labelKey: 'admin.nav.dataRetention', icon: '🗄️', exact: false },
   { path: '/health', labelKey: 'admin.nav.health', icon: '❤️', exact: false },
+  { path: '/packages', labelKey: 'admin.nav.packages', icon: '📦', exact: false },
   { path: '/settings', labelKey: 'admin.nav.settings', icon: '⚙️', exact: false },
 ];
 

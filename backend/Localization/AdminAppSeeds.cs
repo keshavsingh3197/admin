@@ -41,6 +41,7 @@ public sealed class AdminAppSeeds : ILocalizationSeedSource
         ("admin", "nav.analytics", "Analytics", "विश्लेषण"),
         ("admin", "nav.dataRetention", "Data retention", "डेटा प्रतिधारण"),
         ("admin", "nav.health", "Health", "स्वास्थ्य"),
+        ("admin", "nav.packages", "Packages", "पैकेज"),
         ("admin", "nav.settings", "Settings", "सेटिंग्स"),
         ("admin", "nav.manage", "Manage", "प्रबंधन"),
         ("admin", "nav.signout", "Sign out", "साइन आउट"),

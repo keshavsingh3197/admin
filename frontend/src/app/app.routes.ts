@@ -177,5 +177,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/health/health.component').then((m) => m.HealthComponent),
   },
+  {
+    path: 'packages',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/packages/packages.component').then((m) => m.PackagesComponent),
+  },
   { path: '**', redirectTo: '' },
 ];
