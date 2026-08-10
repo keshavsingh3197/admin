@@ -29,6 +29,7 @@ public sealed class AppConfig
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>JWT settings — the signing key is deliberately absent (it stays in env/Key Vault).</summary>
+    [BsonIgnoreExtraElements]
     public sealed class JwtConfig
     {
         public string Issuer { get; set; } = "keshavsingh-idp";

@@ -75,7 +75,7 @@ npm start
 3. Set the `MongoDbSettings__ConnectionString` environment variable (secret) to your MongoDB Atlas URI.
 
 ### Frontend → GitHub Pages
-Pushing to `main` triggers the **Deploy Angular to GitHub Pages** workflow automatically.  
+Pushing frontend changes to `master` triggers the **Deploy Angular to GitHub Pages** workflow automatically.
 The custom domain `admin.keshavsingh.in` is configured via the `frontend/public/CNAME` file.
 
 ## API Endpoints
