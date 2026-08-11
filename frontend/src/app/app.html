@@ -7,7 +7,7 @@
       <span aria-hidden="true">{{ icon(keys.iconHome, '🏠') }}</span> {{ brandName() }}
     </a>
 
-    @if (auth.isAuthenticated()) {
+    @if (auth.isAuthenticated() && (!permissionsLoaded() || hasAppAccess())) {
       <button
         class="nav-toggle"
         type="button"
@@ -24,7 +24,7 @@
       }
 
       <nav class="app-nav" id="app-nav" [class.open]="navOpen()">
-        @for (link of primaryLinks; track link.path) {
+        @for (link of visiblePrimaryLinks(); track link.path) {
           <a [routerLink]="link.path" routerLinkActive="active"
              [routerLinkActiveOptions]="{exact: link.exact}" (click)="closeNav()">
             <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
@@ -109,7 +109,23 @@
   }
 
   <main class="app-main">
-    <router-outlet />
+    @if (auth.isAuthenticated() && permissionsLoaded() && !hasAppAccess()) {
+      <div class="no-app-access">
+        <span aria-hidden="true">🚫</span>
+        <h1>You don't have access to this application</h1>
+        <p>Your account isn't granted any page in the admin console. Ask an administrator to grant you
+           access, or sign out and continue using the site(s) you do have access to.</p>
+        <button type="button" class="btn-secondary" (click)="logout()">{{ i18n.t('admin.nav.signout') }}</button>
+      </div>
+    } @else {
+      @if (accessDeniedMessage(); as message) {
+        <div class="access-denied-banner" role="alert">
+          <span aria-hidden="true">🚫</span> You don't have access to {{ message }}. Ask an administrator to grant it on the Roles page.
+          <button type="button" (click)="dismissAccessDenied()" aria-label="Dismiss">✕</button>
+        </div>
+      }
+      <router-outlet />
+    }
   </main>
 
   <footer class="app-footer">

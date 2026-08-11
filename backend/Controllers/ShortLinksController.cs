@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Admin.Api.Dtos;
 using Admin.Api.Models;
 using Admin.Api.Services;
+using KeshavSingh.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,6 +12,7 @@ namespace Admin.Api.Controllers;
 [ApiController]
 [Route("api/shortlinks")]
 [Authorize] // Default-deny, same as Notes — a family utility, not scoped per-user.
+[RequirePagePermission("page.shortLinks")]
 public partial class ShortLinksController : ControllerBase
 {
     private readonly ShortLinkService _shortLinks;

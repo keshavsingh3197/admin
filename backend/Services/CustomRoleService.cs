@@ -50,7 +50,7 @@ public sealed class CustomRoleService
                 Description = "Can create and edit content across linked websites.",
                 WebsiteGrants = new List<WebsiteGrant>
                 {
-                    new() { WebsiteKey = PermissionCatalog.AdminWebsiteKey, Permissions = new List<string> { "page.dashboard", "page.notes", "page.security" } },
+                    new() { WebsiteKey = PermissionCatalog.AdminWebsiteKey, Permissions = new List<string> { "page.dashboard", "page.notes", "page.security", "page.files", "page.finance", "page.inbox", "page.shortLinks" } },
                     new() { WebsiteKey = PermissionCatalog.AllWebsitesKey, Permissions = new List<string> { "site.view", "site.manage" } },
                 },
                 IsSystem = true,
@@ -62,7 +62,7 @@ public sealed class CustomRoleService
                 Description = "Read-only access to the dashboard, notes, and own security settings.",
                 WebsiteGrants = new List<WebsiteGrant>
                 {
-                    new() { WebsiteKey = PermissionCatalog.AdminWebsiteKey, Permissions = new List<string> { "page.dashboard", "page.notes", "page.security" } },
+                    new() { WebsiteKey = PermissionCatalog.AdminWebsiteKey, Permissions = new List<string> { "page.dashboard", "page.notes", "page.security", "page.files", "page.finance", "page.inbox", "page.shortLinks" } },
                     new() { WebsiteKey = PermissionCatalog.AllWebsitesKey, Permissions = new List<string> { "site.view" } },
                 },
                 IsSystem = true,

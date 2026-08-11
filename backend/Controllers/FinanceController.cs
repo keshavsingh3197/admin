@@ -17,6 +17,7 @@ namespace Admin.Api.Controllers;
 [ApiController]
 [Route("api/finance")]
 [Authorize] // Default-deny: a valid session is required for every endpoint.
+[RequirePagePermission("page.finance")]
 public class FinanceController : ControllerBase
 {
     /// <summary>Upload ceiling for a statement file — generous for a year of pages, far below a DoS.</summary>

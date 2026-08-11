@@ -1,6 +1,9 @@
 using Admin.Api.Dtos;
 using Admin.Api.Models;
+using KeshavSingh.Auth;
+using KeshavSingh.Auth.Abstractions;
 using MongoDB.Driver;
+using System.Security.Claims;
 
 namespace Admin.Api.Services;
 
@@ -9,8 +12,12 @@ namespace Admin.Api.Services;
 /// legacy system role (Admin/Editor/Viewer, mapped to the matching seeded custom role), any
 /// custom roles assigned directly to them, and any custom roles granted by the groups they
 /// belong to.
+///
+/// Also implements <see cref="IPageAccessEvaluator"/> — the shared package's seam for
+/// <c>RequirePagePermissionAttribute</c> — so this app's own "page.*" grants are the enforcement,
+/// not just a nav-hiding hint.
 /// </summary>
-public sealed class PermissionsService
+public sealed class PermissionsService : IPageAccessEvaluator
 {
     private readonly IMongoCollection<User> _users;
     private readonly CustomRoleService _roles;
@@ -118,5 +125,13 @@ public sealed class PermissionsService
             siteAccess,
             hasWildcard,
             roleKeys.OrderBy(x => x, StringComparer.Ordinal).ToList());
+    }
+
+    /// <inheritdoc/>
+    async Task<bool> IPageAccessEvaluator.HasAccessAsync(ClaimsPrincipal user, string permissionKey, CancellationToken ct)
+    {
+        if (user.Identity?.IsAuthenticated != true) return false;
+        var access = await GetEffectiveAccessAsync(user.GetUserId(), ct);
+        return access.AdminPermissions.Contains(permissionKey);
     }
 }

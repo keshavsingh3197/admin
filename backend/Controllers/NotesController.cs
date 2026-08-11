@@ -9,6 +9,7 @@ namespace Admin.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize] // Default-deny: notes are personal data — every endpoint requires a valid session.
+[RequirePagePermission("page.notes")]
 public class NotesController : ControllerBase
 {
     private readonly NoteService _noteService;

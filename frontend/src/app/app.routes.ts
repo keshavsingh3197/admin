@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { adminGuard, authGuard } from './core/guards/auth.guard';
+import { adminGuard, authGuard, pagePermissionGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
@@ -17,7 +17,7 @@ export const routes: Routes = [
   },
   {
     path: 'notes',
-    canActivate: [authGuard],
+    canActivate: [pagePermissionGuard('page.notes')],
     loadComponent: () =>
       import('./features/notes/notes.component').then(
         (m) => m.NotesComponent
@@ -25,25 +25,25 @@ export const routes: Routes = [
   },
   {
     path: 'files',
-    canActivate: [authGuard],
+    canActivate: [pagePermissionGuard('page.files')],
     loadComponent: () =>
       import('./features/files/files.component').then((m) => m.FilesComponent),
   },
   {
     path: 'short-links',
-    canActivate: [authGuard],
+    canActivate: [pagePermissionGuard('page.shortLinks')],
     loadComponent: () =>
       import('./features/short-links/short-links.component').then((m) => m.ShortLinksComponent),
   },
   {
     path: 'finance',
-    canActivate: [authGuard],
+    canActivate: [pagePermissionGuard('page.finance')],
     loadComponent: () =>
       import('./features/finance/finance-dashboard.component').then((m) => m.FinanceDashboardComponent),
   },
   {
     path: 'finance/manage',
-    canActivate: [authGuard],
+    canActivate: [pagePermissionGuard('page.finance')],
     loadComponent: () =>
       import('./features/finance/finance-manage.component').then((m) => m.FinanceManageComponent),
   },
@@ -54,7 +54,7 @@ export const routes: Routes = [
    */
   {
     path: 'inbox',
-    canActivate: [authGuard],
+    canActivate: [pagePermissionGuard('page.inbox')],
     loadComponent: () => import('./features/inbox/inbox.component').then((m) => m.InboxComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'team' },

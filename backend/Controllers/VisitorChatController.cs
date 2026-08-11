@@ -1,7 +1,6 @@
 using Admin.Api.Dtos;
 using Admin.Api.Services;
 using KeshavSingh.Auth;
-using KeshavSingh.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -69,6 +68,7 @@ public sealed class VisitorChatController : ControllerBase
 [ApiController]
 [Route("api/visitor-chat/staff")]
 [Authorize]
+[RequirePagePermission("page.inbox")]
 public sealed class VisitorChatStaffController : ControllerBase
 {
     private readonly VisitorChatService _chat;

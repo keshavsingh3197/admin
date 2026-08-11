@@ -11,6 +11,7 @@ namespace Admin.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize] // Default-deny: every document is personal data. Denials return 404 (never 403) — anti-IDOR.
+[RequirePagePermission("page.files")]
 public class FilesController : ControllerBase
 {
     private readonly FileService _files;

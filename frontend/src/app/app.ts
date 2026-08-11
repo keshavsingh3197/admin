@@ -1,4 +1,4 @@
-import { Component, DestroyRef, HostListener, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, HostListener, computed, effect, inject, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -9,6 +9,7 @@ import { ChatService } from './core/services/chat.service';
 import { CallService } from './core/services/call.service';
 import { ConfigService } from './core/services/config.service';
 import { I18nService } from './core/services/i18n.service';
+import { RbacService } from './core/services/rbac.service';
 import { CONFIG_KEYS } from './core/models/config.models';
 import { CallOverlayComponent } from './features/messages/call-overlay.component';
 import { MeetingReminderComponent } from './features/meetings/meeting-reminder.component';
@@ -23,6 +24,12 @@ interface NavLink {
   labelKey: string;
   icon: string;
   exact: boolean;
+  /**
+   * The `PermissionCatalog` "page.*" key that gates this page server-side (see
+   * `RequirePagePermissionAttribute`). Undefined means every signed-in user can see it (nothing
+   * server-side gates it beyond `[Authorize]`). Admin role always sees everything regardless.
+   */
+  permissionKey?: string;
 }
 
 /**
@@ -34,12 +41,12 @@ interface NavLink {
  */
 const PRIMARY_LINKS: NavLink[] = [
   // One entry for every conversation — team chat, visitors and the contact form are tabs inside it.
-  { path: '/inbox', labelKey: 'admin.nav.inbox', icon: '💬', exact: false },
+  { path: '/inbox', labelKey: 'admin.nav.inbox', icon: '💬', exact: false, permissionKey: 'page.inbox' },
   { path: '/meetings', labelKey: 'admin.nav.meetings', icon: '📅', exact: false },
-  { path: '/notes', labelKey: 'admin.nav.notes', icon: '📝', exact: false },
-  { path: '/files', labelKey: 'admin.nav.files', icon: '📁', exact: false },
-  { path: '/short-links', labelKey: 'admin.nav.shortLinks', icon: '🔗', exact: false },
-  { path: '/finance', labelKey: 'admin.nav.finance', icon: '💰', exact: false },
+  { path: '/notes', labelKey: 'admin.nav.notes', icon: '📝', exact: false, permissionKey: 'page.notes' },
+  { path: '/files', labelKey: 'admin.nav.files', icon: '📁', exact: false, permissionKey: 'page.files' },
+  { path: '/short-links', labelKey: 'admin.nav.shortLinks', icon: '🔗', exact: false, permissionKey: 'page.shortLinks' },
+  { path: '/finance', labelKey: 'admin.nav.finance', icon: '💰', exact: false, permissionKey: 'page.finance' },
 ];
 
 const ADMIN_LINKS: NavLink[] = [
@@ -74,10 +81,26 @@ export class App {
   private calls = inject(CallService);
   protected readonly config = inject(ConfigService);
   protected readonly i18n = inject(I18nService);
+  private rbac = inject(RbacService);
   protected readonly keys = CONFIG_KEYS;
 
   readonly primaryLinks = PRIMARY_LINKS;
   readonly adminLinks = ADMIN_LINKS;
+  /** This user's `page.*` grants (see PermissionCatalog) — Admin role sees everything regardless. */
+  readonly pagePermissions = signal<string[]>([]);
+  /** True once the permissions fetch for the current identity has settled (success or failure) — so
+   *  the "no access to this app" screen never flashes for a legitimate user still loading. */
+  readonly permissionsLoaded = signal(false);
+  /** Set from `?denied=<page.key>`, left by `pagePermissionGuard` when it turns back a nav attempt. */
+  readonly accessDeniedMessage = signal<string | null>(null);
+  /**
+   * A signed-in identity with the Admin role, or at least one granted `page.*` key, has SOME reason to
+   * be in this app. Everyone else — someone who only has a role/grant on another *.keshavsingh.in site
+   * — is signed in (SSO is shared by design) but has no business inside the admin console itself, so
+   * they see a plain "no access" screen instead of a launcher with every link hidden.
+   */
+  readonly hasAppAccess = computed(() =>
+    this.auth.hasRole('Admin') || this.pagePermissions().length > 0);
 
   readonly routeLoading = signal(false);
   readonly navOpen = signal(false);
@@ -104,6 +127,16 @@ export class App {
       else void this.chat.disconnect();
     });
 
+    // Which nav items to show — hides a page a non-Admin has no grant for, rather than showing a
+    // link that 403s. Re-fetched whenever the signed-in identity changes (login/logout/switch).
+    effect(() => {
+      if (!this.auth.isAuthenticated()) { this.pagePermissions.set([]); this.permissionsLoaded.set(false); return; }
+      this.rbac.me().subscribe({
+        next: access => { this.pagePermissions.set(access.adminPermissions); this.permissionsLoaded.set(true); },
+        error: () => { this.pagePermissions.set([]); this.permissionsLoaded.set(true); },
+      });
+    });
+
     this.router.events
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((event) => {
@@ -127,6 +160,9 @@ export class App {
           this.analytics
             .trackVisit({ websiteKey: 'admin', path: event.urlAfterRedirects })
             .subscribe({ error: () => {} });
+
+          const denied = this.router.parseUrl(event.urlAfterRedirects).queryParamMap.get('denied');
+          this.accessDeniedMessage.set(denied ? this.labelForPermission(denied) : null);
         }
       });
   }
@@ -147,6 +183,23 @@ export class App {
   /** The brand label — a configured value that is itself a translation key. */
   brandName(): string {
     return this.i18n.configText(CONFIG_KEYS.brandName, 'Admin');
+  }
+
+  /** Nav entries the signed-in user actually has a grant for — Admin role always sees all of them. */
+  visiblePrimaryLinks(): NavLink[] {
+    if (this.auth.hasRole('Admin')) return this.primaryLinks;
+    const granted = this.pagePermissions();
+    return this.primaryLinks.filter(link => !link.permissionKey || granted.includes(link.permissionKey));
+  }
+
+  /** A human label for a denied `page.*` key, for the access-denied banner — falls back to the raw key. */
+  private labelForPermission(permissionKey: string): string {
+    const link = [...this.primaryLinks, ...this.adminLinks].find(l => l.permissionKey === permissionKey);
+    return link ? this.i18n.t(link.labelKey) : permissionKey;
+  }
+
+  dismissAccessDenied(): void {
+    this.accessDeniedMessage.set(null);
   }
 
   switchLanguage(code: string): void {
