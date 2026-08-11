@@ -159,12 +159,12 @@ public sealed class PackageInventoryService
 
         foreach (var (repository, path, content) in manifestBodies.Where(x => x.Path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
         {
-            var producer = ParseCsprojProducer(content, repository);
+            var producer = ParseCsprojProducer(content, $"{repository}/{path}", repository, diagnostics);
             if (producer is not null) producers[$"nuget:{producer.Name}"] = producer;
         }
         foreach (var (repository, path, content) in manifestBodies.Where(x => x.Path.EndsWith("package.json", StringComparison.OrdinalIgnoreCase)))
         {
-            var producer = ParsePackageJsonProducer(content, repository);
+            var producer = ParsePackageJsonProducer(content, $"{repository}/{path}", repository, diagnostics);
             if (producer is not null) producers[$"npm:{producer.Name}"] = producer;
         }
 
@@ -176,8 +176,8 @@ public sealed class PackageInventoryService
                 ? $"{repository}/{(Path.GetDirectoryName(path.Replace('\\', '/'))?.Replace('\\', '/') is { Length: > 0 } dir ? dir : ".")}"
                 : $"{repository}/{path.Replace('\\', '/')}";
             consumers.AddRange(path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
-                ? ParseCsprojConsumers(content, projectName, known)
-                : ParsePackageJsonConsumers(content, projectName, known));
+                ? ParseCsprojConsumers(content, projectName, known, diagnostics)
+                : ParsePackageJsonConsumers(content, projectName, known, diagnostics));
         }
 
         return (producers, consumers);
@@ -272,7 +272,7 @@ public sealed class PackageInventoryService
         return request;
     }
 
-    private static Producer? ParseCsprojProducer(string content, string repository)
+    private static Producer? ParseCsprojProducer(string content, string label, string repository, List<string> diagnostics)
     {
         try
         {
@@ -283,10 +283,10 @@ public sealed class PackageInventoryService
                 ? new Producer("nuget", packageId, version, repository)
                 : null;
         }
-        catch (Exception) { return null; }
+        catch (Exception ex) { diagnostics.Add($"{label}: not valid XML, skipped ({ex.GetType().Name})."); return null; }
     }
 
-    private static Producer? ParsePackageJsonProducer(string content, string repository)
+    private static Producer? ParsePackageJsonProducer(string content, string label, string repository, List<string> diagnostics)
     {
         try
         {
@@ -300,30 +300,34 @@ public sealed class PackageInventoryService
                 ? new Producer("npm", name, version, repository)
                 : null;
         }
-        catch (JsonException) { return null; }
+        catch (JsonException ex) { diagnostics.Add($"{label}: not valid JSON, skipped ({ex.Message})."); return null; }
     }
 
-    private static IEnumerable<Consumer> ParseCsprojConsumers(string content, string project, HashSet<string> known)
+    private static IEnumerable<Consumer> ParseCsprojConsumers(string content, string project, HashSet<string> known, List<string> diagnostics)
     {
-        try
+        // Iterator methods can't `yield return` inside a try with a catch, so the parse (the part that
+        // can actually throw) is isolated in its own try/catch that yield-breaks on failure; the walk
+        // below it is unprotected but can't throw once `document` parsed successfully.
+        XDocument? document = null;
+        try { document = XDocument.Parse(content); }
+        catch (Exception ex) { diagnostics.Add($"{project}: not valid XML, skipped ({ex.GetType().Name})."); }
+        if (document is null) yield break;
+
+        foreach (var reference in document.Descendants("PackageReference"))
         {
-            var document = XDocument.Parse(content);
-            foreach (var reference in document.Descendants("PackageReference"))
-            {
-                var name = reference.Attribute("Include")?.Value;
-                var version = reference.Attribute("Version")?.Value ?? reference.Element("Version")?.Value;
-                if (name is not null && version is not null && known.Contains($"nuget:{name}"))
-                    yield return new Consumer("nuget", name, version, project);
-            }
+            var name = reference.Attribute("Include")?.Value;
+            var version = reference.Attribute("Version")?.Value ?? reference.Element("Version")?.Value;
+            if (name is not null && version is not null && known.Contains($"nuget:{name}"))
+                yield return new Consumer("nuget", name, version, project);
         }
-        finally { }
     }
 
-    private static IEnumerable<Consumer> ParsePackageJsonConsumers(string content, string project, HashSet<string> known)
+    private static IEnumerable<Consumer> ParsePackageJsonConsumers(string content, string project, HashSet<string> known, List<string> diagnostics)
     {
-        JsonDocument document;
+        JsonDocument? document = null;
         try { document = JsonDocument.Parse(content); }
-        catch (JsonException) { yield break; }
+        catch (JsonException ex) { diagnostics.Add($"{project}: not valid JSON, skipped ({ex.Message})."); }
+        if (document is null) yield break;
         using (document)
         {
             foreach (var sectionName in new[] { "dependencies", "devDependencies", "peerDependencies" })
