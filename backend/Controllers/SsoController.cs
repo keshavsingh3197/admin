@@ -105,9 +105,15 @@ public sealed class SsoController : ControllerBase
         if (origin is null)
             return BadRequest(new { error = "Could not determine where to return you to after GitHub." });
 
+        // The site that sent the user here to sign in (ghar-ledger, content-blog, ...) — carried
+        // through the whole GitHub round-trip so `finish()` on the login page can bounce back to it
+        // afterwards, same as a plain password login's `?return=` already does. Family-allowlisted the
+        // same way `LoginComponent.isAllowedExternal` does client-side (defence in depth either way).
+        var returnUrl = IsFamilyUrl(request.ReturnUrl) ? request.ReturnUrl : null;
+
         var redirectUri = $"{Request.Scheme}://{Request.Host}{GitHubCallbackPath}";
         var state = _protector.Encrypt(JsonSerializer.Serialize(new SocialStatePayload(
-            Guid.NewGuid().ToString("N"), origin, redirectUri, request.AppKey ?? "", DateTimeOffset.UtcNow)));
+            Guid.NewGuid().ToString("N"), origin, redirectUri, request.AppKey ?? "", returnUrl, DateTimeOffset.UtcNow)));
 
         var authorizeUrl = "https://github.com/login/oauth/authorize"
             + $"?client_id={Uri.EscapeDataString(clientId)}"
@@ -150,11 +156,13 @@ public sealed class SsoController : ControllerBase
         try
         {
             var result = await _auth.AuthenticateSocialAsync(email, payload.AppKey);
+            var returnParam = payload.ReturnUrl is null ? "" : $"&return={Uri.EscapeDataString(payload.ReturnUrl)}";
             return Redirect($"{payload.Origin}/login"
                 + $"?twoFactorToken={Uri.EscapeDataString(result.TwoFactorToken!)}"
                 + $"&emailFallback={result.EmailFallbackAvailable}"
                 + $"&smsFallback={result.SmsFallbackAvailable}"
-                + $"&whatsAppFallback={result.WhatsAppFallbackAvailable}");
+                + $"&whatsAppFallback={result.WhatsAppFallbackAvailable}"
+                + returnParam);
         }
         catch (AuthException ex)
         {
@@ -289,11 +297,17 @@ public sealed class SsoController : ControllerBase
                 ? refUri.GetLeftPart(UriPartial.Authority)
                 : null);
         if (raw is null || !Uri.TryCreate(raw, UriKind.Absolute, out var uri)) return null;
+        return IsFamilyUrl(raw) ? uri.GetLeftPart(UriPartial.Authority) : null;
+    }
 
+    /// <summary>Absolute https (or http://localhost in dev) on the keshavsingh.in family — the same
+    /// allowlist `LoginComponent.isAllowedExternal` applies client-side to `?return=`.</summary>
+    private static bool IsFamilyUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
         var isLocalhost = uri.Host == "localhost";
-        if (uri.Scheme != Uri.UriSchemeHttps && !(isLocalhost && uri.Scheme == Uri.UriSchemeHttp)) return null;
-        var onFamily = isLocalhost || uri.Host == "keshavsingh.in" || uri.Host.EndsWith(".keshavsingh.in", StringComparison.OrdinalIgnoreCase);
-        return onFamily ? uri.GetLeftPart(UriPartial.Authority) : null;
+        if (uri.Scheme != Uri.UriSchemeHttps && !(isLocalhost && uri.Scheme == Uri.UriSchemeHttp)) return false;
+        return isLocalhost || uri.Host == "keshavsingh.in" || uri.Host.EndsWith(".keshavsingh.in", StringComparison.OrdinalIgnoreCase);
     }
 
     private SocialStatePayload? TryDecodeSocialState(string? state)
@@ -355,12 +369,13 @@ public sealed class SsoController : ControllerBase
         catch (Exception ex) when (ex is HttpRequestException or JsonException) { return null; }
     }
 
-    private sealed record SocialStatePayload(string Nonce, string Origin, string RedirectUri, string AppKey, DateTimeOffset IssuedAt);
+    private sealed record SocialStatePayload(string Nonce, string Origin, string RedirectUri, string AppKey, string? ReturnUrl, DateTimeOffset IssuedAt);
 }
 
 /// <summary>The GitHub authorize URL to navigate the whole page to (a full-page redirect, not an XHR).</summary>
 public sealed record GitHubSocialStartResponse(string AuthorizeUrl);
 
-/// <summary>Which site is signing the user in — same meaning as <see cref="LoginRequest.AppKey"/>.</summary>
-public sealed record GitHubSocialStartRequest(string? AppKey);
+/// <summary>Which site is signing the user in — same meaning as <see cref="LoginRequest.AppKey"/> —
+/// and, if the user arrived here via another site's own redirect, where to send them back afterwards.</summary>
+public sealed record GitHubSocialStartRequest(string? AppKey, string? ReturnUrl);
  

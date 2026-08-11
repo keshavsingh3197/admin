@@ -54,9 +54,11 @@ export class AuthService {
 
   /** Step 1 of "Sign in with GitHub": returns the authorize URL to navigate the whole page to —
    *  never call this like a normal fetch/XHR result (a redirect to github.com can't carry a bearer
-   *  token, which is also why the callback finishes back on this same login page instead). */
-  startGitHubSocialLogin(appKey: string): Observable<{ authorizeUrl: string }> {
-    return this.http.post<{ authorizeUrl: string }>(`${this.base}/sso/social/github/start`, { appKey });
+   *  token, which is also why the callback finishes back on this same login page instead).
+   *  `returnUrl` is the `?return=` this login page was opened with (another site's own redirect,
+   *  e.g. ghar-ledger) — threaded through the whole round-trip so the user lands back there. */
+  startGitHubSocialLogin(appKey: string, returnUrl?: string | null): Observable<{ authorizeUrl: string }> {
+    return this.http.post<{ authorizeUrl: string }>(`${this.base}/sso/social/github/start`, { appKey, returnUrl });
   }
 
   verifyTwoFactor(twoFactorToken: string, code: string, method: TwoFactorMethod): Observable<SsoLoginResponse> {

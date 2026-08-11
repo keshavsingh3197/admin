@@ -362,7 +362,7 @@ export class LoginComponent implements OnInit {
   signInWithGitHub(): void {
     this.githubLoading.set(true);
     this.errorMessage.set(null);
-    this.auth.startGitHubSocialLogin(this.appKey()).subscribe({
+    this.auth.startGitHubSocialLogin(this.appKey(), this.route.snapshot.queryParamMap.get('return')).subscribe({
       next: res => { window.location.href = res.authorizeUrl; },
       error: (err: HttpErrorResponse) => {
         this.githubLoading.set(false);
