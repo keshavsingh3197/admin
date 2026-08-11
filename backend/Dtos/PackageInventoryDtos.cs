@@ -3,7 +3,8 @@ namespace Admin.Api.Dtos;
 public sealed record PackageInventoryDto(
     DateTimeOffset GeneratedAtUtc,
     bool WorkspaceAvailable,
-    IReadOnlyList<PackageInventoryItemDto> Packages);
+    IReadOnlyList<PackageInventoryItemDto> Packages,
+    IReadOnlyList<string> Diagnostics);
 
 public sealed record PackageInventoryItemDto(
     string Ecosystem,

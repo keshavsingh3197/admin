@@ -20,4 +20,5 @@ export interface PackageInventory {
   generatedAtUtc: string;
   workspaceAvailable: boolean;
   packages: PackageInventoryItem[];
+  diagnostics: string[];
 }
