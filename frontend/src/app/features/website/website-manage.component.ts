@@ -135,7 +135,9 @@ import { LocaleView } from '../../core/models/localization.models';
                 <a class="metric-tile" [routerLink]="['/users']" [queryParams]="{ app: selectedApp()!.key }"><span>Users</span><strong>{{ metrics.userCount }}</strong></a>
                 <a class="metric-tile" [routerLink]="['/roles']" [queryParams]="{ app: selectedApp()!.key }"><span>Roles</span><strong>{{ metrics.roleCount }}</strong></a>
                 <a class="metric-tile" [routerLink]="['/groups']" [queryParams]="{ app: selectedApp()!.key }"><span>Groups</span><strong>{{ metrics.groupCount }}</strong></a>
-                <a class="metric-tile" [routerLink]="['/sessions']"><span>Sessions</span><strong>{{ metrics.activeSessionCount }}</strong></a>
+                <!-- Not a link: there is no "every user's sessions for this app" screen, and linking to
+                     /profile/sessions (yours alone) was misleading — a plain stat until that page exists. -->
+                <article><span>Active sessions</span><strong>{{ metrics.activeSessionCount }}</strong></article>
                 <a class="metric-tile" [routerLink]="['/analytics']" [queryParams]="{ app: selectedApp()!.key }"><span>Analytics</span><strong>→</strong></a>
                 <a class="metric-tile" [routerLink]="['/health']"><span>Health</span><strong>→</strong></a>
               </div>

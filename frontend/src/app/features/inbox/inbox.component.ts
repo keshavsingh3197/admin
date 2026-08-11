@@ -100,6 +100,11 @@ export class InboxComponent implements OnInit {
       count: () => this.contactUnread(),
       hint: 'Messages sent through the portfolio contact form',
     },
+    {
+      path: 'moderation', label: 'Moderation', icon: '🛡️', adminOnly: true,
+      count: () => 0,
+      hint: 'Review flagged messages and manage blocked users',
+    },
   ];
 
   readonly visibleTabs = computed(() => this.tabs.filter(t => !t.adminOnly || this.auth.hasRole('Admin')));

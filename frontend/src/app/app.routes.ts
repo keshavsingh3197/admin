@@ -74,18 +74,19 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/contact/contact-inbox.component').then((m) => m.ContactInboxComponent),
       },
+      {
+        path: 'moderation',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/messages/moderation.component').then((m) => m.MessagesModerationComponent),
+      },
     ],
   },
   // The old addresses still work — bookmarks and anything linking to them shouldn't break.
   { path: 'messages', pathMatch: 'full', redirectTo: 'inbox/team' },
   { path: 'visitor-chat', pathMatch: 'full', redirectTo: 'inbox/visitors' },
   { path: 'contact-inbox', pathMatch: 'full', redirectTo: 'inbox/contact' },
-  {
-    path: 'messages/moderation',
-    canActivate: [adminGuard],
-    loadComponent: () =>
-      import('./features/messages/moderation.component').then((m) => m.MessagesModerationComponent),
-  },
+  { path: 'messages/moderation', pathMatch: 'full', redirectTo: 'inbox/moderation' },
   {
     path: 'meetings',
     canActivate: [authGuard],

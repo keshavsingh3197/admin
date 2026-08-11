@@ -6,6 +6,7 @@ using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Core;
 using KeshavSingh.Security;
 using KeshavSingh.Storage;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -26,11 +27,14 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     private readonly PublicConfigOptions _publicSeed;
     private readonly StorageOptions _storageSeed;
     private readonly DataProtector _protector;
+    private readonly IMemoryCache _cache;
     private volatile AppSettings _current = new();
 
     public SettingsService(MongoDbService db, IOptions<AuthSettingsOptions> seed, IOptions<JwtOptions> jwtSeed,
-        IOptions<PublicConfigOptions> publicSeed, IOptions<StorageOptions> storageSeed, DataProtector protector)
+        IOptions<PublicConfigOptions> publicSeed, IOptions<StorageOptions> storageSeed, DataProtector protector,
+        IMemoryCache cache)
     {
+        _cache = cache;
         _col = db.GetCollection<AppSettings>("settings");
         _seed = seed.Value;
         _jwtSeed = jwtSeed.Value;
@@ -178,7 +182,12 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
             s.StorageS3SecretAccessKeyEncrypted = _protector.Encrypt(r.StorageS3SecretAccessKey);
 
         if (!string.IsNullOrEmpty(r.GitHubPackagesToken))
+        {
             s.GitHubPackagesTokenEncrypted = _protector.Encrypt(r.GitHubPackagesToken);
+            // A newly-saved token should apply on the Packages screen's next load, not up to 15
+            // minutes later — the inventory result is cached under this exact key (PackageInventoryService).
+            _cache.Remove("package-inventory");
+        }
 
         s.UpdatedAt = DateTime.UtcNow;
         await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s,
