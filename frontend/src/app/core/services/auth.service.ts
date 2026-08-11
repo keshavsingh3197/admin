@@ -52,6 +52,13 @@ export class AuthService {
       .pipe(tap(res => { if (res.session) this.setSession(res.session); }));
   }
 
+  /** Step 1 of "Sign in with GitHub": returns the authorize URL to navigate the whole page to —
+   *  never call this like a normal fetch/XHR result (a redirect to github.com can't carry a bearer
+   *  token, which is also why the callback finishes back on this same login page instead). */
+  startGitHubSocialLogin(appKey: string): Observable<{ authorizeUrl: string }> {
+    return this.http.post<{ authorizeUrl: string }>(`${this.base}/sso/social/github/start`, { appKey });
+  }
+
   verifyTwoFactor(twoFactorToken: string, code: string, method: TwoFactorMethod): Observable<SsoLoginResponse> {
     return this.http
       .post<SsoLoginResponse>(`${this.base}/sso/2fa/verify`, { twoFactorToken, code, method }, { withCredentials: true })

@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { BrandDataTableComponent, BrandModalComponent, BrandTableColumn } from '@keshavsingh3197/web-ui';
 import { RbacService } from '../../core/services/rbac.service';
 import { scopedRoleKeys } from '../../core/services/rbac-scope.util';
 import {
@@ -24,7 +25,7 @@ const ADMIN_WEBSITE_KEY = 'admin';
  */
 @Component({
   selector: 'app-roles',
-  imports: [FormsModule, DatePipe, RouterLink],
+  imports: [FormsModule, DatePipe, RouterLink, BrandDataTableComponent, BrandModalComponent],
   template: `
     <div class="wrap">
       <div class="head">
@@ -41,8 +42,8 @@ const ADMIN_WEBSITE_KEY = 'admin';
 
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
-      @if (showForm()) {
-        <form class="card" (ngSubmit)="save()">
+      <brand-modal [open]="showForm()" [heading]="editId() ? 'Edit role' : 'New role'" (closed)="cancel()">
+        <form (ngSubmit)="save()">
           <div class="grid">
             <label class="field"><span>Key (slug)</span>
               <input class="input" type="text" name="fKey" [(ngModel)]="fKey" [disabled]="!!editId()" required /></label>
@@ -124,51 +125,45 @@ const ADMIN_WEBSITE_KEY = 'admin';
             <button class="btn-secondary" type="button" (click)="cancel()">Cancel</button>
           </div>
         </form>
-      }
+      </brand-modal>
 
       @if (loading()) {
         <p>Loading…</p>
       } @else {
-        <div class="table-scroll">
-          <table class="tbl">
-            <thead>
-              <tr><th>Name</th><th>Key</th><th>Websites configured</th><th>Updated</th><th></th></tr>
-            </thead>
-            <tbody>
-              @for (r of visibleRoles(); track r.id) {
-                <tr>
-                  <td>{{ r.name }} @if (r.isSystem) { <span class="badge sys">System</span> }</td>
-                  <td><code>{{ r.key }}</code></td>
-                  <td>{{ r.websiteGrants.length }}</td>
-                  <td>{{ r.updatedAt | date:'short' }}</td>
-                  <td>
-                    <button class="linkish" type="button" (click)="toggleView(r)">{{ viewId() === r.id ? 'Hide' : 'View' }}</button>
-                    @if (!r.isSystem) {
-                      <button class="linkish" type="button" (click)="startEdit(r)">Edit</button>
-                      <button class="linkish danger" type="button" (click)="remove(r)">Delete</button>
-                    }
-                  </td>
-                </tr>
-                @if (viewId() === r.id) {
-                  <tr class="view-row"><td colspan="5">
-                    <div class="view-panel">
-                      @for (g of r.websiteGrants; track g.websiteKey) {
-                        <div class="grant-card">
-                          <strong>{{ siteName(g.websiteKey) }}</strong>
-                          <div class="grant-perms">
-                            @for (p of g.permissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
-                          </div>
-                        </div>
-                      }
-                      @if (!r.websiteGrants.length) { <span class="muted-inline">No website access configured.</span> }
-                    </div>
-                  </td></tr>
+        <brand-data-table [columns]="columns" [rows]="visibleRoles()" [trackBy]="trackById"
+                           searchPlaceholder="Search roles…">
+          <ng-template let-r>
+            <tr>
+              <td>{{ r.name }} @if (r.isSystem) { <span class="badge sys">System</span> }</td>
+              <td><code>{{ r.key }}</code></td>
+              <td>{{ r.websiteGrants.length }}</td>
+              <td>{{ r.updatedAt | date:'short' }}</td>
+              <td>
+                <button class="linkish" type="button" (click)="toggleView(r)">{{ viewId() === r.id ? 'Hide' : 'View' }}</button>
+                @if (!r.isSystem) {
+                  <button class="linkish" type="button" (click)="startEdit(r)">Edit</button>
+                  <button class="linkish danger" type="button" (click)="remove(r)">Delete</button>
                 }
-              }
-              @if (!visibleRoles().length) { <tr><td colspan="5">No roles.</td></tr> }
-            </tbody>
-          </table>
-        </div>
+              </td>
+            </tr>
+            @if (viewId() === r.id) {
+              <tr class="view-row"><td colspan="5">
+                <div class="view-panel">
+                  @for (g of r.websiteGrants; track g.websiteKey) {
+                    <div class="grant-card">
+                      <strong>{{ siteName(g.websiteKey) }}</strong>
+                      <div class="grant-perms">
+                        @for (p of g.permissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
+                      </div>
+                    </div>
+                  }
+                  @if (!r.websiteGrants.length) { <span class="muted-inline">No website access configured.</span> }
+                </div>
+              </td></tr>
+            }
+          </ng-template>
+          <span table-empty>No roles match these filters.</span>
+        </brand-data-table>
       }
     </div>
   `,
@@ -200,9 +195,7 @@ const ADMIN_WEBSITE_KEY = 'admin';
     .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.55; cursor: default; }
     .btn-secondary { padding: 0.45rem 0.8rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
     .table-scroll { overflow-x: auto; }
-    .tbl { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-    .tbl th, .tbl td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--text); }
-    .tbl th { background: var(--bg); font-weight: 600; }
+    td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--text); }
     .badge { display: inline-block; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.78rem; }
     .badge.sys { background: color-mix(in srgb, var(--brand) 18%, var(--surface)); color: var(--brand); margin-left: 0.4rem; font-size: 0.72rem; }
     .scope-chip { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border)); border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 1rem; font-size: 0.86rem; }
@@ -247,6 +240,16 @@ export class RolesComponent implements OnInit {
 
   pickedSite = '';
   readonly pickedPermissions = new Set<string>();
+
+  readonly columns: BrandTableColumn<CustomRoleView>[] = [
+    { key: 'name', label: 'Name', value: r => r.name, sortable: true },
+    { key: 'key', label: 'Key', value: r => r.key, sortable: true },
+    { key: 'websites', label: 'Websites configured', value: r => r.websiteGrants.length, sortable: true },
+    { key: 'updated', label: 'Updated', value: r => r.updatedAt, sortable: true },
+    { key: 'actions', label: '' },
+  ];
+
+  trackById = (r: CustomRoleView) => r.id;
 
   adminPages(): PermissionCatalogItem[] { return this.adminPermItems().filter(p => p.category === 'Pages'); }
   adminActions(): PermissionCatalogItem[] { return this.adminPermItems().filter(p => p.category === 'Actions'); }

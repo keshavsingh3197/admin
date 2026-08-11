@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { BrandDataTableComponent, BrandModalComponent, BrandTableColumn } from '@keshavsingh3197/web-ui';
 import { UsersService } from '../../core/services/users.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RbacService } from '../../core/services/rbac.service';
@@ -18,14 +19,12 @@ import { Role } from '../../core/models/auth.models';
  */
 @Component({
   selector: 'app-users',
-  imports: [FormsModule, DatePipe, RouterLink],
+  imports: [FormsModule, DatePipe, RouterLink, BrandDataTableComponent, BrandModalComponent],
   template: `
     <div class="users-wrap">
       <div class="head">
         <h1 class="page-title">Users &amp; Roles</h1>
-        <button class="btn-primary" type="button" (click)="toggleCreate()">
-          {{ showCreate() ? 'Cancel' : '+ New user' }}
-        </button>
+        <button class="btn-primary" type="button" (click)="showCreate.set(true)">+ New user</button>
       </div>
 
       @if (appFilter(); as app) {
@@ -35,8 +34,8 @@ import { Role } from '../../core/models/auth.models';
 
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
-      @if (showCreate()) {
-        <form class="card create" (ngSubmit)="create()">
+      <brand-modal [open]="showCreate()" heading="New user" (closed)="showCreate.set(false)">
+        <form class="create" (ngSubmit)="create()">
           <div class="grid">
             <label class="field"><span>Email</span>
               <input class="input" type="email" name="cEmail" [(ngModel)]="cEmail" required /></label>
@@ -59,71 +58,65 @@ import { Role } from '../../core/models/auth.models';
             {{ busy() ? 'Creating…' : 'Create user' }}
           </button>
         </form>
-      }
+      </brand-modal>
 
       @if (loading()) {
         <p>Loading…</p>
       } @else {
-        <div class="table-scroll">
-          <table class="tbl">
-            <thead>
-              <tr><th>Email</th><th>Name</th><th>Roles</th><th>Status</th><th>2FA</th><th>Last login</th><th></th></tr>
-            </thead>
-            <tbody>
-              @for (u of visibleUsers(); track u.id) {
-                <tr [class.inactive]="!u.isActive">
-                  <td>{{ u.email }}</td>
-                  <td>{{ u.displayName }}</td>
-                  <td>@for (r of u.roles; track r) { <span class="badge">{{ r }}</span> }</td>
-                  <td>{{ u.isActive ? 'Active' : 'Disabled' }}</td>
-                  <td>{{ u.twoFactorEnabled ? '✓' : '—' }}</td>
-                  <td>{{ u.lastLoginAt ? (u.lastLoginAt | date:'short') : 'never' }}</td>
-                  <td><button class="linkish" type="button" (click)="edit(u)">Edit</button></td>
-                </tr>
+        <brand-data-table [columns]="columns" [rows]="visibleUsers()" [trackBy]="trackById"
+                           searchPlaceholder="Search users…">
+          <ng-template let-u>
+            <tr [class.inactive]="!u.isActive">
+              <td>{{ u.email }}</td>
+              <td>{{ u.displayName }}</td>
+              <td>@for (r of u.roles; track r) { <span class="badge">{{ r }}</span> }</td>
+              <td>{{ u.isActive ? 'Active' : 'Disabled' }}</td>
+              <td>{{ u.twoFactorEnabled ? '✓' : '—' }}</td>
+              <td>{{ u.lastLoginAt ? (u.lastLoginAt | date:'short') : 'never' }}</td>
+              <td><button class="linkish" type="button" (click)="edit(u)">Edit</button></td>
+            </tr>
 
-                @if (editId() === u.id) {
-                  <tr class="edit-row"><td colspan="7">
-                    <div class="edit-panel">
-                      <div class="roles">
-                        <span class="roles-label">Roles:</span>
-                        @for (r of allRoles(); track r) {
-                          <label class="chk"><input type="checkbox" [checked]="eRoles.has(r)" (change)="toggleRole(eRoles, r)" /> {{ r }}</label>
-                        }
-                        <button class="btn-secondary" type="button" [disabled]="busy()" (click)="saveRoles(u)">Save roles</button>
-                      </div>
-                      <div class="roles">
-                        <span class="roles-label">Custom roles:</span>
-                        @for (r of customRoles(); track r.id) {
-                          <label class="chk"><input type="checkbox" [checked]="eCustomRoles.has(r.key)" (change)="toggleCustomRole(r.key)" /> {{ r.name }}</label>
-                        }
-                        @if (!customRoles().length) { <span class="muted-inline">None defined yet — create one on the Roles page.</span> }
-                        <button class="btn-secondary" type="button" [disabled]="busy()" (click)="saveCustomRoles(u)">Save custom roles</button>
-                      </div>
-                      <div class="roles">
-                        <span class="roles-label">Groups:</span>
-                        @for (g of groups(); track g.id) {
-                          <label class="chk"><input type="checkbox" [checked]="eGroups.has(g.id)" (change)="toggleGroup(u, g)" /> {{ g.name }}</label>
-                        }
-                        @if (!groups().length) { <span class="muted-inline">None defined yet — create one on the Groups page.</span> }
-                      </div>
-                      <div class="actions">
-                        <button class="btn-secondary" type="button" [disabled]="busy()" (click)="toggleActive(u)">
-                          {{ u.isActive ? 'Deactivate' : 'Activate' }}
-                        </button>
-                        <span class="reset">
-                          <input class="input sm" type="text" placeholder="New password (min 12)" [(ngModel)]="resetPw" name="rpw" />
-                          <button class="btn-secondary" type="button" [disabled]="busy() || resetPw.length < 12" (click)="reset(u)">Reset password</button>
-                        </span>
-                        <button class="btn-danger" type="button" [disabled]="busy() || u.id === selfId()" (click)="remove(u)">Delete</button>
-                      </div>
-                    </div>
-                  </td></tr>
-                }
-              }
-              @if (!visibleUsers().length) { <tr><td colspan="7">No users.</td></tr> }
-            </tbody>
-          </table>
-        </div>
+            @if (editId() === u.id) {
+              <tr class="edit-row"><td colspan="7">
+                <div class="edit-panel">
+                  <div class="roles">
+                    <span class="roles-label">Roles:</span>
+                    @for (r of allRoles(); track r) {
+                      <label class="chk"><input type="checkbox" [checked]="eRoles.has(r)" (change)="toggleRole(eRoles, r)" /> {{ r }}</label>
+                    }
+                    <button class="btn-secondary" type="button" [disabled]="busy()" (click)="saveRoles(u)">Save roles</button>
+                  </div>
+                  <div class="roles">
+                    <span class="roles-label">Custom roles:</span>
+                    @for (r of customRoles(); track r.id) {
+                      <label class="chk"><input type="checkbox" [checked]="eCustomRoles.has(r.key)" (change)="toggleCustomRole(r.key)" /> {{ r.name }}</label>
+                    }
+                    @if (!customRoles().length) { <span class="muted-inline">None defined yet — create one on the Roles page.</span> }
+                    <button class="btn-secondary" type="button" [disabled]="busy()" (click)="saveCustomRoles(u)">Save custom roles</button>
+                  </div>
+                  <div class="roles">
+                    <span class="roles-label">Groups:</span>
+                    @for (g of groups(); track g.id) {
+                      <label class="chk"><input type="checkbox" [checked]="eGroups.has(g.id)" (change)="toggleGroup(u, g)" /> {{ g.name }}</label>
+                    }
+                    @if (!groups().length) { <span class="muted-inline">None defined yet — create one on the Groups page.</span> }
+                  </div>
+                  <div class="actions">
+                    <button class="btn-secondary" type="button" [disabled]="busy()" (click)="toggleActive(u)">
+                      {{ u.isActive ? 'Deactivate' : 'Activate' }}
+                    </button>
+                    <span class="reset">
+                      <input class="input sm" type="text" placeholder="New password (min 12)" [(ngModel)]="resetPw" name="rpw" />
+                      <button class="btn-secondary" type="button" [disabled]="busy() || resetPw.length < 12" (click)="reset(u)">Reset password</button>
+                    </span>
+                    <button class="btn-danger" type="button" [disabled]="busy() || u.id === selfId()" (click)="remove(u)">Delete</button>
+                  </div>
+                </div>
+              </td></tr>
+            }
+          </ng-template>
+          <span table-empty>No users match these filters.</span>
+        </brand-data-table>
       }
     </div>
   `,
@@ -145,9 +138,7 @@ import { Role } from '../../core/models/auth.models';
     .btn-secondary { padding: 0.45rem 0.8rem; background: #f1f3f4; color: #202124; border: 1px solid #dadce0; border-radius: 6px; cursor: pointer; }
     .btn-danger { padding: 0.45rem 0.8rem; background: #d93025; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
     .table-scroll { overflow-x: auto; }
-    .tbl { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; }
-    .tbl th, .tbl td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
-    .tbl th { background: #f8f9fa; font-weight: 600; }
+    td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
     tr.inactive td { color: #999; }
     .badge { display: inline-block; background: #e8f0fe; color: #1a73e8; border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.78rem; margin-right: 0.3rem; }
     .linkish { background: none; border: none; color: #1a73e8; cursor: pointer; }
@@ -199,6 +190,18 @@ export class UsersComponent implements OnInit {
   readonly eGroups = new Set<string>();
   resetPw = '';
 
+  readonly columns: BrandTableColumn<UserListItem>[] = [
+    { key: 'email', label: 'Email', value: u => u.email, sortable: true },
+    { key: 'displayName', label: 'Name', value: u => u.displayName, sortable: true },
+    { key: 'roles', label: 'Roles', value: u => u.roles.join(', '), filterable: true },
+    { key: 'status', label: 'Status', value: u => u.isActive ? 'Active' : 'Disabled', filterable: true },
+    { key: 'twoFactor', label: '2FA', value: u => u.twoFactorEnabled ? 'Enabled' : 'Disabled', filterable: true },
+    { key: 'lastLogin', label: 'Last login', value: u => u.lastLoginAt ?? '', sortable: true },
+    { key: 'actions', label: '' },
+  ];
+
+  trackById = (u: UserListItem) => u.id;
+
   selfId(): string | undefined { return this.auth.user()?.id; }
 
   ngOnInit(): void {
@@ -216,8 +219,6 @@ export class UsersComponent implements OnInit {
       error: (err: HttpErrorResponse) => { this.loading.set(false); this.fail(err, 'Could not load users.'); },
     });
   }
-
-  toggleCreate(): void { this.showCreate.update(v => !v); }
 
   toggleRole(set: Set<Role>, role: Role): void {
     set.has(role) ? set.delete(role) : set.add(role);

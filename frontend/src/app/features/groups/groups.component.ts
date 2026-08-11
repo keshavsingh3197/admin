@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { BrandDataTableComponent, BrandModalComponent, BrandTableColumn } from '@keshavsingh3197/web-ui';
 import { RbacService } from '../../core/services/rbac.service';
 import { UsersService } from '../../core/services/users.service';
 import { scopedRoleKeys } from '../../core/services/rbac-scope.util';
@@ -21,7 +22,7 @@ import { UserListItem } from '../../core/models/user.models';
  */
 @Component({
   selector: 'app-groups',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, BrandDataTableComponent, BrandModalComponent],
   template: `
     <div class="wrap">
       <div class="head">
@@ -38,8 +39,8 @@ import { UserListItem } from '../../core/models/user.models';
 
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
-      @if (showForm()) {
-        <form class="card" (ngSubmit)="save()">
+      <brand-modal [open]="showForm()" [heading]="editId() ? 'Edit group' : 'New group'" (closed)="cancel()">
+        <form (ngSubmit)="save()">
           <div class="grid">
             <label class="field"><span>Name</span>
               <input class="input" type="text" name="fName" [(ngModel)]="fName" required /></label>
@@ -65,85 +66,79 @@ import { UserListItem } from '../../core/models/user.models';
             <button class="btn-secondary" type="button" (click)="cancel()">Cancel</button>
           </div>
         </form>
-      }
+      </brand-modal>
 
       @if (loading()) {
         <p>Loading…</p>
       } @else {
-        <div class="table-scroll">
-          <table class="tbl">
-            <thead>
-              <tr><th>Name</th><th>Roles</th><th>Members</th><th>Family</th><th></th></tr>
-            </thead>
-            <tbody>
-              @for (g of visibleGroups(); track g.id) {
-                <tr>
-                  <td>{{ g.name }}</td>
-                  <td>@for (k of g.roleKeys; track k) { <span class="badge">{{ k }}</span> }</td>
-                  <td>{{ g.memberUserIds.length }}</td>
-                  <td>@if (g.isFamilyCircle) { <span class="badge">Family circle</span> }</td>
-                  <td>
-                    <button class="linkish" type="button" (click)="toggleAccess(g)">{{ accessId() === g.id ? 'Hide access' : 'View access' }}</button>
-                    <button class="linkish" type="button" (click)="toggleMembers(g)">Members</button>
-                    <button class="linkish" type="button" (click)="startEdit(g)">Edit</button>
-                    <button class="linkish danger" type="button" (click)="remove(g)">Delete</button>
-                  </td>
-                </tr>
-                @if (accessId() === g.id) {
-                  <tr class="view-row"><td colspan="5">
-                    <div class="view-panel">
-                      @if (previewLoading()) {
-                        <span class="muted">Loading access…</span>
-                      } @else if (preview()) {
-                        <div class="grant-card">
-                          <strong>Admin (this app)</strong>
-                          <div class="grant-perms">
-                            @for (p of preview()!.adminPermissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
-                            @if (!preview()!.adminPermissions.length) { <span class="muted">No admin app access.</span> }
-                          </div>
+        <brand-data-table [columns]="columns" [rows]="visibleGroups()" [trackBy]="trackById"
+                           searchPlaceholder="Search groups…">
+          <ng-template let-g>
+            <tr>
+              <td>{{ g.name }}</td>
+              <td>@for (k of g.roleKeys; track k) { <span class="badge">{{ k }}</span> }</td>
+              <td>{{ g.memberUserIds.length }}</td>
+              <td>@if (g.isFamilyCircle) { <span class="badge">Family circle</span> }</td>
+              <td>
+                <button class="linkish" type="button" (click)="toggleAccess(g)">{{ accessId() === g.id ? 'Hide access' : 'View access' }}</button>
+                <button class="linkish" type="button" (click)="toggleMembers(g)">Members</button>
+                <button class="linkish" type="button" (click)="startEdit(g)">Edit</button>
+                <button class="linkish danger" type="button" (click)="remove(g)">Delete</button>
+              </td>
+            </tr>
+            @if (accessId() === g.id) {
+              <tr class="view-row"><td colspan="5">
+                <div class="view-panel">
+                  @if (previewLoading()) {
+                    <span class="muted">Loading access…</span>
+                  } @else if (preview()) {
+                    <div class="grant-card">
+                      <strong>Admin (this app)</strong>
+                      <div class="grant-perms">
+                        @for (p of preview()!.adminPermissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
+                        @if (!preview()!.adminPermissions.length) { <span class="muted">No admin app access.</span> }
+                      </div>
+                    </div>
+                    @for (s of preview()!.siteAccess; track s.websiteKey) {
+                      <div class="grant-card">
+                        <strong>{{ siteName(s.websiteKey) }}</strong>
+                        <div class="grant-perms">
+                          @for (p of s.permissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
                         </div>
-                        @for (s of preview()!.siteAccess; track s.websiteKey) {
-                          <div class="grant-card">
-                            <strong>{{ siteName(s.websiteKey) }}</strong>
-                            <div class="grant-perms">
-                              @for (p of s.permissions; track p) { <span class="badge">{{ permissionLabel(p) }}</span> }
-                            </div>
-                          </div>
-                        }
-                        @if (!preview()!.siteAccess.length) { <span class="muted">No other website access.</span> }
+                      </div>
+                    }
+                    @if (!preview()!.siteAccess.length) { <span class="muted">No other website access.</span> }
+                  }
+                </div>
+              </td></tr>
+            }
+            @if (membersId() === g.id) {
+              <tr class="edit-row"><td colspan="5">
+                <div class="edit-panel">
+                  <div class="chips">
+                    @for (uid of g.memberUserIds; track uid) {
+                      <span class="badge member">
+                        {{ userName(uid) }}
+                        <button class="rm" type="button" (click)="removeMember(g, uid)" title="Remove from group">✕</button>
+                      </span>
+                    }
+                    @if (!g.memberUserIds.length) { <span class="muted">No members yet.</span> }
+                  </div>
+                  <div class="add-member">
+                    <select class="input sm" [(ngModel)]="addUserId" name="addUser">
+                      <option value="">Add a user…</option>
+                      @for (u of availableUsers(g); track u.id) {
+                        <option [value]="u.id">{{ u.displayName }} ({{ u.email }})</option>
                       }
-                    </div>
-                  </td></tr>
-                }
-                @if (membersId() === g.id) {
-                  <tr class="edit-row"><td colspan="5">
-                    <div class="edit-panel">
-                      <div class="chips">
-                        @for (uid of g.memberUserIds; track uid) {
-                          <span class="badge member">
-                            {{ userName(uid) }}
-                            <button class="rm" type="button" (click)="removeMember(g, uid)" title="Remove from group">✕</button>
-                          </span>
-                        }
-                        @if (!g.memberUserIds.length) { <span class="muted">No members yet.</span> }
-                      </div>
-                      <div class="add-member">
-                        <select class="input sm" [(ngModel)]="addUserId" name="addUser">
-                          <option value="">Add a user…</option>
-                          @for (u of availableUsers(g); track u.id) {
-                            <option [value]="u.id">{{ u.displayName }} ({{ u.email }})</option>
-                          }
-                        </select>
-                        <button class="btn-secondary" type="button" [disabled]="!addUserId" (click)="addMember(g)">Add</button>
-                      </div>
-                    </div>
-                  </td></tr>
-                }
-              }
-              @if (!visibleGroups().length) { <tr><td colspan="5">No groups.</td></tr> }
-            </tbody>
-          </table>
-        </div>
+                    </select>
+                    <button class="btn-secondary" type="button" [disabled]="!addUserId" (click)="addMember(g)">Add</button>
+                  </div>
+                </div>
+              </td></tr>
+            }
+          </ng-template>
+          <span table-empty>No groups match these filters.</span>
+        </brand-data-table>
       }
     </div>
   `,
@@ -169,9 +164,7 @@ import { UserListItem } from '../../core/models/user.models';
     .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.55; cursor: default; }
     .btn-secondary { padding: 0.45rem 0.8rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
     .table-scroll { overflow-x: auto; }
-    .tbl { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-    .tbl th, .tbl td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--text); }
-    .tbl th { background: var(--bg); font-weight: 600; }
+    td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--text); }
     .badge { display: inline-block; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.78rem; margin-right: 0.3rem; }
     .badge.member { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
     .badge.member .rm { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0; font-size: 0.8rem; }
@@ -223,6 +216,16 @@ export class GroupsComponent implements OnInit {
   addUserId = '';
   fName = ''; fDesc = ''; fFamilyCircle = false;
   readonly fRoleKeys = new Set<string>();
+
+  readonly columns: BrandTableColumn<GroupView>[] = [
+    { key: 'name', label: 'Name', value: g => g.name, sortable: true },
+    { key: 'roles', label: 'Roles', value: g => g.roleKeys.join(', '), filterable: true },
+    { key: 'members', label: 'Members', value: g => g.memberUserIds.length, sortable: true },
+    { key: 'family', label: 'Family', value: g => g.isFamilyCircle ? 'Family circle' : '', filterable: true },
+    { key: 'actions', label: '' },
+  ];
+
+  trackById = (g: GroupView) => g.id;
 
   ngOnInit(): void {
     this.appFilter.set(this.route.snapshot.queryParamMap.get('app'));

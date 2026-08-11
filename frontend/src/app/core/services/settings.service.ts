@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ApplicationMetrics, SettingsView, UpdateSettingsRequest, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../models/settings.models';
+import { ApplicationMetrics, GitHubOAuthStartResponse, SettingsView, UpdateSettingsRequest, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../models/settings.models';
 
 /** Client for the identity provider's runtime auth-security settings (/api/settings). */
 @Injectable({ providedIn: 'root' })
@@ -36,5 +36,10 @@ export class SettingsService {
 
   websiteMetrics(key: string): Observable<ApplicationMetrics> {
     return this.http.get<ApplicationMetrics>(`${this.base}/settings/websites/${encodeURIComponent(key)}/metrics`);
+  }
+
+  /** Returns the GitHub authorize URL to navigate the whole page to — never call this like a normal XHR result. */
+  startGitHubOAuth(): Observable<GitHubOAuthStartResponse> {
+    return this.http.post<GitHubOAuthStartResponse>(`${this.base}/settings/github/oauth/start`, {});
   }
 }

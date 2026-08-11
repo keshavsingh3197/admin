@@ -1,10 +1,11 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
 import { ConfigService } from '../../core/services/config.service';
+import { environment } from '../../../environments/environment';
 import { SettingsView, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../../core/models/settings.models';
 
 interface SettingsImportPayload {
@@ -146,6 +147,22 @@ interface SettingsImportPayload {
               placeholder="{{ m.gitHubPackagesTokenSet ? '••••••••' : 'ghp_… / github_pat_…' }}"
               [(ngModel)]="gitHubPackagesTokenInput" /></label>
 
+          <p class="hint">Or connect a GitHub OAuth App instead of pasting a token — register one at
+             <a href="https://github.com/settings/developers" target="_blank" rel="noopener">github.com/settings/developers</a>
+             with authorization callback URL <code>{{ oauthCallbackUrl() }}</code>, paste its Client ID/Secret below,
+             save, then Connect.</p>
+          <div class="grid">
+            <label class="field"><span>OAuth Client ID</span>
+              <input class="input" type="text" name="ghClientId" autocomplete="off" [(ngModel)]="m.gitHubOAuthClientId" /></label>
+            <label class="field"><span>OAuth Client Secret {{ m.gitHubOAuthClientSecretSet ? '(already set — leave blank to keep)' : '' }}</span>
+              <input class="input" type="password" name="ghClientSecret" autocomplete="new-password"
+                placeholder="{{ m.gitHubOAuthClientSecretSet ? '••••••••' : 'Client secret' }}"
+                [(ngModel)]="gitHubOAuthClientSecretInput" /></label>
+          </div>
+          <button class="btn-secondary" type="button" [disabled]="!m.gitHubOAuthClientId || connectingGitHub()" (click)="connectGitHub()">
+            {{ connectingGitHub() ? 'Connecting…' : 'Connect to GitHub' }}
+          </button>
+
           <h2>First-run checklist</h2>
           <p class="hint">For a fresh deployment, keep bootstrap secrets in env or Key Vault and manage non-secret runtime settings here after sign-in.</p>
           <ul class="checklist">
@@ -262,6 +279,7 @@ interface SettingsImportPayload {
 export class SettingsComponent implements OnInit {
   private api = inject(SettingsService);
   private config = inject(ConfigService);
+  private route = inject(ActivatedRoute);
 
   readonly model = signal<SettingsView | null>(null);
   readonly websites = signal<WebsiteLinkView[]>([]);
@@ -271,6 +289,9 @@ export class SettingsComponent implements OnInit {
   storageS3SecretInput = '';
   /** Write-only draft for the GitHub Packages token; blank means "leave the stored token unchanged". */
   gitHubPackagesTokenInput = '';
+  /** Write-only draft for the GitHub OAuth Client Secret; blank means "leave the stored secret unchanged". */
+  gitHubOAuthClientSecretInput = '';
+  readonly connectingGitHub = signal(false);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
@@ -278,6 +299,23 @@ export class SettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.reload();
+
+    const githubResult = this.route.snapshot.queryParamMap.get('github');
+    if (githubResult === 'connected') { this.ok.set(true); this.message.set('Connected to GitHub.'); }
+    else if (githubResult === 'error') { this.ok.set(false); this.message.set('Could not connect to GitHub. Check the Client ID/Secret and try again.'); }
+  }
+
+  /** The exact URL to register as this OAuth App's "Authorization callback URL" on GitHub. */
+  oauthCallbackUrl(): string {
+    return `${environment.apiUrl}/settings/github/oauth/callback`;
+  }
+
+  connectGitHub(): void {
+    this.connectingGitHub.set(true);
+    this.api.startGitHubOAuth().subscribe({
+      next: res => { window.location.href = res.authorizeUrl; },
+      error: (err: HttpErrorResponse) => { this.connectingGitHub.set(false); this.fail(err, 'Could not start the GitHub connection.'); },
+    });
   }
 
   /** (Re)loads the settings from the server — also driven by the ↻ button. */
@@ -291,6 +329,7 @@ export class SettingsComponent implements OnInit {
         this.whatsAppAccessTokenInput = '';
         this.storageS3SecretInput = '';
         this.gitHubPackagesTokenInput = '';
+        this.gitHubOAuthClientSecretInput = '';
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -312,6 +351,7 @@ export class SettingsComponent implements OnInit {
         this.whatsAppAccessTokenInput = '';
         this.storageS3SecretInput = '';
         this.gitHubPackagesTokenInput = '';
+        this.gitHubOAuthClientSecretInput = '';
         this.config.refresh(); // Propagate launcher/branding changes to the cached central config.
         this.ok.set(true);
         this.message.set('Settings saved.');
@@ -449,6 +489,8 @@ export class SettingsComponent implements OnInit {
       storageS3AccessKeyId: m.storageS3AccessKeyId,
       ...(this.storageS3SecretInput ? { storageS3SecretAccessKey: this.storageS3SecretInput } : {}),
       ...(this.gitHubPackagesTokenInput ? { gitHubPackagesToken: this.gitHubPackagesTokenInput } : {}),
+      gitHubOAuthClientId: m.gitHubOAuthClientId,
+      ...(this.gitHubOAuthClientSecretInput ? { gitHubOAuthClientSecret: this.gitHubOAuthClientSecretInput } : {}),
     };
   }
 

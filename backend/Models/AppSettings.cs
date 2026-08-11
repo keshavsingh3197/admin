@@ -62,5 +62,13 @@ public sealed class AppSettings
     // Falls back to PackageInventory:GitHubToken / PACKAGES_READ_TOKEN in appsettings/env if unset here.
     public string? GitHubPackagesTokenEncrypted { get; set; }   // 🔒 AES-encrypted.
 
+    // ---- GitHub OAuth App (alternative to pasting the PAT above) ----
+    // Register an OAuth App at github.com/settings/developers with callback
+    // {this API's base URL}/api/settings/github/oauth/callback, then paste its Client ID/Secret here.
+    // A completed "Connect to GitHub" flow writes its resulting token into
+    // GitHubPackagesTokenEncrypted above — same storage, same consumer, just a different way in.
+    public string GitHubOAuthClientId { get; set; } = string.Empty;
+    public string? GitHubOAuthClientSecretEncrypted { get; set; }   // 🔒 AES-encrypted.
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -78,6 +78,13 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
               🔑 {{ passkeyLoading() ? 'Waiting for passkey…' : 'Sign in with a passkey' }}
             </button>
           }
+
+          <div class="or-divider"><span>or</span></div>
+          <button class="btn-passkey" type="button" [disabled]="githubLoading()" (click)="signInWithGitHub()">
+            {{ githubLoading() ? 'Connecting to GitHub…' : '⬛ Sign in with GitHub' }}
+          </button>
+          <p class="login-sub" style="margin: 0.5rem 0 0; font-size: 0.78rem;">Only works for accounts an
+            administrator already created with this email, and only once you've enrolled an authenticator.</p>
         } @else {
           <form (ngSubmit)="submitTwoFactor()">
             <label class="field">
@@ -185,6 +192,29 @@ export class LoginComponent implements OnInit {
   readonly checking = signal(true);
 
   ngOnInit(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const twoFactorToken = params.get('twoFactorToken');
+    const socialError = params.get('socialError');
+
+    // Returning from the GitHub social-login redirect: either straight into the (always-mandatory)
+    // 2FA step, or a plain-language reason it didn't go through. Either way, skip the silent SSO
+    // cookie check below — we already know the answer from the URL, no need to guess first.
+    if (twoFactorToken) {
+      this.twoFactorToken = twoFactorToken;
+      this.emailFallback.set(params.get('emailFallback')?.toLowerCase() === 'true');
+      this.smsFallback.set(params.get('smsFallback')?.toLowerCase() === 'true');
+      this.whatsAppFallback.set(params.get('whatsAppFallback')?.toLowerCase() === 'true');
+      this.method.set('Totp');
+      this.step.set('twofactor');
+      this.checking.set(false);
+      return;
+    }
+    if (socialError) {
+      this.errorMessage.set(socialError);
+      this.checking.set(false);
+      return;
+    }
+
     // Already signed in on another *.keshavsingh.in app? Resume silently and bounce straight
     // to ?return= — no second prompt. A 401 just means "not signed in": show the form.
     this.auth.session().subscribe({
@@ -201,6 +231,7 @@ export class LoginComponent implements OnInit {
   /** Whether this browser can do WebAuthn at all — gates the passkey button. */
   readonly passkeySupported = isPasskeySupported();
   readonly passkeyLoading = signal(false);
+  readonly githubLoading = signal(false);
 
   email = '';
   password = '';
@@ -325,6 +356,19 @@ export class LoginComponent implements OnInit {
     this.method.set(method);
     this.code = '';
     this.errorMessage.set(null);
+  }
+
+  /** Full-page redirect to GitHub — never an XHR/fetch of the returned URL. */
+  signInWithGitHub(): void {
+    this.githubLoading.set(true);
+    this.errorMessage.set(null);
+    this.auth.startGitHubSocialLogin(this.appKey()).subscribe({
+      next: res => { window.location.href = res.authorizeUrl; },
+      error: (err: HttpErrorResponse) => {
+        this.githubLoading.set(false);
+        this.errorMessage.set(this.messageFrom(err, 'Could not start GitHub sign-in.'));
+      },
+    });
   }
 
   sendEmail(): void {

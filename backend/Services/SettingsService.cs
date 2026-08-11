@@ -68,6 +68,22 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     // ---- GitHub Packages token (read by PackageInventoryService) ----
     public string? GitHubPackagesToken => Decrypt(_current.GitHubPackagesTokenEncrypted);
 
+    // ---- GitHub OAuth App (read by the "Connect to GitHub" flow) ----
+    public string GitHubOAuthClientId => _current.GitHubOAuthClientId;
+    public string? GitHubOAuthClientSecret => Decrypt(_current.GitHubOAuthClientSecretEncrypted);
+
+    /// <summary>Stores a token obtained via the GitHub OAuth flow the same way a pasted PAT is stored —
+    /// same field, same consumer (PackageInventoryService) — and busts its 15-minute result cache.</summary>
+    public async Task ApplyGitHubOAuthTokenAsync(string accessToken)
+    {
+        var s = Clone(_current);
+        s.GitHubPackagesTokenEncrypted = _protector.Encrypt(accessToken);
+        s.UpdatedAt = DateTime.UtcNow;
+        await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s, new ReplaceOptions { IsUpsert = true });
+        _current = s;
+        _cache.Remove("package-inventory");
+    }
+
     // ---- IStorageSettingsSource (read by the file-storage backend, live) ----
     // LocalRoot stays a deploy-time setting (dev only); the S3 secret is decrypted here in memory only.
     public ResolvedStorageSettings GetStorageSettings() => new()
@@ -132,6 +148,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
             s.StorageProvider, s.StorageS3ServiceUrl, s.StorageS3Bucket, s.StorageS3AccessKeyId,
             !string.IsNullOrEmpty(s.StorageS3SecretAccessKeyEncrypted),
             !string.IsNullOrEmpty(s.GitHubPackagesTokenEncrypted),
+            s.GitHubOAuthClientId, !string.IsNullOrEmpty(s.GitHubOAuthClientSecretEncrypted),
             s.UpdatedAt);
     }
 
@@ -189,6 +206,10 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
             _cache.Remove("package-inventory");
         }
 
+        if (r.GitHubOAuthClientId is not null) s.GitHubOAuthClientId = r.GitHubOAuthClientId.Trim();
+        if (!string.IsNullOrEmpty(r.GitHubOAuthClientSecret))
+            s.GitHubOAuthClientSecretEncrypted = _protector.Encrypt(r.GitHubOAuthClientSecret);
+
         s.UpdatedAt = DateTime.UtcNow;
         await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s,
             new ReplaceOptions { IsUpsert = true });
@@ -219,6 +240,8 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         StorageS3AccessKeyId = s.StorageS3AccessKeyId,
         StorageS3SecretAccessKeyEncrypted = s.StorageS3SecretAccessKeyEncrypted,
         GitHubPackagesTokenEncrypted = s.GitHubPackagesTokenEncrypted,
+        GitHubOAuthClientId = s.GitHubOAuthClientId,
+        GitHubOAuthClientSecretEncrypted = s.GitHubOAuthClientSecretEncrypted,
     };
 
     /// <summary>Storage provider is an allowlist: only "Local" or "S3" (mapped to 400 otherwise).</summary>
