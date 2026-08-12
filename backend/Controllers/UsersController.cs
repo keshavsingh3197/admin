@@ -32,14 +32,16 @@ public sealed class UsersController : ControllerBase
     private readonly IMongoCollection<RefreshToken> _tokens;
     private readonly PasswordHasher _passwords;
     private readonly GroupService _groups;
+    private readonly CustomRoleService _customRoles;
     private readonly IObjectStore _store;
 
-    public UsersController(MongoDbService db, PasswordHasher passwords, GroupService groups, IObjectStore store)
+    public UsersController(MongoDbService db, PasswordHasher passwords, GroupService groups, CustomRoleService customRoles, IObjectStore store)
     {
         _users = db.GetCollection<User>("users");
         _tokens = db.GetCollection<RefreshToken>("refresh_tokens");
         _passwords = passwords;
         _groups = groups;
+        _customRoles = customRoles;
         _store = store;
     }
 
@@ -193,6 +195,10 @@ public sealed class UsersController : ControllerBase
         var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim();
         var roles = NormalizeRoles(request.Roles);
         if (roles is null) return BadRequest(new { error = "One or more roles are invalid." });
+        var customRoleKeys = (request.CustomRoleKeys ?? new()).Where(k => !string.IsNullOrWhiteSpace(k))
+            .Select(k => k.Trim().ToLowerInvariant()).Distinct(StringComparer.Ordinal).ToList();
+        if (!await _customRoles.AllKeysExistAsync(customRoleKeys))
+            return BadRequest(new { error = "One or more selected custom roles no longer exist. Refresh and try again." });
 
         if (await _users.Find(u => u.Email == email && !u.IsDeleted).AnyAsync())
             return Conflict(new { error = "A user with that email already exists." });
@@ -207,7 +213,7 @@ public sealed class UsersController : ControllerBase
             PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
             PasswordHash = _passwords.Hash(request.Password),
             Roles = roles,
-            CustomRoleKeys = (request.CustomRoleKeys ?? new()).Distinct().ToList(),
+            CustomRoleKeys = customRoleKeys,
             // Admin-created accounts start with a temporary password and must change it (and
             // enrol 2FA) on first sign-in.
             MustChangePassword = true,
@@ -246,7 +252,13 @@ public sealed class UsersController : ControllerBase
         }
 
         if (request.CustomRoleKeys is not null)
-            update = update.Set(u => u.CustomRoleKeys, request.CustomRoleKeys.Distinct().ToList());
+        {
+            var keys = request.CustomRoleKeys.Where(k => !string.IsNullOrWhiteSpace(k))
+                .Select(k => k.Trim().ToLowerInvariant()).Distinct(StringComparer.Ordinal).ToList();
+            if (!await _customRoles.AllKeysExistAsync(keys))
+                return BadRequest(new { error = "One or more selected custom roles no longer exist. Refresh and try again." });
+            update = update.Set(u => u.CustomRoleKeys, keys);
+        }
 
         if (request.IsActive is { } active)
         {

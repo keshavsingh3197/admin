@@ -5,6 +5,7 @@ using KeshavSingh.Mongo.NoSql;
 using KeshavSingh.Mongo.NoSql.Console;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
 
 namespace Admin.Api.Controllers;
 
@@ -50,6 +51,27 @@ public sealed class DbConsoleController : ControllerBase
     [HttpGet("collections")]
     public Task<ActionResult<IReadOnlyList<MongoCollectionSummary>>> Collections(CancellationToken ct) =>
         Run("list", "-", () => _console.ListCollectionsAsync(ct));
+
+    [HttpGet("usage")]
+    public async Task<ActionResult<DatabaseUsageDto>> Usage(CancellationToken ct)
+    {
+        var stats = await _mongo.Database.RunCommandAsync<BsonDocument>(new BsonDocument("dbStats", 1), cancellationToken: ct);
+        static long N(BsonDocument d, string key) => d.TryGetValue(key, out var v) && v.IsNumeric ? v.ToInt64() : 0;
+        using var cursor = await _mongo.Database.ListCollectionNamesAsync(cancellationToken: ct);
+        var usage = new List<DatabaseCollectionUsageDto>();
+        var names = new List<string>();
+        while (await cursor.MoveNextAsync(ct)) names.AddRange(cursor.Current);
+        foreach (var name in names)
+        {
+            if (name.StartsWith("system.", StringComparison.Ordinal)) continue;
+            var detail = await _mongo.Database.RunCommandAsync<BsonDocument>(new BsonDocument("collStats", new BsonString(name)), cancellationToken: ct);
+            usage.Add(new(name, N(detail, "count"), N(detail, "size"), N(detail, "storageSize"), N(detail, "totalIndexSize")));
+        }
+        var configured = HttpContext.RequestServices.GetRequiredService<IConfiguration>()["DatabaseOperations:CapacityBytes"];
+        var capacity = long.TryParse(configured, out var value) && value > 0 ? value : (long?)null;
+        var used = N(stats, "storageSize") + N(stats, "indexSize");
+        return Ok(new DatabaseUsageDto(_mongo.Database.DatabaseNamespace.DatabaseName, N(stats, "dataSize"), N(stats, "storageSize"), N(stats, "indexSize"), capacity, capacity is null ? null : Math.Max(0, capacity.Value - used), capacity is null ? null : Math.Round(Math.Min(100, used * 100d / capacity.Value), 1), usage.OrderByDescending(x => x.StorageBytes).ToList()));
+    }
 
     [HttpGet("collections/{collection}/indexes")]
     public Task<ActionResult<IReadOnlyList<string>>> Indexes(string collection, CancellationToken ct) =>

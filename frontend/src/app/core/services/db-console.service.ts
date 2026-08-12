@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
-  DbConsoleCapabilities, DbFindRequest, MongoCollectionSummary, MongoConsolePage, MongoConsoleWriteResult,
+  DbConsoleCapabilities, DbFindRequest, MongoCollectionSummary, MongoConsolePage, MongoConsoleWriteResult, DatabaseUsage,
 } from '../models/db-console.models';
 
 /**
@@ -22,6 +22,8 @@ export class DbConsoleService {
   collections(): Observable<MongoCollectionSummary[]> {
     return this.http.get<MongoCollectionSummary[]>(`${this.baseUrl}/collections`);
   }
+
+  usage(): Observable<DatabaseUsage> { return this.http.get<DatabaseUsage>(`${this.baseUrl}/usage`); }
 
   indexes(collection: string): Observable<string[]> {
     return this.http.get<string[]>(`${this.baseUrl}/collections/${encodeURIComponent(collection)}/indexes`);

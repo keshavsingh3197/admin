@@ -12,6 +12,9 @@ export interface MongoCollectionSummary {
   estimatedCount: number;
 }
 
+export interface DatabaseCollectionUsage { name: string; documents: number; dataBytes: number; storageBytes: number; indexBytes: number; }
+export interface DatabaseUsage { database: string; dataBytes: number; storageBytes: number; indexBytes: number; capacityBytes: number | null; remainingBytes: number | null; usedPercent: number | null; collections: DatabaseCollectionUsage[]; }
+
 /**
  * Documents arrive as extended-JSON strings, not objects: BSON has types (ObjectId, dates, decimals)
  * that would be flattened into plain strings by an ordinary JSON round trip, and an editor has to show

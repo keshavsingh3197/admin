@@ -107,15 +107,22 @@ public sealed class RbacController : ControllerBase
 
     [HttpPost("groups")]
     [Authorize(Roles = Roles.Admin)]
-    public async Task<ActionResult<GroupView>> CreateGroup(UpsertGroupRequest request, CancellationToken ct) =>
-        Ok(await _groups.CreateAsync(request, ct));
+    public async Task<ActionResult<GroupView>> CreateGroup(UpsertGroupRequest request, CancellationToken ct)
+    {
+        try { return Ok(await _groups.CreateAsync(request, ct)); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+    }
 
     [HttpPut("groups/{id}")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<GroupView>> UpdateGroup(string id, UpsertGroupRequest request, CancellationToken ct)
     {
-        var updated = await _groups.UpdateAsync(id, request, ct);
-        return updated is null ? NotFound() : Ok(updated);
+        try
+        {
+            var updated = await _groups.UpdateAsync(id, request, ct);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
     [HttpDelete("groups/{id}")]
@@ -130,8 +137,12 @@ public sealed class RbacController : ControllerBase
     [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<GroupView>> AddMember(string id, GroupMemberRequest request, CancellationToken ct)
     {
-        var updated = await _groups.AddMemberAsync(id, request.UserId, ct);
-        return updated is null ? NotFound() : Ok(updated);
+        try
+        {
+            var updated = await _groups.AddMemberAsync(id, request.UserId, ct);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
     [HttpDelete("groups/{id}/members/{userId}")]

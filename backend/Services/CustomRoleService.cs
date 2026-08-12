@@ -8,10 +8,14 @@ namespace Admin.Api.Services;
 public sealed class CustomRoleService
 {
     private readonly IMongoCollection<CustomRole> _roles;
+    private readonly IMongoCollection<User> _users;
+    private readonly IMongoCollection<Group> _groups;
 
     public CustomRoleService(MongoDbService db)
     {
         _roles = db.GetCollection<CustomRole>("custom_roles");
+        _users = db.GetCollection<User>("users");
+        _groups = db.GetCollection<Group>("groups");
     }
 
     public async Task EnsureIndexesAsync(CancellationToken ct = default)
@@ -96,6 +100,16 @@ public sealed class CustomRoleService
         return await _roles.Find(x => set.Contains(x.Key)).ToListAsync(ct);
     }
 
+    /// <summary>Verifies that every supplied custom-role key exists.  Assignment endpoints use
+    /// this so no user or group can retain a dangling reference after a typo or stale client.</summary>
+    public async Task<bool> AllKeysExistAsync(IEnumerable<string> keys, CancellationToken ct = default)
+    {
+        var set = keys.Where(k => !string.IsNullOrWhiteSpace(k)).Distinct(StringComparer.Ordinal).ToList();
+        if (set.Count == 0) return true;
+        var found = await _roles.CountDocumentsAsync(x => set.Contains(x.Key), cancellationToken: ct);
+        return found == set.Count;
+    }
+
     public async Task<CustomRoleView> CreateAsync(UpsertCustomRoleRequest request, CancellationToken ct = default)
     {
         var grants = Validate(request);
@@ -144,6 +158,14 @@ public sealed class CustomRoleService
         if (existing is null) return;
         if (existing.IsSystem) throw new InvalidOperationException("System roles cannot be deleted.");
         await _roles.DeleteOneAsync(x => x.Id == id, ct);
+        // Keep assignment mappings referentially clean. A removed role must not remain selected on
+        // users or groups, where it would otherwise become an invisible/dangling grant.
+        await _users.UpdateManyAsync(x => x.CustomRoleKeys.Contains(existing.Key),
+            Builders<User>.Update.Pull(x => x.CustomRoleKeys, existing.Key).Set(x => x.UpdatedAt, DateTime.UtcNow),
+            cancellationToken: ct);
+        await _groups.UpdateManyAsync(x => x.RoleKeys.Contains(existing.Key),
+            Builders<Group>.Update.Pull(x => x.RoleKeys, existing.Key).Set(x => x.UpdatedAt, DateTime.UtcNow),
+            cancellationToken: ct);
     }
 
     private static List<WebsiteGrant> Validate(UpsertCustomRoleRequest request)

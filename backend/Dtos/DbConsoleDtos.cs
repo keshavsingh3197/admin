@@ -43,3 +43,7 @@ public sealed record DbDeleteRequest(
 
 /// <summary>What the console page can offer, so the UI doesn't present buttons the API will refuse.</summary>
 public sealed record DbConsoleCapabilities(bool CanWrite, int DefaultLimit, int MaxLimit, string Database);
+
+/// <summary>Live MongoDB space accounting. Capacity is optional because many Mongo hosts do not expose a quota.</summary>
+public sealed record DatabaseUsageDto(string Database, long DataBytes, long StorageBytes, long IndexBytes, long? CapacityBytes, long? RemainingBytes, double? UsedPercent, IReadOnlyList<DatabaseCollectionUsageDto> Collections);
+public sealed record DatabaseCollectionUsageDto(string Name, long Documents, long DataBytes, long StorageBytes, long IndexBytes);

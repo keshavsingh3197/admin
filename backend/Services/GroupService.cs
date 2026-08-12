@@ -8,10 +8,14 @@ namespace Admin.Api.Services;
 public sealed class GroupService
 {
     private readonly IMongoCollection<Group> _groups;
+    private readonly IMongoCollection<User> _users;
+    private readonly CustomRoleService _roles;
 
-    public GroupService(MongoDbService db)
+    public GroupService(MongoDbService db, CustomRoleService roles)
     {
         _groups = db.GetCollection<Group>("groups");
+        _users = db.GetCollection<User>("users");
+        _roles = roles;
     }
 
     public async Task EnsureIndexesAsync(CancellationToken ct = default)
@@ -44,11 +48,12 @@ public sealed class GroupService
 
     public async Task<GroupView> CreateAsync(UpsertGroupRequest request, CancellationToken ct = default)
     {
+        var roleKeys = await ValidateAsync(request, ct);
         var entity = new Group
         {
             Name = request.Name.Trim(),
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
-            RoleKeys = (request.RoleKeys ?? new()).Distinct().ToList(),
+            RoleKeys = roleKeys,
             IsFamilyCircle = request.IsFamilyCircle,
         };
         await _groups.InsertOneAsync(entity, cancellationToken: ct);
@@ -57,10 +62,11 @@ public sealed class GroupService
 
     public async Task<GroupView?> UpdateAsync(string id, UpsertGroupRequest request, CancellationToken ct = default)
     {
+        var roleKeys = await ValidateAsync(request, ct);
         var update = Builders<Group>.Update
             .Set(x => x.Name, request.Name.Trim())
             .Set(x => x.Description, string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim())
-            .Set(x => x.RoleKeys, (request.RoleKeys ?? new()).Distinct().ToList())
+            .Set(x => x.RoleKeys, roleKeys)
             .Set(x => x.IsFamilyCircle, request.IsFamilyCircle)
             .Set(x => x.UpdatedAt, DateTime.UtcNow);
 
@@ -74,6 +80,8 @@ public sealed class GroupService
 
     public async Task<GroupView?> AddMemberAsync(string id, string userId, CancellationToken ct = default)
     {
+        if (!await _users.Find(x => x.Id == userId && !x.IsDeleted).AnyAsync(ct))
+            throw new ArgumentException("The selected user no longer exists.");
         var updated = await _groups.FindOneAndUpdateAsync(x => x.Id == id,
             Builders<Group>.Update.AddToSet(x => x.MemberUserIds, userId).Set(x => x.UpdatedAt, DateTime.UtcNow),
             new FindOneAndUpdateOptions<Group> { ReturnDocument = ReturnDocument.After }, ct);
@@ -90,4 +98,14 @@ public sealed class GroupService
 
     private static GroupView Map(Group x) =>
         new(x.Id, x.Name, x.Description, x.RoleKeys, x.MemberUserIds, x.IsFamilyCircle, x.UpdatedAt);
+
+    private async Task<List<string>> ValidateAsync(UpsertGroupRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Group name is required.");
+        var keys = (request.RoleKeys ?? new()).Where(k => !string.IsNullOrWhiteSpace(k))
+            .Select(k => k.Trim().ToLowerInvariant()).Distinct(StringComparer.Ordinal).ToList();
+        if (!await _roles.AllKeysExistAsync(keys, ct))
+            throw new ArgumentException("One or more selected roles no longer exist. Refresh and try again.");
+        return keys;
+    }
 }
