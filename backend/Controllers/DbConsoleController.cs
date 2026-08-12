@@ -1,4 +1,5 @@
 using Admin.Api.Dtos;
+using Admin.Api.Services;
 using KeshavSingh.Auth;
 using KeshavSingh.Core;
 using KeshavSingh.Mongo.NoSql;
@@ -30,12 +31,14 @@ public sealed class DbConsoleController : ControllerBase
     private readonly MongoQueryConsole _console;
     private readonly MongoDbService _mongo;
     private readonly ILogger<DbConsoleController> _log;
+    private readonly DatabaseBackupService _backups;
 
-    public DbConsoleController(MongoQueryConsole console, MongoDbService mongo, ILogger<DbConsoleController> log)
+    public DbConsoleController(MongoQueryConsole console, MongoDbService mongo, DatabaseBackupService backups, ILogger<DbConsoleController> log)
     {
         _console = console;
         _mongo = mongo;
         _log = log;
+        _backups = backups;
     }
 
     private string Me => User.GetUserId();
@@ -72,6 +75,12 @@ public sealed class DbConsoleController : ControllerBase
         var used = N(stats, "storageSize") + N(stats, "indexSize");
         return Ok(new DatabaseUsageDto(_mongo.Database.DatabaseNamespace.DatabaseName, N(stats, "dataSize"), N(stats, "storageSize"), N(stats, "indexSize"), capacity, capacity is null ? null : Math.Max(0, capacity.Value - used), capacity is null ? null : Math.Round(Math.Min(100, used * 100d / capacity.Value), 1), usage.OrderByDescending(x => x.StorageBytes).ToList()));
     }
+
+    [HttpGet("backups")]
+    public async Task<ActionResult<IReadOnlyList<DatabaseBackupView>>> Backups(CancellationToken ct) => Ok(await _backups.ListAsync(ct));
+
+    [HttpPost("backups")]
+    public async Task<ActionResult<DatabaseBackupView>> CreateBackup(CancellationToken ct) => Ok(await _backups.CreateAsync(Me, ct));
 
     [HttpGet("collections/{collection}/indexes")]
     public Task<ActionResult<IReadOnlyList<string>>> Indexes(string collection, CancellationToken ct) =>

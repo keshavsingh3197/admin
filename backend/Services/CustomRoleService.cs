@@ -10,12 +10,14 @@ public sealed class CustomRoleService
     private readonly IMongoCollection<CustomRole> _roles;
     private readonly IMongoCollection<User> _users;
     private readonly IMongoCollection<Group> _groups;
+    private readonly PermissionMasterService _permissions;
 
-    public CustomRoleService(MongoDbService db)
+    public CustomRoleService(MongoDbService db, PermissionMasterService permissions)
     {
         _roles = db.GetCollection<CustomRole>("custom_roles");
         _users = db.GetCollection<User>("users");
         _groups = db.GetCollection<Group>("groups");
+        _permissions = permissions;
     }
 
     public async Task EnsureIndexesAsync(CancellationToken ct = default)
@@ -112,7 +114,7 @@ public sealed class CustomRoleService
 
     public async Task<CustomRoleView> CreateAsync(UpsertCustomRoleRequest request, CancellationToken ct = default)
     {
-        var grants = Validate(request);
+        var grants = await ValidateAsync(request, ct);
         var key = NormalizeKey(request.Key);
         if (await _roles.Find(x => x.Key == key).AnyAsync(ct))
             throw new InvalidOperationException("A role with that key already exists.");
@@ -135,7 +137,7 @@ public sealed class CustomRoleService
         if (existing is null) return null;
         if (existing.IsSystem) throw new InvalidOperationException("System roles cannot be edited.");
 
-        var grants = Validate(request);
+        var grants = await ValidateAsync(request, ct);
         var key = NormalizeKey(request.Key);
         if (key != existing.Key && await _roles.Find(x => x.Key == key).AnyAsync(ct))
             throw new InvalidOperationException("A role with that key already exists.");
@@ -168,7 +170,7 @@ public sealed class CustomRoleService
             cancellationToken: ct);
     }
 
-    private static List<WebsiteGrant> Validate(UpsertCustomRoleRequest request)
+    private async Task<List<WebsiteGrant>> ValidateAsync(UpsertCustomRoleRequest request, CancellationToken ct)
     {
         var grants = new List<WebsiteGrant>();
         var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -180,7 +182,7 @@ public sealed class CustomRoleService
             if (!seenKeys.Add(websiteKey)) throw new ArgumentException($"Duplicate website key '{websiteKey}' in grants.");
 
             var permissions = (grant.Permissions ?? new List<string>()).Distinct().ToList();
-            if (!permissions.All(p => PermissionCatalog.IsValidForWebsite(websiteKey, p)))
+            if (!(await Task.WhenAll(permissions.Select(p => _permissions.IsValidAsync(websiteKey, p, ct)))).All(x => x))
                 throw new ArgumentException($"One or more permission keys are invalid for website '{websiteKey}'.");
             if (permissions.Count == 0) continue;
 

@@ -86,6 +86,7 @@ builder.Services.AddSingleton<TwoFactorDeviceService>();
 builder.Services.AddSingleton<SessionRetentionService>();
 builder.Services.AddSingleton<CustomRoleService>();
 builder.Services.AddSingleton<GroupService>();
+builder.Services.AddSingleton<PermissionMasterService>();
 builder.Services.AddSingleton<PermissionsService>();
 builder.Services.AddSingleton<IPageAccessEvaluator>(sp => sp.GetRequiredService<PermissionsService>());
 builder.Services.AddSingleton<SearchService>();
@@ -102,6 +103,7 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddSingleton<DataRetentionService>();
 builder.Services.AddSingleton<HealthCheckService>();
 builder.Services.AddSingleton<PackageInventoryService>();
+builder.Services.AddSingleton<DatabaseBackupService>();
 builder.Services.AddHostedService<SessionRetentionCleanupWorker>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
@@ -321,6 +323,8 @@ await app.Services.GetRequiredService<TwoFactorDeviceService>()
 await app.Services.GetRequiredService<ContactService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<VisitorChatService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<CustomRoleService>().EnsureIndexesAsync();
+await app.Services.GetRequiredService<PermissionMasterService>().EnsureIndexesAsync();
+await app.Services.GetRequiredService<PermissionMasterService>().SeedAsync();
 await app.Services.GetRequiredService<CustomRoleService>().SeedSystemRolesAsync();
 await app.Services.GetRequiredService<GroupService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<FolderService>().EnsureIndexesAsync();

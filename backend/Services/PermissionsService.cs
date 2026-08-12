@@ -23,13 +23,15 @@ public sealed class PermissionsService : IPageAccessEvaluator
     private readonly CustomRoleService _roles;
     private readonly GroupService _groups;
     private readonly WebsiteRegistryService _websites;
+    private readonly PermissionMasterService _master;
 
-    public PermissionsService(MongoDbService db, CustomRoleService roles, GroupService groups, WebsiteRegistryService websites)
+    public PermissionsService(MongoDbService db, CustomRoleService roles, GroupService groups, WebsiteRegistryService websites, PermissionMasterService master)
     {
         _users = db.GetCollection<User>("users");
         _roles = roles;
         _groups = groups;
         _websites = websites;
+        _master = master;
     }
 
     public async Task<PermissionCatalogResponse> GetCatalogAsync(CancellationToken ct = default)
@@ -38,10 +40,7 @@ public sealed class PermissionsService : IPageAccessEvaluator
         var websites = new List<WebsiteAccessOptionDto> { new(PermissionCatalog.AdminWebsiteKey, "Admin (this app)") };
         websites.AddRange(sites.Select(x => new WebsiteAccessOptionDto(x.Key, x.Name)));
 
-        return new PermissionCatalogResponse(
-            PermissionCatalog.AdminPermissions.Select(x => new PermissionCatalogItemDto(x.Key, x.Category, x.Label, x.Description)).ToList(),
-            PermissionCatalog.SiteActions.Select(x => new PermissionCatalogItemDto(x.Key, x.Category, x.Label, x.Description)).ToList(),
-            websites);
+        return await _master.CatalogAsync(websites, ct);
     }
 
     public async Task<EffectiveAccessDto> GetEffectiveAccessAsync(string userId, CancellationToken ct = default)
@@ -99,8 +98,8 @@ public sealed class PermissionsService : IPageAccessEvaluator
 
         if (isAdmin)
         {
-            adminPermissions.UnionWith(PermissionCatalog.AdminPermissionKeys);
-            wildcardPermissions.UnionWith(PermissionCatalog.SiteActionKeys);
+            adminPermissions.UnionWith(await _master.KeysAsync("admin", ct));
+            wildcardPermissions.UnionWith(await _master.KeysAsync("site", ct));
         }
 
         // Apply the wildcard grant to every known website, plus any site with an explicit grant.

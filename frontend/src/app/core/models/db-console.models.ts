@@ -14,6 +14,7 @@ export interface MongoCollectionSummary {
 
 export interface DatabaseCollectionUsage { name: string; documents: number; dataBytes: number; storageBytes: number; indexBytes: number; }
 export interface DatabaseUsage { database: string; dataBytes: number; storageBytes: number; indexBytes: number; capacityBytes: number | null; remainingBytes: number | null; usedPercent: number | null; collections: DatabaseCollectionUsage[]; }
+export interface DatabaseBackup { id: string; fileName: string; sizeBytes: number; createdAt: string; createdByUserId: string; }
 
 /**
  * Documents arrive as extended-JSON strings, not objects: BSON has types (ObjectId, dates, decimals)

@@ -140,7 +140,7 @@ public sealed class PackageInventoryService
         var producers = new Dictionary<string, Producer>(StringComparer.OrdinalIgnoreCase);
         var manifestBodies = new List<(string Repository, string Path, string Content)>();
 
-        foreach (var repository in ResolveRepositories())
+        foreach (var repository in await ResolveRepositoriesAsync(token, diagnostics, cancellationToken))
         {
             var parts = repository.Split('/', 2);
             if (parts.Length != 2) { diagnostics.Add($"{repository}: not a valid \"owner/repo\" entry."); continue; }
@@ -181,6 +181,24 @@ public sealed class PackageInventoryService
         }
 
         return (producers, consumers);
+    }
+
+    /// <summary>When GitHub is connected, discover repositories visible to that token instead of
+    /// silently relying on a source-code list. An explicit deployment setting still wins.</summary>
+    private async Task<string[]> ResolveRepositoriesAsync(string token, List<string> diagnostics, CancellationToken ct)
+    {
+        var configured = _configuration.GetSection("PackageInventory:Repositories").Get<string[]>();
+        if (configured is { Length: > 0 }) return configured;
+        using var request = CreateGitHubRequest(HttpMethod.Get, "https://api.github.com/user/repos?affiliation=owner,organization_member&per_page=100", token);
+        try
+        {
+            using var response = await _httpClientFactory.CreateClient().SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode) { diagnostics.Add("Could not discover GitHub repositories; using the fallback list."); return DefaultRepositories; }
+            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            var repos = doc.RootElement.EnumerateArray().Select(x => x.TryGetProperty("full_name", out var n) ? n.GetString() : null).Where(x => !string.IsNullOrWhiteSpace(x)).Cast<string>().ToArray();
+            return repos.Length > 0 ? repos : DefaultRepositories;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException) { diagnostics.Add("Could not discover GitHub repositories; using the fallback list."); return DefaultRepositories; }
     }
 
     private async Task<string?> GetDefaultBranchAsync(string owner, string repo, string token, List<string> diagnostics, CancellationToken cancellationToken)
