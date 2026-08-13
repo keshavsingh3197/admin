@@ -103,7 +103,6 @@ export class App {
 
   readonly routeLoading = signal(false);
   readonly navOpen = signal(false);
-  readonly manageOpen = signal(false);
   readonly accountOpen = signal(false);
   readonly theme = signal<'light' | 'dark' | 'brand'>(this.detectInitialTheme());
 
@@ -150,7 +149,6 @@ export class App {
         ) {
           this.routeLoading.set(false);
           this.navOpen.set(false);
-          this.manageOpen.set(false);
           this.accountOpen.set(false);
         }
 
@@ -211,30 +209,20 @@ export class App {
 
   closeNav(): void {
     this.navOpen.set(false);
-    this.manageOpen.set(false);
-  }
-
-  toggleManage(): void {
-    this.manageOpen.update((open) => !open);
-    this.accountOpen.set(false);
   }
 
   toggleAccount(): void {
     this.accountOpen.update((open) => !open);
-    this.manageOpen.set(false);
   }
 
-  /** Clicking anywhere outside the Manage menu closes it, the way a menu is expected to behave. */
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
-    if (this.manageOpen() && !target?.closest('.nav-group')) this.manageOpen.set(false);
     if (this.accountOpen() && !target?.closest('.account-menu')) this.accountOpen.set(false);
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    this.manageOpen.set(false);
     this.accountOpen.set(false);
     this.navOpen.set(false);
   }

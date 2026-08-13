@@ -40,54 +40,6 @@ body {
 
 .nav-ico { margin-right: 0.35rem; }
 
-/* The Manage menu: a button plus a panel that only exists while it's open. */
-.nav-group { position: relative; }
-
-.nav-group-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.85);
-  font: inherit;
-  font-size: 0.95rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.nav-group-btn:hover { color: var(--brand-text); background: rgba(255, 255, 255, 0.14); }
-.caret { font-size: 0.7rem; transition: transform 0.15s; }
-.nav-group.open .caret { transform: rotate(180deg); }
-
-.nav-menu {
-  display: none;
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 0;
-  min-width: 210px;
-  z-index: 16;
-  flex-direction: column;
-  padding: 0.3rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
-}
-
-.nav-group.open .nav-menu { display: flex; }
-
-.nav-menu a {
-  color: var(--text);
-  border-bottom: none;
-  border-radius: 6px;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.9rem;
-}
-
-.nav-menu a:hover { background: var(--bg); border-bottom: none; }
-.nav-menu a.active { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--text); }
 
 .spacer { flex: 1; }
 
@@ -353,7 +305,6 @@ body {
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   }
 
-  /* In the drawer the Manage menu is just a section, not a floating panel. */
   .nav-group-btn { width: 100%; justify-content: flex-start; padding: 0.65rem 0.4rem; }
   .nav-menu {
     position: static;

@@ -30,24 +30,6 @@
             <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
           </a>
         }
-
-        <!-- Admin pages live behind one menu so the bar stays short as the app grows. -->
-        @if (auth.hasRole('Admin')) {
-          <div class="nav-group" [class.open]="manageOpen()">
-            <button class="nav-group-btn" type="button" (click)="toggleManage()"
-                    [attr.aria-expanded]="manageOpen()">
-              <span class="nav-ico" aria-hidden="true">{{ icon(keys.iconSettings, '⚙️') }}</span>{{ i18n.t('admin.nav.manage') }}
-              <span class="caret" aria-hidden="true">▾</span>
-            </button>
-            <div class="nav-menu">
-              @for (link of adminLinks; track link.path) {
-                <a [routerLink]="link.path" routerLinkActive="active" (click)="closeNav()">
-                  <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
-                </a>
-              }
-            </div>
-          </div>
-        }
       </nav>
 
       <div class="spacer"></div>

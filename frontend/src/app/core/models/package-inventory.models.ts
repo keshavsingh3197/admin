@@ -1,4 +1,10 @@
 export type PackageStatus = 'current' | 'publish-required' | 'upgrade-required';
+export type PackageInventoryState =
+  | 'token-missing'
+  | 'repo-selection-missing'
+  | 'private-repo-access-denied'
+  | 'manifest-not-found'
+  | 'ready';
 
 export interface PackageConsumer {
   project: string;
@@ -24,6 +30,7 @@ export interface PackageInventory {
   workspaceAvailable: boolean;
   packages: PackageInventoryItem[];
   diagnostics: string[];
+  state: PackageInventoryState;
 }
 
 export interface PackageInventorySummary {
