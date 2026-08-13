@@ -64,7 +64,7 @@ public sealed class PackageInventoryService
                  "or set PackageInventory:GitHubToken / PACKAGES_READ_TOKEN."]);
         }
 
-        var repositories = _settings.PackageInventoryRepositories;
+        var repositories = SettingsService.NormalizePackageInventoryRepositories(_settings.PackageInventoryRepositories);
         if (repositories.Count == 0)
         {
             return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [],
@@ -77,7 +77,8 @@ public sealed class PackageInventoryService
 
         foreach (var producer in producers.Values.OrderBy(x => x.Ecosystem).ThenBy(x => x.Name))
         {
-            var publishedVersion = await GetPublishedVersionAsync(producer, token, diagnostics, cancellationToken);
+            var publishedVersions = await GetPublishedVersionsAsync(producer, token, diagnostics, cancellationToken);
+            var versionSummary = SummarizePublishedVersions(publishedVersions);
             var packageConsumers = consumers
                 .Where(x => x.Ecosystem == producer.Ecosystem && x.Name.Equals(producer.Name, StringComparison.OrdinalIgnoreCase))
                 .Select(x => new PackageConsumerDto(x.Project, x.Version, VersionMatches(x.Version, producer.Version)))
@@ -86,7 +87,7 @@ public sealed class PackageInventoryService
 
             var status = packageConsumers.Any(x => !x.IsCurrent)
                 ? "upgrade-required"
-                : publishedVersion is null || !VersionMatches(publishedVersion, producer.Version)
+                : versionSummary.PublishedVersions.Count == 0 || !VersionMatches(versionSummary.PublishedVersions[0], producer.Version)
                     ? "publish-required"
                     : "current";
 
@@ -94,7 +95,10 @@ public sealed class PackageInventoryService
                 producer.Ecosystem,
                 producer.Name,
                 producer.Version,
-                publishedVersion,
+                versionSummary.PublishedVersions.FirstOrDefault(),
+                versionSummary.PublishedVersions,
+                versionSummary.LatestTag,
+                versionSummary.Tags,
                 producer.Repository,
                 status,
                 packageConsumers));
@@ -364,7 +368,7 @@ public sealed class PackageInventoryService
     /// produces it — packages are not all under one account — and GitHub splits the packages API by
     /// account type, so a user-scoped miss is retried as an organisation.
     /// </summary>
-    private async Task<string?> GetPublishedVersionAsync(Producer producer, string? token, List<string> diagnostics, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<string>> GetPublishedVersionsAsync(Producer producer, string? token, List<string> diagnostics, CancellationToken cancellationToken)
     {
         var owner = producer.Repository.Split('/')[0];
         foreach (var scope in new[] { "users", "orgs" })
@@ -379,17 +383,41 @@ public sealed class PackageInventoryService
                 {
                     if (response.StatusCode == HttpStatusCode.NotFound && scope == "users") continue;
                     diagnostics.Add($"{producer.Name}: could not read published versions ({DescribeStatus(response.StatusCode)}).");
-                    return null;
+                    return Array.Empty<string>();
                 }
                 using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
                 return document.RootElement.EnumerateArray()
                     .Select(x => x.TryGetProperty("name", out var name) ? name.GetString() : null)
-                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x) && !x.Contains('-', StringComparison.Ordinal));
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x!)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
             }
-            catch (HttpRequestException ex) { diagnostics.Add($"{producer.Name}: published-versions request failed ({ex.Message})."); return null; }
-            catch (JsonException) { diagnostics.Add($"{producer.Name}: published-versions response was not valid JSON."); return null; }
+            catch (HttpRequestException ex) { diagnostics.Add($"{producer.Name}: published-versions request failed ({ex.Message})."); return Array.Empty<string>(); }
+            catch (JsonException) { diagnostics.Add($"{producer.Name}: published-versions response was not valid JSON."); return Array.Empty<string>(); }
         }
-        return null;
+        return Array.Empty<string>();
+    }
+
+    private static PackageInventoryVersionSummary SummarizePublishedVersions(IReadOnlyList<string> publishedVersions)
+    {
+        var distinct = publishedVersions
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(v => !v.Equals("latest", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(v => v, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var stable = distinct
+            .Where(v => !v.Contains('-', StringComparison.Ordinal))
+            .ToArray();
+
+        var latestTag = stable.FirstOrDefault();
+        var tags = latestTag is null ? Array.Empty<string>() : new[] { latestTag };
+
+        return new PackageInventoryVersionSummary(stable, latestTag, tags);
     }
 
     private static bool VersionMatches(string constraint, string version) =>

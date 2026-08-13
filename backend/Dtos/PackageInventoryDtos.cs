@@ -11,9 +11,17 @@ public sealed record PackageInventoryItemDto(
     string Name,
     string SourceVersion,
     string? PublishedVersion,
+    IReadOnlyList<string> PublishedVersions,
+    string? LatestTag,
+    IReadOnlyList<string> Tags,
     string Repository,
     string Status,
     IReadOnlyList<PackageConsumerDto> Consumers);
+
+public sealed record PackageInventoryVersionSummary(
+    IReadOnlyList<string> PublishedVersions,
+    string? LatestTag,
+    IReadOnlyList<string> Tags);
 
 public sealed record PackageConsumerDto(
     string Project,
