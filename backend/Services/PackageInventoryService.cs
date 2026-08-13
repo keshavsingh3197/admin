@@ -59,28 +59,21 @@ public sealed class PackageInventoryService
         var token = ResolveGitHubToken();
         if (string.IsNullOrWhiteSpace(token))
         {
-            var diagnostics = new[]
+            var tokenMissingDiagnostics = new[]
             {
                 "No GitHub token is configured — add one on Settings → Package inventory (GitHub), or set PackageInventory:GitHubToken / PACKAGES_READ_TOKEN."
             };
-            return new PackageInventoryDto(DateTimeOffset.UtcNow, false, [], diagnostics, PackageInventoryState.TokenMissing);
+            return new PackageInventoryDto(DateTimeOffset.UtcNow, false, [], tokenMissingDiagnostics, PackageInventoryState.TokenMissing);
         }
 
         var repositories = SettingsService.NormalizePackageInventoryRepositories(_settings.PackageInventoryRepositories);
         if (repositories.Count == 0)
         {
-            var diagnostics = new[]
+            var repoSelectionDiagnostics = new[]
             {
                 "No repositories are selected — choose the repo(s) to scan on Settings → Package inventory (GitHub)."
             };
-            return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [], diagnostics, PackageInventoryState.RepoSelectionMissing);
-        }
-
-        var repositories = SettingsService.NormalizePackageInventoryRepositories(_settings.PackageInventoryRepositories);
-        if (repositories.Count == 0)
-        {
-            return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [],
-                ["No repositories are selected — choose which ones to scan on Settings → Package inventory (GitHub)."]);
+            return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [], repoSelectionDiagnostics, PackageInventoryState.RepoSelectionMissing);
         }
 
         var diagnostics = new List<string>();
