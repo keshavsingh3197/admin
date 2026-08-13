@@ -59,16 +59,21 @@ public sealed class PackageInventoryService
         var token = ResolveGitHubToken();
         if (string.IsNullOrWhiteSpace(token))
         {
-            return new PackageInventoryDto(DateTimeOffset.UtcNow, false, [],
-                ["No GitHub token is configured — add one on Settings \u2192 Package inventory (GitHub), " +
-                 "or set PackageInventory:GitHubToken / PACKAGES_READ_TOKEN."]);
+            var diagnostics = new[]
+            {
+                "No GitHub token is configured — add one on Settings → Package inventory (GitHub), or set PackageInventory:GitHubToken / PACKAGES_READ_TOKEN."
+            };
+            return new PackageInventoryDto(DateTimeOffset.UtcNow, false, [], diagnostics, PackageInventoryState.TokenMissing);
         }
 
         var repositories = SettingsService.NormalizePackageInventoryRepositories(_settings.PackageInventoryRepositories);
         if (repositories.Count == 0)
         {
-            return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [],
-                ["No repositories are selected — choose which ones to scan on Settings → Package inventory (GitHub)."]);
+            var diagnostics = new[]
+            {
+                "No repositories are selected — choose the repo(s) to scan on Settings → Package inventory (GitHub)."
+            };
+            return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [], diagnostics, PackageInventoryState.RepoSelectionMissing);
         }
 
         var diagnostics = new List<string>();
@@ -107,7 +112,8 @@ public sealed class PackageInventoryService
         if (packages.Count == 0 && diagnostics.Count == 0)
             diagnostics.Add("No KeshavSingh.*/@keshavsingh3197/* manifests were found in any selected repo.");
 
-        var result = new PackageInventoryDto(DateTimeOffset.UtcNow, true, packages, diagnostics);
+        var state = PackageInventoryState.Determine(true, diagnostics, packages.Count);
+        var result = new PackageInventoryDto(DateTimeOffset.UtcNow, true, packages, diagnostics, state);
         _cache.Set(cacheKey, result, TimeSpan.FromMinutes(15));
         return result;
     }

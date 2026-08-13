@@ -310,6 +310,9 @@ export class RolesComponent implements OnInit {
     const normalized = this.normalizeWebsiteKey(key);
     const existing = this.fGrants.get(normalized);
     existing?.permissions.forEach(p => this.pickedPermissions.add(p));
+    if (normalized !== this.adminKey && this.pickedPermissions.size === 0) {
+      this.pickedPermissions.add('site.view');
+    }
     this.pickedSite = normalized;
   }
 
@@ -318,9 +321,14 @@ export class RolesComponent implements OnInit {
   }
 
   addGrant(): void {
-    if (!this.pickedSite || !this.pickedPermissions.size) return;
+    if (!this.pickedSite) return;
     const key = this.normalizeWebsiteKey(this.pickedSite);
-    this.fGrants.set(key, { websiteKey: key, permissions: [...new Set([...this.pickedPermissions].map(p => p.trim()).filter(Boolean))].sort() });
+    const permissions = key === this.adminKey
+      ? [...new Set([...this.pickedPermissions].map(p => p.trim()).filter(Boolean))].sort()
+      : [...new Set([...this.pickedPermissions].map(p => p.trim()).filter(Boolean).length ? [...this.pickedPermissions] : ['site.view'])].sort();
+
+    if (key !== this.adminKey && permissions.length === 0) return;
+    this.fGrants.set(key, { websiteKey: key, permissions });
     this.pickedSite = '';
     this.pickedPermissions.clear();
   }

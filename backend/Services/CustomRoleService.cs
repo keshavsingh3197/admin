@@ -170,23 +170,50 @@ public sealed class CustomRoleService
             cancellationToken: ct);
     }
 
+    public static List<WebsiteGrant> NormalizeWebsiteGrants(IEnumerable<WebsiteGrantDto>? grants)
+    {
+        var normalized = new List<WebsiteGrant>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var grant in grants ?? Array.Empty<WebsiteGrantDto>())
+        {
+            var websiteKey = (grant.WebsiteKey ?? string.Empty).Trim().ToLowerInvariant();
+            if (websiteKey.Length == 0) continue;
+            if (!seen.Add(websiteKey)) continue;
+
+            var permissions = (grant.Permissions ?? Array.Empty<string>())
+                .Select(x => x.Trim())
+                .Where(x => x.Length > 0)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            if (websiteKey != PermissionCatalog.AdminWebsiteKey && permissions.Count == 0)
+                permissions.Add("site.view");
+
+            if (websiteKey == PermissionCatalog.AdminWebsiteKey && permissions.Count == 0)
+                continue;
+
+            normalized.Add(new WebsiteGrant { WebsiteKey = websiteKey, Permissions = permissions });
+        }
+
+        return normalized;
+    }
+
     private async Task<List<WebsiteGrant>> ValidateAsync(UpsertCustomRoleRequest request, CancellationToken ct)
     {
-        var grants = new List<WebsiteGrant>();
+        var grants = NormalizeWebsiteGrants(request.WebsiteGrants);
         var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var grant in request.WebsiteGrants ?? new())
+        foreach (var grant in grants)
         {
             var websiteKey = grant.WebsiteKey.Trim().ToLowerInvariant();
             if (websiteKey.Length == 0) throw new ArgumentException("Website key cannot be empty.");
             if (!seenKeys.Add(websiteKey)) throw new ArgumentException($"Duplicate website key '{websiteKey}' in grants.");
 
-            var permissions = (grant.Permissions ?? new List<string>()).Distinct().ToList();
+            var permissions = grant.Permissions.Distinct(StringComparer.Ordinal).ToList();
             if (!(await Task.WhenAll(permissions.Select(p => _permissions.IsValidAsync(websiteKey, p, ct)))).All(x => x))
                 throw new ArgumentException($"One or more permission keys are invalid for website '{websiteKey}'.");
             if (permissions.Count == 0) continue;
-
-            grants.Add(new WebsiteGrant { WebsiteKey = websiteKey, Permissions = permissions });
         }
 
         return grants;

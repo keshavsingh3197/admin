@@ -381,10 +381,12 @@ export class SettingsComponent implements OnInit {
     else if (githubResult === 'error') { this.ok.set(false); this.message.set('Could not connect to GitHub. Check the Client ID/Secret and try again.'); }
   }
 
-  /** The exact URL to register with every OAuth provider. Prefers the saved canonical base URL;
-   *  falls back to this app's own API origin, which is what the server does when it is blank. */
+  /** The exact URL to register with every OAuth provider. Kept canonical and server-driven so it is
+   *  stable across every host in the keshavsingh.in family. */
   oauthCallbackUrl(): string {
-    return this.model()?.oAuthCallbackUrl || `${new URL(environment.apiUrl, window.location.origin).origin}/api/oauth/callback`;
+    const configured = this.model()?.oAuthCallbackUrl?.trim();
+    if (configured) return configured;
+    return `${new URL(environment.apiUrl, window.location.origin).origin}/api/oauth/callback`;
   }
 
   isRepoSelected(repo: string): boolean {

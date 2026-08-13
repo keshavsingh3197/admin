@@ -1,3 +1,4 @@
+using Admin.Api.Dtos;
 using Admin.Api.Services;
 
 namespace Admin.Api.Tests;
@@ -54,6 +55,31 @@ public class PackageInventoryServiceTests
         var normalized = SettingsService.NormalizePackageInventoryRepositories(repos);
 
         Assert.Equal(new[] { "keshavsingh/packages-core", "owner/repo" }, normalized);
+    }
+
+    [Fact]
+    public void NormalizeWebsiteGrants_DefaultsSelectedSitesToViewPermission()
+    {
+        var grants = CustomRoleService.NormalizeWebsiteGrants(new[]
+        {
+            new WebsiteGrantDto("blog", Array.Empty<string>()),
+            new WebsiteGrantDto("admin", Array.Empty<string>()),
+            new WebsiteGrantDto("*", Array.Empty<string>()),
+        });
+
+        Assert.Equal(new[] { "site.view" }, grants.Single(x => x.WebsiteKey == "blog").Permissions);
+        Assert.Equal(new[] { "site.view" }, grants.Single(x => x.WebsiteKey == "*").Permissions);
+        Assert.Empty(grants.Single(x => x.WebsiteKey == "admin").Permissions);
+    }
+
+    [Theory]
+    [InlineData("token-missing", false, new[] { "No GitHub token is configured." }, 0)]
+    [InlineData("private-repo-access-denied", true, new[] { "org/private-repo: could not list files (Forbidden)." }, 0)]
+    [InlineData("manifest-not-found", true, new string[0], 0)]
+    [InlineData("ready", true, new[] { "Some repo warning." }, 2)]
+    public void DetermineState_SeparatesKnownInventoryFailures(string expectedState, bool workspaceAvailable, string[] diagnostics, int packageCount)
+    {
+        Assert.Equal(expectedState, PackageInventoryState.Determine(workspaceAvailable, diagnostics, packageCount));
     }
 }
 

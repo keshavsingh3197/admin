@@ -27,15 +27,28 @@ type EcosystemFilter = 'all' | 'nuget' | 'npm';
       @if (loading() && !inventory()) {
         <div class="loading"><span class="spinner"></span> Scanning package manifests...</div>
       } @else if (inventory(); as result) {
-        @if (!result.workspaceAvailable) {
-          <div class="banner">No GitHub token is configured for the Packages inventory — add one on <a routerLink="/settings">Settings</a> → Package inventory (GitHub).</div>
+        @switch (result.state) {
+          @case ('token-missing') {
+            <div class="banner">No GitHub token is configured for the Packages inventory — add one on <a routerLink="/settings">Settings</a> → Package inventory (GitHub).</div>
+          }
+          @case ('repo-selection-missing') {
+            <div class="banner">No repositories are selected yet. Choose the repo(s) to scan on <a routerLink="/settings">Settings</a> → Package inventory (GitHub).</div>
+          }
+          @case ('private-repo-access-denied') {
+            <div class="banner" role="alert">Private repo access is blocked or the token does not have permission to read all selected repositories.</div>
+          }
+          @case ('manifest-not-found') {
+            <div class="banner" role="alert">No KeshavSingh or @keshavsingh3197 manifests were found in the selected repositories.</div>
+          }
         }
+
         @if (result.diagnostics.length) {
           <ul class="diagnostics" aria-label="Package inventory warnings">
             @for (d of result.diagnostics; track d) { <li>{{ d }}</li> }
           </ul>
         }
-        @if (result.workspaceAvailable) {
+
+        @if (result.state === 'ready') {
           <section class="summary" aria-label="Package summary">
             <div><strong>{{ result.packages.length }}</strong><span>Packages</span></div>
             <div><strong>{{ currentCount() }}</strong><span>Current</span></div>
