@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
 import { ConfigService } from '../../core/services/config.service';
+import { PackageInventoryService } from '../../core/services/package-inventory.service';
 import { environment } from '../../../environments/environment';
 import { SettingsView, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../../core/models/settings.models';
 
@@ -137,6 +138,44 @@ interface SettingsImportPayload {
             </div>
           }
 
+          <h2>OAuth &amp; social sign-in</h2>
+          <p class="hint">Every OAuth flow — social sign-in and the GitHub connection below — comes back to
+             <strong>one</strong> redirect URI. Register exactly this as the authorization callback URL with
+             each provider: <code>{{ oauthCallbackUrl() }}</code>. Providers only accept a redirect_uri they
+             already know, so reaching this API on a second hostname is what causes
+             <em>"The redirect_uri is not associated with this application"</em>. Which site a person returns
+             to after signing in is carried in signed state, not registered per app.</p>
+          <label class="field"><span>Callback base URL (blank = the host this API was reached on)</span>
+            <input class="input" type="url" name="oauthBase" placeholder="https://admin.keshavsingh.in"
+              [(ngModel)]="m.oAuthCallbackBaseUrl" /></label>
+
+          <div class="grid">
+            <label class="field"><span>GitHub Client ID</span>
+              <input class="input" type="text" name="ghClientId" autocomplete="off" [(ngModel)]="m.gitHubOAuthClientId" /></label>
+            <label class="field"><span>GitHub Client Secret {{ m.gitHubOAuthClientSecretSet ? '(already set — leave blank to keep)' : '' }}</span>
+              <input class="input" type="password" name="ghClientSecret" autocomplete="new-password"
+                placeholder="{{ m.gitHubOAuthClientSecretSet ? '••••••••' : 'Client secret' }}"
+                [(ngModel)]="gitHubOAuthClientSecretInput" /></label>
+          </div>
+          <label class="chk"><input type="checkbox" name="ghSocial" [(ngModel)]="m.gitHubSocialLoginEnabled" /> Offer "Sign in with GitHub" on the login screen</label>
+
+          <div class="grid">
+            <label class="field"><span>LinkedIn Client ID</span>
+              <input class="input" type="text" name="liClientId" autocomplete="off" [(ngModel)]="m.linkedInOAuthClientId" /></label>
+            <label class="field"><span>LinkedIn Client Secret {{ m.linkedInOAuthClientSecretSet ? '(already set — leave blank to keep)' : '' }}</span>
+              <input class="input" type="password" name="liClientSecret" autocomplete="new-password"
+                placeholder="{{ m.linkedInOAuthClientSecretSet ? '••••••••' : 'Client secret' }}"
+                [(ngModel)]="linkedInOAuthClientSecretInput" /></label>
+          </div>
+          <label class="chk"><input type="checkbox" name="liSocial" [(ngModel)]="m.linkedInSocialLoginEnabled" /> Offer "Sign in with LinkedIn" on the login screen</label>
+          <p class="hint">Create the LinkedIn app at
+             <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener">linkedin.com/developers/apps</a>
+             and request the <code>Sign In with LinkedIn using OpenID Connect</code> product — sign-in needs the
+             <code>openid profile email</code> scopes. A provider with no Client ID/Secret stays hidden on the
+             login screen even when its checkbox is ticked.</p>
+          <p class="hint">Social sign-in never creates an account: it signs in an existing user whose email
+             matches the provider's <em>verified</em> address, and always still asks for the second factor.</p>
+
           <h2>Package inventory (GitHub)</h2>
           <p class="hint">Powers the <a routerLink="/packages">Packages</a> screen: a token with
              <code>read:packages</code> (and <code>repo</code> if any workspace repo is private) lets it
@@ -146,22 +185,40 @@ interface SettingsImportPayload {
             <input class="input" type="password" name="ghToken" autocomplete="new-password"
               placeholder="{{ m.gitHubPackagesTokenSet ? '••••••••' : 'ghp_… / github_pat_…' }}"
               [(ngModel)]="gitHubPackagesTokenInput" /></label>
-
-          <p class="hint">Or connect a GitHub OAuth App instead of pasting a token — register one at
-             <a href="https://github.com/settings/developers" target="_blank" rel="noopener">github.com/settings/developers</a>
-             with authorization callback URL <code>{{ oauthCallbackUrl() }}</code>, paste its Client ID/Secret below,
-             save, then Connect.</p>
-          <div class="grid">
-            <label class="field"><span>OAuth Client ID</span>
-              <input class="input" type="text" name="ghClientId" autocomplete="off" [(ngModel)]="m.gitHubOAuthClientId" /></label>
-            <label class="field"><span>OAuth Client Secret {{ m.gitHubOAuthClientSecretSet ? '(already set — leave blank to keep)' : '' }}</span>
-              <input class="input" type="password" name="ghClientSecret" autocomplete="new-password"
-                placeholder="{{ m.gitHubOAuthClientSecretSet ? '••••••••' : 'Client secret' }}"
-                [(ngModel)]="gitHubOAuthClientSecretInput" /></label>
-          </div>
+          <p class="hint">Or connect the GitHub OAuth App configured above instead of pasting a token —
+             save first, then Connect.</p>
           <button class="btn-secondary" type="button" [disabled]="!m.gitHubOAuthClientId || connectingGitHub()" (click)="connectGitHub()">
             {{ connectingGitHub() ? 'Connecting…' : 'Connect to GitHub' }}
           </button>
+
+          <h3 class="sub">Repositories to scan</h3>
+          <p class="hint">Only the repositories ticked here are scanned — the choice is stored server-side, so
+             it is made once and survives restarts. Search to add or remove one at any time.</p>
+          @if (selectedRepos().length) {
+            <div class="chips">
+              @for (repo of selectedRepos(); track repo) {
+                <span class="chip">{{ repo }}<button type="button" aria-label="Remove repository" (click)="toggleRepo(repo)">×</button></span>
+              }
+            </div>
+          } @else {
+            <p class="hint warn">No repositories selected — the Packages screen has nothing to scan.</p>
+          }
+          <div class="repo-search">
+            <input class="input" type="search" name="repoQuery" placeholder="Search repositories…"
+              [(ngModel)]="repoQuery" (ngModelChange)="searchRepos()" />
+            <button class="btn-secondary" type="button" [disabled]="reposLoading()" (click)="searchRepos()">
+              {{ reposLoading() ? 'Loading…' : 'Reload' }}
+            </button>
+          </div>
+          @if (repoResults().length) {
+            <div class="repo-list">
+              @for (repo of repoResults(); track repo) {
+                <label class="chk"><input type="checkbox" [checked]="isRepoSelected(repo)" (change)="toggleRepo(repo)" /> {{ repo }}</label>
+              }
+            </div>
+          } @else if (!reposLoading()) {
+            <p class="hint">No repositories to show. Save a GitHub token or connect the OAuth App first, then Reload.</p>
+          }
 
           <h2>First-run checklist</h2>
           <p class="hint">For a fresh deployment, keep bootstrap secrets in env or Key Vault and manage non-secret runtime settings here after sign-in.</p>
@@ -255,6 +312,15 @@ interface SettingsImportPayload {
     .input { width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
     .input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px #e8f0fe; }
     .hint { color: #666; font-size: 0.85rem; margin: 0 0 0.6rem; }
+    .hint.warn { color: #8a4b00; }
+    .card h3.sub { font-size: 0.95rem; margin: 1.1rem 0 0.5rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
+    .chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.5rem; border-radius: 12px;
+      background: color-mix(in srgb, var(--brand) 12%, var(--surface)); color: var(--brand); font-size: 0.8rem; }
+    .chip button { border: none; background: none; color: inherit; cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0; }
+    .repo-search { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; }
+    .repo-list { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem; }
+    .repo-list .chk { font-size: 0.85rem; }
     .checklist { margin: 0 0 0.8rem 1.2rem; color: #444; font-size: 0.9rem; }
     .chk { display: block; margin-bottom: 0.5rem; font-size: 0.92rem; }
     .website-editor { border: 1px solid #e0e0e0; border-radius: 8px; padding: 0.8rem; margin-bottom: 0.9rem; }
@@ -279,6 +345,7 @@ interface SettingsImportPayload {
 export class SettingsComponent implements OnInit {
   private api = inject(SettingsService);
   private config = inject(ConfigService);
+  private packages = inject(PackageInventoryService);
   private route = inject(ActivatedRoute);
 
   readonly model = signal<SettingsView | null>(null);
@@ -291,7 +358,16 @@ export class SettingsComponent implements OnInit {
   gitHubPackagesTokenInput = '';
   /** Write-only draft for the GitHub OAuth Client Secret; blank means "leave the stored secret unchanged". */
   gitHubOAuthClientSecretInput = '';
+  /** Write-only draft for the LinkedIn OAuth Client Secret; blank means "leave the stored secret unchanged". */
+  linkedInOAuthClientSecretInput = '';
   readonly connectingGitHub = signal(false);
+
+  /** Repository picker for the Packages scan. `selectedRepos` is what gets saved; `repoResults` is
+   *  just the searchable candidate list read from GitHub. */
+  readonly selectedRepos = signal<string[]>([]);
+  readonly repoResults = signal<string[]>([]);
+  readonly reposLoading = signal(false);
+  repoQuery = '';
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly message = signal<string | null>(null);
@@ -305,9 +381,28 @@ export class SettingsComponent implements OnInit {
     else if (githubResult === 'error') { this.ok.set(false); this.message.set('Could not connect to GitHub. Check the Client ID/Secret and try again.'); }
   }
 
-  /** The exact URL to register as this OAuth App's "Authorization callback URL" on GitHub. */
+  /** The exact URL to register with every OAuth provider. Prefers the saved canonical base URL;
+   *  falls back to this app's own API origin, which is what the server does when it is blank. */
   oauthCallbackUrl(): string {
-    return `${environment.apiUrl}/settings/github/oauth/callback`;
+    return this.model()?.oAuthCallbackUrl || `${new URL(environment.apiUrl, window.location.origin).origin}/api/oauth/callback`;
+  }
+
+  isRepoSelected(repo: string): boolean {
+    return this.selectedRepos().includes(repo);
+  }
+
+  /** Toggling only edits the draft — nothing is scanned until the settings are saved. */
+  toggleRepo(repo: string): void {
+    const current = this.selectedRepos();
+    this.selectedRepos.set(current.includes(repo) ? current.filter(x => x !== repo) : [...current, repo].sort());
+  }
+
+  searchRepos(): void {
+    this.reposLoading.set(true);
+    this.packages.repositories(this.repoQuery.trim()).subscribe({
+      next: repos => { this.repoResults.set(repos); this.reposLoading.set(false); },
+      error: () => { this.repoResults.set([]); this.reposLoading.set(false); },
+    });
   }
 
   connectGitHub(): void {
@@ -326,11 +421,10 @@ export class SettingsComponent implements OnInit {
       next: ({ settings, websites }) => {
         this.model.set(settings);
         this.websites.set(websites);
-        this.whatsAppAccessTokenInput = '';
-        this.storageS3SecretInput = '';
-        this.gitHubPackagesTokenInput = '';
-        this.gitHubOAuthClientSecretInput = '';
+        this.selectedRepos.set([...settings.packageInventoryRepositories].sort());
+        this.clearSecretDrafts();
         this.loading.set(false);
+        this.searchRepos();
       },
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
@@ -348,10 +442,8 @@ export class SettingsComponent implements OnInit {
       next: s => {
         this.busy.set(false);
         this.model.set(s);
-        this.whatsAppAccessTokenInput = '';
-        this.storageS3SecretInput = '';
-        this.gitHubPackagesTokenInput = '';
-        this.gitHubOAuthClientSecretInput = '';
+        this.selectedRepos.set([...s.packageInventoryRepositories].sort());
+        this.clearSecretDrafts();
         this.config.refresh(); // Propagate launcher/branding changes to the cached central config.
         this.ok.set(true);
         this.message.set('Settings saved.');
@@ -489,9 +581,23 @@ export class SettingsComponent implements OnInit {
       storageS3AccessKeyId: m.storageS3AccessKeyId,
       ...(this.storageS3SecretInput ? { storageS3SecretAccessKey: this.storageS3SecretInput } : {}),
       ...(this.gitHubPackagesTokenInput ? { gitHubPackagesToken: this.gitHubPackagesTokenInput } : {}),
+      oAuthCallbackBaseUrl: m.oAuthCallbackBaseUrl ?? '',
       gitHubOAuthClientId: m.gitHubOAuthClientId,
       ...(this.gitHubOAuthClientSecretInput ? { gitHubOAuthClientSecret: this.gitHubOAuthClientSecretInput } : {}),
+      gitHubSocialLoginEnabled: m.gitHubSocialLoginEnabled,
+      linkedInSocialLoginEnabled: m.linkedInSocialLoginEnabled,
+      linkedInOAuthClientId: m.linkedInOAuthClientId,
+      ...(this.linkedInOAuthClientSecretInput ? { linkedInOAuthClientSecret: this.linkedInOAuthClientSecretInput } : {}),
+      packageInventoryRepositories: this.selectedRepos(),
     };
+  }
+
+  private clearSecretDrafts(): void {
+    this.whatsAppAccessTokenInput = '';
+    this.storageS3SecretInput = '';
+    this.gitHubPackagesTokenInput = '';
+    this.gitHubOAuthClientSecretInput = '';
+    this.linkedInOAuthClientSecretInput = '';
   }
 
   private fail(err: HttpErrorResponse, fallback: string): void {

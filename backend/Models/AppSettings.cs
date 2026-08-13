@@ -62,13 +62,28 @@ public sealed class AppSettings
     // Falls back to PackageInventory:GitHubToken / PACKAGES_READ_TOKEN in appsettings/env if unset here.
     public string? GitHubPackagesTokenEncrypted { get; set; }   // 🔒 AES-encrypted.
 
-    // ---- GitHub OAuth App (alternative to pasting the PAT above) ----
-    // Register an OAuth App at github.com/settings/developers with callback
-    // {this API's base URL}/api/settings/github/oauth/callback, then paste its Client ID/Secret here.
-    // A completed "Connect to GitHub" flow writes its resulting token into
-    // GitHubPackagesTokenEncrypted above — same storage, same consumer, just a different way in.
+    // ---- OAuth (GitHub / LinkedIn) ----
+    // Every OAuth flow — social sign-in and "Connect to GitHub" for the Packages screen — uses ONE
+    // redirect URI: {OAuthCallbackBaseUrl}/api/oauth/callback. Providers match redirect_uri against
+    // what the app registered (a GitHub OAuth App allows exactly one), so this must be a fixed,
+    // canonical origin rather than whichever host a request happened to arrive on — reaching the API
+    // via a second hostname is what produces "redirect_uri is not associated with this application".
+    // Blank falls back to the current request's origin (fine for localhost / a fresh deployment).
+    // Which site the user returns to afterwards is carried in signed state, never registered.
+    public string OAuthCallbackBaseUrl { get; set; } = string.Empty;
+
     public string GitHubOAuthClientId { get; set; } = string.Empty;
     public string? GitHubOAuthClientSecretEncrypted { get; set; }   // 🔒 AES-encrypted.
+
+    public bool GitHubSocialLoginEnabled { get; set; }
+    public bool LinkedInSocialLoginEnabled { get; set; }
+    public string LinkedInOAuthClientId { get; set; } = string.Empty;
+    public string? LinkedInOAuthClientSecretEncrypted { get; set; } // 🔒 AES-encrypted.
+
+    // Which repositories the Packages screen scans, chosen on the Settings screen and persisted here.
+    // Empty means package inventory is deliberately not configured: never fall back to enumerating
+    // every repo the token can see — that is slow, noisy, and burns the GitHub API rate limit.
+    public List<string> PackageInventoryRepositories { get; set; } = [];
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

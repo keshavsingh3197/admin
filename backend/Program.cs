@@ -134,6 +134,10 @@ builder.Services.AddSingleton<WhatsAppNotifier>();
 builder.Services.AddSingleton<IWhatsAppSender, WhatsAppOtpSender>();
 builder.Services.AddKeshavAuthEngine();
 builder.Services.AddScoped<AdminSeeder>();
+// OAuth: one signed state + one registered redirect URI shared by social sign-in and the Packages
+// "Connect to GitHub" flow (see OAuthStateService / OAuthController).
+builder.Services.AddSingleton<OAuthStateService>();
+builder.Services.AddSingleton<SocialLoginService>();
 
 // ---- Passkeys (WebAuthn / FIDO2) ----
 // IFido2 is registered by hand (the DI helper lives in a separate Fido2.AspNet package). No

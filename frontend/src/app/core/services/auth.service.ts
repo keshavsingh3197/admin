@@ -9,6 +9,7 @@ import {
   PasskeyCapabilities,
   PasskeyListItem,
   Role,
+  SocialProvider,
   SsoLoginResponse,
   StartTwoFactorDeviceEnrollmentResponse,
   SsoSessionResponse, TwoFactorMethod, UserProfile,
@@ -52,13 +53,19 @@ export class AuthService {
       .pipe(tap(res => { if (res.session) this.setSession(res.session); }));
   }
 
-  /** Step 1 of "Sign in with GitHub": returns the authorize URL to navigate the whole page to —
-   *  never call this like a normal fetch/XHR result (a redirect to github.com can't carry a bearer
-   *  token, which is also why the callback finishes back on this same login page instead).
+  /** Which social sign-in buttons to draw — only providers an Admin configured and switched on. */
+  socialProviders(): Observable<SocialProvider[]> {
+    return this.http.get<SocialProvider[]>(`${this.base}/sso/social/providers`);
+  }
+
+  /** Step 1 of "Sign in with <provider>": returns the authorize URL to navigate the whole page to —
+   *  never call this like a normal fetch/XHR result (a redirect to github.com/linkedin.com can't
+   *  carry a bearer token, which is also why the shared callback finishes back on this login page).
    *  `returnUrl` is the `?return=` this login page was opened with (another site's own redirect,
    *  e.g. ghar-ledger) — threaded through the whole round-trip so the user lands back there. */
-  startGitHubSocialLogin(appKey: string, returnUrl?: string | null): Observable<{ authorizeUrl: string }> {
-    return this.http.post<{ authorizeUrl: string }>(`${this.base}/sso/social/github/start`, { appKey, returnUrl });
+  startSocialLogin(provider: string, appKey: string, returnUrl?: string | null): Observable<{ authorizeUrl: string }> {
+    return this.http.post<{ authorizeUrl: string }>(
+      `${this.base}/sso/social/${encodeURIComponent(provider)}/start`, { appKey, returnUrl });
   }
 
   verifyTwoFactor(twoFactorToken: string, code: string, method: TwoFactorMethod): Observable<SsoLoginResponse> {

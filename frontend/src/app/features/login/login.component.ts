@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
-import { SessionConflictInfo, TwoFactorMethod } from '../../core/models/auth.models';
+import { SessionConflictInfo, SocialProvider, TwoFactorMethod } from '../../core/models/auth.models';
 import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, ServerCredentialOptions } from '../../core/services/webauthn';
 
 /**
@@ -79,12 +79,18 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
             </button>
           }
 
-          <div class="or-divider"><span>or</span></div>
-          <button class="btn-passkey" type="button" [disabled]="githubLoading()" (click)="signInWithGitHub()">
-            {{ githubLoading() ? 'Connecting to GitHub…' : '⬛ Sign in with GitHub' }}
-          </button>
-          <p class="login-sub" style="margin: 0.5rem 0 0; font-size: 0.78rem;">Only works for accounts an
-            administrator already created with this email, and only once you've enrolled an authenticator.</p>
+          @if (socialProviders().length) {
+            <div class="or-divider"><span>or</span></div>
+            @for (provider of socialProviders(); track provider.key) {
+              <button class="btn-passkey social" type="button" [disabled]="!!socialLoading()"
+                      (click)="signInWithProvider(provider.key)">
+                {{ socialLoading() === provider.key ? 'Connecting to ' + provider.displayName + '…'
+                                                    : providerIcon(provider.key) + ' Sign in with ' + provider.displayName }}
+              </button>
+            }
+            <p class="login-sub" style="margin: 0.5rem 0 0; font-size: 0.78rem;">Only works for accounts an
+              administrator already created with this email, and only once you've enrolled an authenticator.</p>
+          }
         } @else {
           <form (ngSubmit)="submitTwoFactor()">
             <label class="field">
@@ -166,6 +172,7 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
     }
     .btn-passkey:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 12%, var(--surface)); }
     .btn-passkey:disabled { opacity: 0.6; cursor: default; }
+    .btn-passkey.social + .btn-passkey.social { margin-top: 0.5rem; }
     .info-banner {
       background: #e6f4ea; color: #137333; border: 1px solid #ceead6;
       border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.9rem;
@@ -209,6 +216,9 @@ export class LoginComponent implements OnInit {
       this.checking.set(false);
       return;
     }
+    // Which social buttons exist is an Admin setting, so ask rather than hard-code them.
+    this.auth.socialProviders().subscribe({ next: p => this.socialProviders.set(p), error: () => this.socialProviders.set([]) });
+
     if (socialError) {
       this.errorMessage.set(socialError);
       this.checking.set(false);
@@ -231,7 +241,10 @@ export class LoginComponent implements OnInit {
   /** Whether this browser can do WebAuthn at all — gates the passkey button. */
   readonly passkeySupported = isPasskeySupported();
   readonly passkeyLoading = signal(false);
-  readonly githubLoading = signal(false);
+  /** The buttons to draw, straight from the server — a provider an Admin switched off never appears. */
+  readonly socialProviders = signal<SocialProvider[]>([]);
+  /** Key of the provider currently being redirected to, or null. */
+  readonly socialLoading = signal<string | null>(null);
 
   email = '';
   password = '';
@@ -358,15 +371,19 @@ export class LoginComponent implements OnInit {
     this.errorMessage.set(null);
   }
 
-  /** Full-page redirect to GitHub — never an XHR/fetch of the returned URL. */
-  signInWithGitHub(): void {
-    this.githubLoading.set(true);
+  providerIcon(key: string): string {
+    return key === 'linkedin' ? '🔗' : '⬛';
+  }
+
+  /** Full-page redirect to the provider — never an XHR/fetch of the returned URL. */
+  signInWithProvider(provider: string): void {
+    this.socialLoading.set(provider);
     this.errorMessage.set(null);
-    this.auth.startGitHubSocialLogin(this.appKey(), this.route.snapshot.queryParamMap.get('return')).subscribe({
+    this.auth.startSocialLogin(provider, this.appKey(), this.route.snapshot.queryParamMap.get('return')).subscribe({
       next: res => { window.location.href = res.authorizeUrl; },
       error: (err: HttpErrorResponse) => {
-        this.githubLoading.set(false);
-        this.errorMessage.set(this.messageFrom(err, 'Could not start GitHub sign-in.'));
+        this.socialLoading.set(null);
+        this.errorMessage.set(this.messageFrom(err, 'Could not start social sign-in.'));
       },
     });
   }

@@ -14,4 +14,10 @@ export class PackageInventoryService {
     const params = new HttpParams().set('refresh', refresh);
     return this.http.get<PackageInventory>(`${this.baseUrl}/packages`, { params });
   }
+
+  /** Every repo the configured GitHub token can see — the candidates for the Settings picker. */
+  repositories(query = ''): Observable<string[]> {
+    const params = new HttpParams().set('query', query);
+    return this.http.get<string[]>(`${this.baseUrl}/packages/repositories`, { params });
+  }
 }

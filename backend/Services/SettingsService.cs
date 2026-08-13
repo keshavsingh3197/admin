@@ -68,9 +68,15 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     // ---- GitHub Packages token (read by PackageInventoryService) ----
     public string? GitHubPackagesToken => Decrypt(_current.GitHubPackagesTokenEncrypted);
 
-    // ---- GitHub OAuth App (read by the "Connect to GitHub" flow) ----
+    // ---- OAuth (read by the shared OAuth state/callback and the social-login flows) ----
+    public string OAuthCallbackBaseUrl => _current.OAuthCallbackBaseUrl;
     public string GitHubOAuthClientId => _current.GitHubOAuthClientId;
     public string? GitHubOAuthClientSecret => Decrypt(_current.GitHubOAuthClientSecretEncrypted);
+    public bool GitHubSocialLoginEnabled => _current.GitHubSocialLoginEnabled;
+    public bool LinkedInSocialLoginEnabled => _current.LinkedInSocialLoginEnabled;
+    public string LinkedInOAuthClientId => _current.LinkedInOAuthClientId;
+    public string? LinkedInOAuthClientSecret => Decrypt(_current.LinkedInOAuthClientSecretEncrypted);
+    public IReadOnlyList<string> PackageInventoryRepositories => _current.PackageInventoryRepositories;
 
     /// <summary>Stores a token obtained via the GitHub OAuth flow the same way a pasted PAT is stored —
     /// same field, same consumer (PackageInventoryService) — and busts its 15-minute result cache.</summary>
@@ -148,7 +154,11 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
             s.StorageProvider, s.StorageS3ServiceUrl, s.StorageS3Bucket, s.StorageS3AccessKeyId,
             !string.IsNullOrEmpty(s.StorageS3SecretAccessKeyEncrypted),
             !string.IsNullOrEmpty(s.GitHubPackagesTokenEncrypted),
+            s.OAuthCallbackBaseUrl,
+            s.OAuthCallbackBaseUrl.Length == 0 ? string.Empty : s.OAuthCallbackBaseUrl + OAuthStateService.CallbackPath,
             s.GitHubOAuthClientId, !string.IsNullOrEmpty(s.GitHubOAuthClientSecretEncrypted),
+            s.GitHubSocialLoginEnabled, s.LinkedInSocialLoginEnabled, s.LinkedInOAuthClientId,
+            !string.IsNullOrEmpty(s.LinkedInOAuthClientSecretEncrypted), s.PackageInventoryRepositories,
             s.UpdatedAt);
     }
 
@@ -206,9 +216,26 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
             _cache.Remove("package-inventory");
         }
 
+        // The one origin every OAuth provider redirects back to. Same allowlist as any other stored
+        // URL here (https, keshavsingh.in family) — it is handed to providers as a redirect target.
+        if (r.OAuthCallbackBaseUrl is not null)
+            s.OAuthCallbackBaseUrl = r.OAuthCallbackBaseUrl.Trim().Length == 0
+                ? string.Empty
+                : ValidateLauncherUrl(r.OAuthCallbackBaseUrl, nameof(r.OAuthCallbackBaseUrl));
         if (r.GitHubOAuthClientId is not null) s.GitHubOAuthClientId = r.GitHubOAuthClientId.Trim();
         if (!string.IsNullOrEmpty(r.GitHubOAuthClientSecret))
             s.GitHubOAuthClientSecretEncrypted = _protector.Encrypt(r.GitHubOAuthClientSecret);
+        if (r.GitHubSocialLoginEnabled is { } githubEnabled) s.GitHubSocialLoginEnabled = githubEnabled;
+        if (r.LinkedInSocialLoginEnabled is { } linkedInEnabled) s.LinkedInSocialLoginEnabled = linkedInEnabled;
+        if (r.LinkedInOAuthClientId is not null) s.LinkedInOAuthClientId = r.LinkedInOAuthClientId.Trim();
+        if (!string.IsNullOrEmpty(r.LinkedInOAuthClientSecret))
+            s.LinkedInOAuthClientSecretEncrypted = _protector.Encrypt(r.LinkedInOAuthClientSecret);
+        if (r.PackageInventoryRepositories is not null)
+        {
+            s.PackageInventoryRepositories = r.PackageInventoryRepositories
+                .Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            _cache.Remove("package-inventory");
+        }
 
         s.UpdatedAt = DateTime.UtcNow;
         await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s,
@@ -240,8 +267,14 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         StorageS3AccessKeyId = s.StorageS3AccessKeyId,
         StorageS3SecretAccessKeyEncrypted = s.StorageS3SecretAccessKeyEncrypted,
         GitHubPackagesTokenEncrypted = s.GitHubPackagesTokenEncrypted,
+        OAuthCallbackBaseUrl = s.OAuthCallbackBaseUrl,
         GitHubOAuthClientId = s.GitHubOAuthClientId,
         GitHubOAuthClientSecretEncrypted = s.GitHubOAuthClientSecretEncrypted,
+        GitHubSocialLoginEnabled = s.GitHubSocialLoginEnabled,
+        LinkedInSocialLoginEnabled = s.LinkedInSocialLoginEnabled,
+        LinkedInOAuthClientId = s.LinkedInOAuthClientId,
+        LinkedInOAuthClientSecretEncrypted = s.LinkedInOAuthClientSecretEncrypted,
+        PackageInventoryRepositories = [.. s.PackageInventoryRepositories],
     };
 
     /// <summary>Storage provider is an allowlist: only "Local" or "S3" (mapped to 400 otherwise).</summary>

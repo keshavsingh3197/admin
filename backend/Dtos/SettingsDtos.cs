@@ -29,8 +29,15 @@ public sealed record SettingsView(
     string StorageS3AccessKeyId,
     bool StorageS3SecretAccessKeySet,
     bool GitHubPackagesTokenSet,
+    string OAuthCallbackBaseUrl,
+    string OAuthCallbackUrl,
     string GitHubOAuthClientId,
     bool GitHubOAuthClientSecretSet,
+    bool GitHubSocialLoginEnabled,
+    bool LinkedInSocialLoginEnabled,
+    string LinkedInOAuthClientId,
+    bool LinkedInOAuthClientSecretSet,
+    IReadOnlyList<string> PackageInventoryRepositories,
     DateTime UpdatedAt);
 
 /// <summary>Partial update — only non-null fields are applied.</summary>
@@ -62,8 +69,14 @@ public sealed record UpdateSettingsRequest(
     string? StorageS3AccessKeyId,
     string? StorageS3SecretAccessKey,
     string? GitHubPackagesToken,
+    string? OAuthCallbackBaseUrl,
     string? GitHubOAuthClientId,
-    string? GitHubOAuthClientSecret);
+    string? GitHubOAuthClientSecret,
+    bool? GitHubSocialLoginEnabled,
+    bool? LinkedInSocialLoginEnabled,
+    string? LinkedInOAuthClientId,
+    string? LinkedInOAuthClientSecret,
+    IReadOnlyList<string>? PackageInventoryRepositories);
 
 /// <summary>
 /// The non-secret, shareable config served publicly at <c>GET /api/config</c> for every

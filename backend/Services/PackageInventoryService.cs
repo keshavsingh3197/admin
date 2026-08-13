@@ -20,34 +20,17 @@ namespace Admin.Api.Services;
 /// wrong repo/branch, rate limit) is recorded in <see cref="PackageInventoryDto.Diagnostics"/> instead of
 /// being silently swallowed, so a misconfiguration shows up on the Packages screen instead of just an
 /// empty list.
+///
+/// Only the repositories explicitly chosen on the Settings screen are scanned — that selection lives
+/// in the settings document, so it survives restarts and is never re-picked. A scan never enumerates
+/// the whole account: that is dozens of pointless Git Trees calls against the API rate limit, and it
+/// fills the screen with repos that have nothing to do with these packages.
 /// </summary>
 public sealed class PackageInventoryService
 {
     private static readonly HashSet<string> ExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
     {
         ".git", ".angular", "bin", "obj", "node_modules", "dist", "artifacts"
-    };
-
-    /// <summary>
-    /// Repos scanned via the GitHub API, as "owner/repo" — NOT all the same owner (the portfolio lives
-    /// under a separate GitHub org/user than the rest). Override with PackageInventory:Repositories
-    /// (comma-separated "owner/repo" entries) if the workspace layout changes.
-    /// </summary>
-    private static readonly string[] DefaultRepositories =
-    {
-        "keshavsingh3197/admin",
-        "keshavsingh3197/content-blog",
-        "keshavsingh3197/ghar-ledger",
-        "keshavsingh3197/shared-security",
-        "keshavsingh3197/KeshavSingh-Packages-Nosql",
-        "keshavsingh3197/KeshavSingh-Packages-Realtime",
-        "keshavsingh3197/KeshavSingh-Packages-Core",
-        "keshavsingh3197/KeshavSingh-Packages-Files",
-        "keshavsingh3197/KeshavSingh-Packages-Finance",
-        "keshavsingh3197/KeshavSingh-Packages-Localization",
-        "keshavsingh3197/KeshavSingh-Packages-Web",
-        "keshavsingh3197/KeshavSingh-Packages-WebUi",
-        "open-for-everyone/Omkr.WebApp.Portfolio",
     };
 
     private readonly IHttpClientFactory _httpClientFactory;
@@ -81,8 +64,15 @@ public sealed class PackageInventoryService
                  "or set PackageInventory:GitHubToken / PACKAGES_READ_TOKEN."]);
         }
 
+        var repositories = _settings.PackageInventoryRepositories;
+        if (repositories.Count == 0)
+        {
+            return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [],
+                ["No repositories are selected — choose which ones to scan on Settings → Package inventory (GitHub)."]);
+        }
+
         var diagnostics = new List<string>();
-        var (producers, consumers) = await DiscoverViaGitHubAsync(token, diagnostics, cancellationToken);
+        var (producers, consumers) = await DiscoverViaGitHubAsync(repositories, token, diagnostics, cancellationToken);
         var packages = new List<PackageInventoryItemDto>();
 
         foreach (var producer in producers.Values.OrderBy(x => x.Ecosystem).ThenBy(x => x.Name))
@@ -111,7 +101,7 @@ public sealed class PackageInventoryService
         }
 
         if (packages.Count == 0 && diagnostics.Count == 0)
-            diagnostics.Add("No KeshavSingh.*/@keshavsingh3197/* manifests were found in any configured repo.");
+            diagnostics.Add("No KeshavSingh.*/@keshavsingh3197/* manifests were found in any selected repo.");
 
         var result = new PackageInventoryDto(DateTimeOffset.UtcNow, true, packages, diagnostics);
         _cache.Set(cacheKey, result, TimeSpan.FromMinutes(15));
@@ -124,23 +114,52 @@ public sealed class PackageInventoryService
             ? fromSettings
             : _configuration["PackageInventory:GitHubToken"] ?? _configuration["PACKAGES_READ_TOKEN"];
 
-    private string[] ResolveRepositories()
+    /// <summary>
+    /// Every repository the configured token can see, newest-touched first — the candidate list the
+    /// Settings screen searches to choose what to scan. This is the ONLY place the full account is
+    /// enumerated; a scan itself never does (see <see cref="GetAsync"/>).
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ListAvailableRepositoriesAsync(CancellationToken ct)
     {
-        var configured = _configuration.GetSection("PackageInventory:Repositories").Get<string[]>();
-        return configured is { Length: > 0 } ? configured : DefaultRepositories;
+        var token = ResolveGitHubToken();
+        if (string.IsNullOrWhiteSpace(token)) return [];
+
+        var names = new List<string>();
+        // Paged rather than a single page-of-100: an account with more repos than that would silently
+        // lose the tail, and a picker that can't offer a repo is indistinguishable from a broken one.
+        for (var page = 1; page <= 10; page++)
+        {
+            using var request = CreateGitHubRequest(HttpMethod.Get,
+                $"https://api.github.com/user/repos?affiliation=owner,organization_member&sort=pushed&per_page=100&page={page}", token);
+            try
+            {
+                using var response = await _httpClientFactory.CreateClient().SendAsync(request, ct);
+                if (!response.IsSuccessStatusCode) break;
+                using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+                var batch = doc.RootElement.EnumerateArray()
+                    .Select(x => x.TryGetProperty("full_name", out var n) ? n.GetString() : null)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Cast<string>()
+                    .ToArray();
+                names.AddRange(batch);
+                if (batch.Length < 100) break;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or JsonException) { break; }
+        }
+        return names;
     }
 
     /// <summary>
-    /// Finds every producer/consumer manifest across all configured repos using the GitHub API only —
+    /// Finds every producer/consumer manifest across the selected repos using the GitHub API only —
     /// no local checkout required, so this works the same in production as it does locally.
     /// </summary>
     private async Task<(Dictionary<string, Producer> Producers, List<Consumer> Consumers)> DiscoverViaGitHubAsync(
-        string token, List<string> diagnostics, CancellationToken cancellationToken)
+        IReadOnlyList<string> repositories, string token, List<string> diagnostics, CancellationToken cancellationToken)
     {
         var producers = new Dictionary<string, Producer>(StringComparer.OrdinalIgnoreCase);
         var manifestBodies = new List<(string Repository, string Path, string Content)>();
 
-        foreach (var repository in await ResolveRepositoriesAsync(token, diagnostics, cancellationToken))
+        foreach (var repository in repositories)
         {
             var parts = repository.Split('/', 2);
             if (parts.Length != 2) { diagnostics.Add($"{repository}: not a valid \"owner/repo\" entry."); continue; }
@@ -181,24 +200,6 @@ public sealed class PackageInventoryService
         }
 
         return (producers, consumers);
-    }
-
-    /// <summary>When GitHub is connected, discover repositories visible to that token instead of
-    /// silently relying on a source-code list. An explicit deployment setting still wins.</summary>
-    private async Task<string[]> ResolveRepositoriesAsync(string token, List<string> diagnostics, CancellationToken ct)
-    {
-        var configured = _configuration.GetSection("PackageInventory:Repositories").Get<string[]>();
-        if (configured is { Length: > 0 }) return configured;
-        using var request = CreateGitHubRequest(HttpMethod.Get, "https://api.github.com/user/repos?affiliation=owner,organization_member&per_page=100", token);
-        try
-        {
-            using var response = await _httpClientFactory.CreateClient().SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode) { diagnostics.Add("Could not discover GitHub repositories; using the fallback list."); return DefaultRepositories; }
-            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            var repos = doc.RootElement.EnumerateArray().Select(x => x.TryGetProperty("full_name", out var n) ? n.GetString() : null).Where(x => !string.IsNullOrWhiteSpace(x)).Cast<string>().ToArray();
-            return repos.Length > 0 ? repos : DefaultRepositories;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException) { diagnostics.Add("Could not discover GitHub repositories; using the fallback list."); return DefaultRepositories; }
     }
 
     private async Task<string?> GetDefaultBranchAsync(string owner, string repo, string token, List<string> diagnostics, CancellationToken cancellationToken)
@@ -358,28 +359,37 @@ public sealed class PackageInventoryService
         }
     }
 
+    /// <summary>
+    /// The newest stable version published for this package. The owner comes from the repo that
+    /// produces it — packages are not all under one account — and GitHub splits the packages API by
+    /// account type, so a user-scoped miss is retried as an organisation.
+    /// </summary>
     private async Task<string?> GetPublishedVersionAsync(Producer producer, string? token, List<string> diagnostics, CancellationToken cancellationToken)
     {
-        var owner = _configuration["PackageInventory:GitHubOwner"] ?? "keshavsingh3197";
-        var packageName = producer.Name;
-        var url = $"https://api.github.com/users/{Uri.EscapeDataString(owner)}/packages/{producer.Ecosystem}/{Uri.EscapeDataString(packageName)}/versions?per_page=100";
-        using var request = CreateGitHubRequest(HttpMethod.Get, url, token ?? string.Empty);
-
-        try
+        var owner = producer.Repository.Split('/')[0];
+        foreach (var scope in new[] { "users", "orgs" })
         {
-            using var response = await _httpClientFactory.CreateClient().SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var url = $"https://api.github.com/{scope}/{Uri.EscapeDataString(owner)}/packages/{producer.Ecosystem}/{Uri.EscapeDataString(producer.Name)}/versions?per_page=100";
+            using var request = CreateGitHubRequest(HttpMethod.Get, url, token ?? string.Empty);
+
+            try
             {
-                diagnostics.Add($"{packageName}: could not read published versions ({DescribeStatus(response.StatusCode)}).");
-                return null;
+                using var response = await _httpClientFactory.CreateClient().SendAsync(request, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (response.StatusCode == HttpStatusCode.NotFound && scope == "users") continue;
+                    diagnostics.Add($"{producer.Name}: could not read published versions ({DescribeStatus(response.StatusCode)}).");
+                    return null;
+                }
+                using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+                return document.RootElement.EnumerateArray()
+                    .Select(x => x.TryGetProperty("name", out var name) ? name.GetString() : null)
+                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x) && !x.Contains('-', StringComparison.Ordinal));
             }
-            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-            return document.RootElement.EnumerateArray()
-                .Select(x => x.TryGetProperty("name", out var name) ? name.GetString() : null)
-                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x) && !x.Contains('-', StringComparison.Ordinal));
+            catch (HttpRequestException ex) { diagnostics.Add($"{producer.Name}: published-versions request failed ({ex.Message})."); return null; }
+            catch (JsonException) { diagnostics.Add($"{producer.Name}: published-versions response was not valid JSON."); return null; }
         }
-        catch (HttpRequestException ex) { diagnostics.Add($"{packageName}: published-versions request failed ({ex.Message})."); return null; }
-        catch (JsonException) { diagnostics.Add($"{packageName}: published-versions response was not valid JSON."); return null; }
+        return null;
     }
 
     private static bool VersionMatches(string constraint, string version) =>
