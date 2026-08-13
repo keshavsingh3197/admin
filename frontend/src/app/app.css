@@ -38,6 +38,47 @@ body {
   gap: 0.35rem;
 }
 
+.manage-menu { position: relative; }
+.manage-trigger {
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--brand-text);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  cursor: pointer;
+}
+.manage-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  min-width: 220px;
+  z-index: 20;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.manage-menu.open .manage-panel { display: grid; }
+.manage-panel a {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 5px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.86rem;
+}
+.manage-panel a:hover, .manage-panel a.active {
+  background: var(--bg);
+}
+
 .nav-ico { margin-right: 0.35rem; }
 
 
