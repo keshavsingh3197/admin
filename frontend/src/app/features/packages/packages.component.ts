@@ -72,7 +72,17 @@ type EcosystemFilter = 'all' | 'nuget' | 'npm';
                   <tr>
                     <td><span class="ecosystem">{{ item.ecosystem }}</span><strong>{{ item.name }}</strong><small>{{ item.repository }}</small></td>
                     <td><code>{{ item.sourceVersion }}</code></td>
-                    <td><code>{{ item.publishedVersion ?? 'Not detected' }}</code></td>
+                    <td>
+                      <div class="version-stack">
+                        <code>{{ item.publishedVersion ?? 'Not detected' }}</code>
+                        @if (item.publishedVersions?.length) {
+                          <small>Versions: {{ item.publishedVersions.slice(0, 5).join(', ') }}{{ item.publishedVersions.length > 5 ? '…' : '' }}</small>
+                        }
+                        @if (item.tags?.length) {
+                          <small>Tags: {{ item.tags.slice(0, 5).join(', ') }}{{ item.tags.length > 5 ? '…' : '' }}</small>
+                        }
+                      </div>
+                    </td>
                     <td><span class="status" [class]="item.status">{{ statusLabel(item.status) }}</span></td>
                     <td>
                       @if (item.consumers.length === 0) { <span class="muted">No consumers</span> }

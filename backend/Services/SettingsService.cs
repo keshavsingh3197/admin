@@ -169,6 +169,31 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         return new PublicConfigView(s.SiteTitle, s.BlogUrl, s.BlogAdminUrl, s.UpdatedAt);
     }
 
+    public static IReadOnlyList<string> NormalizePackageInventoryRepositories(IEnumerable<string>? repositories)
+    {
+        if (repositories is null) return Array.Empty<string>();
+
+        var normalized = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in repositories)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+
+            var trimmed = raw.Trim();
+            trimmed = trimmed.TrimEnd('/');
+
+            var parts = trimmed.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2) continue;
+
+            var owner = parts[0].Trim();
+            var name = parts[1].Trim();
+            if (owner.Length == 0 || name.Length == 0) continue;
+
+            normalized.Add($"{owner.ToLowerInvariant()}/{name.ToLowerInvariant()}");
+        }
+
+        return normalized.ToArray();
+    }
+
     public async Task<SettingsView> ApplyAsync(UpdateSettingsRequest r)
     {
         var s = Clone(_current);
@@ -232,8 +257,7 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
             s.LinkedInOAuthClientSecretEncrypted = _protector.Encrypt(r.LinkedInOAuthClientSecret);
         if (r.PackageInventoryRepositories is not null)
         {
-            s.PackageInventoryRepositories = r.PackageInventoryRepositories
-                .Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            s.PackageInventoryRepositories = NormalizePackageInventoryRepositories(r.PackageInventoryRepositories).ToList();
             _cache.Remove("package-inventory");
         }
 

@@ -11,6 +11,9 @@ export interface PackageInventoryItem {
   name: string;
   sourceVersion: string;
   publishedVersion: string | null;
+  publishedVersions?: string[];
+  latestTag?: string | null;
+  tags?: string[];
   repository: string;
   status: PackageStatus;
   consumers: PackageConsumer[];
@@ -21,4 +24,11 @@ export interface PackageInventory {
   workspaceAvailable: boolean;
   packages: PackageInventoryItem[];
   diagnostics: string[];
+}
+
+export interface PackageInventorySummary {
+  total: number;
+  current: number;
+  needsAction: number;
+  consumers: number;
 }

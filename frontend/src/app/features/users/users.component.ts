@@ -62,7 +62,33 @@ import { CreateUserRequest, UpdateUserRequest, UserListItem } from '../../core/m
       </brand-modal>
     </div>`,
   styles: [`
-    .users-wrap { max-width: 1080px; margin: 0 auto; padding: 1rem; } .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; } .page-title { margin:0; color:var(--text); font-size:1.5rem; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.75rem; } .field.wide { grid-column:1/-1; } .field span,.roles-label { display:block; margin-bottom:.3rem; color:var(--muted); font-size:.85rem; } .input { width:100%; box-sizing:border-box; padding:.5rem .6rem; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); } .input.sm { width:auto; } .roles,.admin-actions,.form-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.65rem; margin-top:1rem; } .chk { display:inline-flex; align-items:center; gap:.3rem; } .btn-primary,.btn-secondary,.btn-danger { padding:.5rem .85rem; border-radius:6px; cursor:pointer; } .btn-primary { background:var(--brand); color:var(--brand-text); border:0; } .btn-secondary { background:var(--bg); color:var(--text); border:1px solid var(--border); } .btn-danger { background:#d93025; color:#fff; border:0; } button:disabled { opacity:.55; cursor:default; } .badge { display:inline-block; margin-right:.25rem; padding:.1rem .5rem; border-radius:10px; font-size:.78rem; background:color-mix(in srgb,var(--brand) 14%,var(--surface)); color:var(--brand); } .linkish { border:0; background:none; color:var(--brand); cursor:pointer; } .inactive td { opacity:.6; } .admin-actions { border-top:1px solid var(--border); padding-top:1rem; margin-top:1.25rem; } .reset { display:inline-flex; gap:.4rem; } .banner,.scope-chip { display:flex; align-items:center; gap:.5rem; padding:.6rem .75rem; margin-bottom:1rem; border:1px solid var(--border); border-radius:6px; } .banner { color:#c5221f; background:color-mix(in srgb,#d93025 12%,var(--surface)); } .banner.ok { color:#137333; background:color-mix(in srgb,#137333 12%,var(--surface)); } .scope-chip a { margin-left:auto; color:var(--brand); } .muted { color:var(--muted); font-size:.85rem; }
+    .users-wrap { max-width: 1080px; margin: 0 auto; padding: 1rem; font-family: inherit; }
+    .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.75rem; }
+    .page-title { margin: 0; color: var(--text); font-size: 1.55rem; line-height: 1.2; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem; }
+    .field.wide { grid-column: 1 / -1; }
+    .field span, .roles-label { display: block; margin-bottom: 0.35rem; color: var(--muted); font-size: 0.82rem; font-weight: 600; }
+    .input { width: 100%; box-sizing: border-box; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+    .input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 25%, transparent); }
+    .input.sm { width: auto; }
+    .roles, .admin-actions, .form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-top: 1rem; }
+    .chk { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--text); font-size: 0.9rem; }
+    .btn-primary, .btn-secondary, .btn-danger { padding: 0.55rem 0.9rem; border-radius: 6px; cursor: pointer; font: inherit; }
+    .btn-primary { background: var(--brand); color: var(--brand-text); border: 0; }
+    .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: #d93025; color: #fff; border: 0; }
+    button:disabled { opacity: 0.55; cursor: default; }
+    .badge { display: inline-block; margin-right: 0.25rem; padding: 0.12rem 0.5rem; border-radius: 10px; font-size: 0.78rem; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); }
+    .linkish { border: 0; background: none; color: var(--brand); cursor: pointer; font: inherit; }
+    .inactive td { opacity: 0.6; }
+    .admin-actions { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1.25rem; }
+    .reset { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .banner, .scope-chip { display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 0.8rem; margin-bottom: 1rem; border: 1px solid var(--border); border-radius: 6px; }
+    .banner { color: #c5221f; background: color-mix(in srgb, #d93025 12%, var(--surface)); }
+    .banner.ok { color: #137333; background: color-mix(in srgb, #137333 12%, var(--surface)); }
+    .scope-chip { background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border-color: color-mix(in srgb, var(--brand) 28%, var(--border)); }
+    .scope-chip a { color: var(--brand); text-decoration: none; margin-left: auto; }
+    .muted { color: var(--muted); font-size: 0.85rem; }
   `]
 })
 export class UsersComponent implements OnInit {

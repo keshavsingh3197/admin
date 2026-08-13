@@ -259,7 +259,17 @@ export class RolesComponent implements OnInit {
     return [{ key: ALL_WEBSITES_KEY, name: 'All other websites' }, ...this.websites()];
   }
 
-  fGrantList(): WebsiteGrant[] { return [...this.fGrants.values()]; }
+  private normalizeWebsiteKey(key: string): string {
+    return key.trim().toLowerCase();
+  }
+
+  fGrantList(): WebsiteGrant[] {
+    const ordered = [...this.fGrants.values()].map(g => ({
+      websiteKey: this.normalizeWebsiteKey(g.websiteKey),
+      permissions: [...new Set(g.permissions.map(p => p.trim()).filter(Boolean))].sort(),
+    }));
+    return [...new Map(ordered.map(g => [g.websiteKey, g])).values()].sort((a, b) => a.websiteKey.localeCompare(b.websiteKey));
+  }
 
   ngOnInit(): void {
     this.appFilter.set(this.route.snapshot.queryParamMap.get('app'));
@@ -297,8 +307,10 @@ export class RolesComponent implements OnInit {
   onPickSite(key: string): void {
     this.pickedPermissions.clear();
     if (!key) return;
-    const existing = this.fGrants.get(key);
+    const normalized = this.normalizeWebsiteKey(key);
+    const existing = this.fGrants.get(normalized);
     existing?.permissions.forEach(p => this.pickedPermissions.add(p));
+    this.pickedSite = normalized;
   }
 
   togglePermission(key: string): void {
@@ -307,20 +319,22 @@ export class RolesComponent implements OnInit {
 
   addGrant(): void {
     if (!this.pickedSite || !this.pickedPermissions.size) return;
-    this.fGrants.set(this.pickedSite, { websiteKey: this.pickedSite, permissions: [...this.pickedPermissions] });
+    const key = this.normalizeWebsiteKey(this.pickedSite);
+    this.fGrants.set(key, { websiteKey: key, permissions: [...new Set([...this.pickedPermissions].map(p => p.trim()).filter(Boolean))].sort() });
     this.pickedSite = '';
     this.pickedPermissions.clear();
   }
 
   editGrant(g: WebsiteGrant): void {
-    this.pickedSite = g.websiteKey;
+    this.pickedSite = this.normalizeWebsiteKey(g.websiteKey);
     this.pickedPermissions.clear();
     g.permissions.forEach(p => this.pickedPermissions.add(p));
   }
 
   removeGrant(websiteKey: string): void {
-    this.fGrants.delete(websiteKey);
-    if (this.pickedSite === websiteKey) { this.pickedSite = ''; this.pickedPermissions.clear(); }
+    const key = this.normalizeWebsiteKey(websiteKey);
+    this.fGrants.delete(key);
+    if (this.pickedSite === key) { this.pickedSite = ''; this.pickedPermissions.clear(); }
   }
 
   toggleView(r: CustomRoleView): void { this.viewId.set(this.viewId() === r.id ? null : r.id); }
@@ -337,7 +351,7 @@ export class RolesComponent implements OnInit {
   startEdit(r: CustomRoleView): void {
     this.editId.set(r.id);
     this.fKey = r.key; this.fName = r.name; this.fDesc = r.description ?? '';
-    this.fGrants = new Map(r.websiteGrants.map(g => [g.websiteKey, { websiteKey: g.websiteKey, permissions: [...g.permissions] }]));
+    this.fGrants = new Map(r.websiteGrants.map(g => [this.normalizeWebsiteKey(g.websiteKey), { websiteKey: this.normalizeWebsiteKey(g.websiteKey), permissions: [...new Set(g.permissions.map(p => p.trim()).filter(Boolean))].sort() }]));
     this.pickedSite = ''; this.pickedPermissions.clear();
     this.showForm.set(true);
   }
