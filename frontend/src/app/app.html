@@ -30,6 +30,22 @@
             <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
           </a>
         }
+
+        @if (visibleAdminLinks().length > 0) {
+          <div class="manage-menu" [class.open]="adminMenuOpen()">
+            <button class="manage-trigger" type="button" (click)="toggleAdminMenu()" [attr.aria-expanded]="adminMenuOpen()">
+              <span class="nav-ico" aria-hidden="true">⚙️</span>Manage<span class="caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="manage-panel">
+              @for (link of visibleAdminLinks(); track link.path) {
+                <a [routerLink]="link.path" routerLinkActive="active"
+                   [routerLinkActiveOptions]="{exact: link.exact}" (click)="closeNav()">
+                  <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
+                </a>
+              }
+            </div>
+          </div>
+        }
       </nav>
 
       <div class="spacer"></div>

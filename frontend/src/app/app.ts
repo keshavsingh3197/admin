@@ -103,6 +103,7 @@ export class App {
 
   readonly routeLoading = signal(false);
   readonly navOpen = signal(false);
+  readonly adminMenuOpen = signal(false);
   readonly accountOpen = signal(false);
   readonly theme = signal<'light' | 'dark' | 'brand'>(this.detectInitialTheme());
 
@@ -189,6 +190,13 @@ export class App {
     return this.primaryLinks.filter(link => !link.permissionKey || granted.includes(link.permissionKey));
   }
 
+  /** Admin-only pages grouped behind the Manage menu. */
+  visibleAdminLinks(): NavLink[] {
+    if (this.auth.hasRole('Admin')) return this.adminLinks;
+    const granted = this.pagePermissions();
+    return this.adminLinks.filter(link => !link.permissionKey || granted.includes(link.permissionKey));
+  }
+
   /** A human label for a denied `page.*` key, for the access-denied banner — falls back to the raw key. */
   private labelForPermission(permissionKey: string): string {
     const link = [...this.primaryLinks, ...this.adminLinks].find(l => l.permissionKey === permissionKey);
@@ -209,6 +217,11 @@ export class App {
 
   closeNav(): void {
     this.navOpen.set(false);
+    this.adminMenuOpen.set(false);
+  }
+
+  toggleAdminMenu(): void {
+    this.adminMenuOpen.update((open) => !open);
   }
 
   toggleAccount(): void {
@@ -219,11 +232,13 @@ export class App {
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
     if (this.accountOpen() && !target?.closest('.account-menu')) this.accountOpen.set(false);
+    if (this.adminMenuOpen() && !target?.closest('.manage-menu')) this.adminMenuOpen.set(false);
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
     this.accountOpen.set(false);
+    this.adminMenuOpen.set(false);
     this.navOpen.set(false);
   }
 
