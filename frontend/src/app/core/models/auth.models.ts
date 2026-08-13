@@ -99,3 +99,10 @@ export interface PasskeyBeginResponse {
   handle: string;
   options: Record<string, unknown>;
 }
+
+/** One social sign-in button offered by the server (GET /api/sso/social/providers). */
+export interface SocialProvider {
+  key: string;
+  displayName: string;
+  enabled: boolean;
+}

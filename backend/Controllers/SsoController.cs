@@ -1,10 +1,8 @@
-using System.Text.Json;
 using Admin.Api.Auth;
 using Admin.Api.Services;
 using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
 using KeshavSingh.Auth.Dtos;
-using KeshavSingh.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -27,33 +25,27 @@ namespace Admin.Api.Controllers;
 [Route("api/sso")]
 public sealed class SsoController : ControllerBase
 {
-    private const string GitHubCallbackPath = "/api/sso/social/github/callback";
-    private static readonly TimeSpan SocialStateLifetime = TimeSpan.FromMinutes(10);
-
     private readonly AuthEngine _auth;
     private readonly IAuthSettings _settings;
     private readonly SsoCookieOptions _cookie;
     private readonly TwoFactorDeviceService _twoFactorDevices;
-    private readonly SettingsService _appSettings;
-    private readonly DataProtector _protector;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly SocialLoginService _social;
+    private readonly OAuthStateService _state;
 
     public SsoController(
         AuthEngine auth,
         IAuthSettings settings,
         IOptions<SsoCookieOptions> cookie,
         TwoFactorDeviceService twoFactorDevices,
-        SettingsService appSettings,
-        DataProtector protector,
-        IHttpClientFactory httpClientFactory)
+        SocialLoginService social,
+        OAuthStateService state)
     {
         _auth = auth;
         _settings = settings;
         _cookie = cookie.Value;
         _twoFactorDevices = twoFactorDevices;
-        _appSettings = appSettings;
-        _protector = protector;
-        _httpClientFactory = httpClientFactory;
+        _social = social;
+        _state = state;
     }
 
     /// <summary>Step 1: verify email + password. Sets the SSO cookie, or returns a 2FA challenge
@@ -86,89 +78,52 @@ public sealed class SsoController : ControllerBase
         return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
     }
 
+    /// <summary>Which social providers the login screen should offer — only the ones an Admin has
+    /// both configured and switched on in Settings. Anonymous: the login page needs it before there
+    /// is any session, and it reveals nothing beyond which buttons to draw.</summary>
+    [HttpGet("social/providers")]
+    [AllowAnonymous]
+    public ActionResult<IReadOnlyList<SocialProviderStatus>> SocialProviders() => Ok(_social.EnabledProviders());
+
     /// <summary>
-    /// Social sign-in, step 1: returns the GitHub authorize URL to navigate the whole page to (never
-    /// call this like a normal fetch/XHR result — a redirect to github.com can't carry a bearer token,
-    /// which is also why step 2 below is anonymous and uses a self-contained signed <c>state</c> instead).
+    /// Social sign-in, step 1: returns the provider's authorize URL to navigate the whole page to
+    /// (never call this like a normal fetch/XHR result — a redirect to github.com/linkedin.com can't
+    /// carry a bearer token, which is also why the callback is anonymous and uses a self-contained
+    /// signed <c>state</c> instead). Step 2 is the shared <see cref="OAuthController.Callback"/> —
+    /// one registered redirect URI for every provider and every site.
     /// Link-only (see <see cref="AuthEngine.AuthenticateSocialAsync"/>): this never creates an account.
     /// </summary>
-    [HttpPost("social/github/start")]
+    [HttpPost("social/{provider}/start")]
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
-    public ActionResult<GitHubSocialStartResponse> StartGitHubSocialLogin(GitHubSocialStartRequest request)
+    public ActionResult<SocialStartResponse> StartSocialLogin(string provider, SocialStartRequest request)
     {
-        var clientId = _appSettings.GitHubOAuthClientId;
-        if (string.IsNullOrWhiteSpace(clientId))
-            return BadRequest(new { error = "Social sign-in with GitHub isn't configured yet." });
+        if (!SocialLoginService.IsKnownProvider(provider))
+            return BadRequest(new { error = "Unknown sign-in provider." });
+        if (!_social.IsUsable(provider))
+            return BadRequest(new { error = $"Sign-in with {SocialLoginService.DisplayName(provider)} isn't enabled." });
 
-        var origin = ResolveTrustedOrigin();
+        var origin = OAuthStateService.ResolveTrustedOrigin(Request);
         if (origin is null)
-            return BadRequest(new { error = "Could not determine where to return you to after GitHub." });
+            return BadRequest(new { error = "Could not determine where to return you to afterwards." });
 
         // The site that sent the user here to sign in (ghar-ledger, content-blog, ...) — carried
-        // through the whole GitHub round-trip so `finish()` on the login page can bounce back to it
+        // through the whole provider round-trip so `finish()` on the login page can bounce back to it
         // afterwards, same as a plain password login's `?return=` already does. Family-allowlisted the
         // same way `LoginComponent.isAllowedExternal` does client-side (defence in depth either way).
-        var returnUrl = IsFamilyUrl(request.ReturnUrl) ? request.ReturnUrl : null;
+        var returnUrl = OAuthStateService.IsFamilyUrl(request.ReturnUrl) ? request.ReturnUrl : null;
 
-        var redirectUri = $"{Request.Scheme}://{Request.Host}{GitHubCallbackPath}";
-        var state = _protector.Encrypt(JsonSerializer.Serialize(new SocialStatePayload(
-            Guid.NewGuid().ToString("N"), origin, redirectUri, request.AppKey ?? "", returnUrl, DateTimeOffset.UtcNow)));
+        var redirectUri = _state.CallbackUrl(Request);
+        var state = _state.Encode(new OAuthState(Guid.NewGuid().ToString("N"), OAuthState.SocialLoginPurpose,
+            provider.ToLowerInvariant(), origin, redirectUri, request.AppKey ?? "", returnUrl, DateTimeOffset.UtcNow));
 
-        var authorizeUrl = "https://github.com/login/oauth/authorize"
-            + $"?client_id={Uri.EscapeDataString(clientId)}"
-            + "&scope=" + Uri.EscapeDataString("read:user user:email")
-            + $"&redirect_uri={Uri.EscapeDataString(redirectUri)}"
-            + $"&state={Uri.EscapeDataString(state)}";
-
-        return Ok(new GitHubSocialStartResponse(authorizeUrl));
+        var authorizeUrl = _social.BuildAuthorizeUrl(provider, redirectUri, state);
+        return authorizeUrl is null
+            ? BadRequest(new { error = $"Sign-in with {SocialLoginService.DisplayName(provider)} isn't configured yet." })
+            : Ok(new SocialStartResponse(authorizeUrl));
     }
 
-    /// <summary>
-    /// Social sign-in, step 2: GitHub redirects the browser back here with a `code`. Exchanges it,
-    /// reads the account's verified primary email from GitHub, then applies the exact same link-only,
-    /// mandatory-2FA policy as any other social login (see <see cref="AuthEngine.AuthenticateSocialAsync"/>).
-    /// Always ends in a redirect back to the SPA's login page — either with a `twoFactorToken` (the
-    /// SPA's existing 2FA screen takes it from there, unchanged, via the existing `/api/sso/2fa/verify`)
-    /// or a `socialError` reason. Never a JSON error body — there is no script on this page to read one.
-    /// </summary>
-    [HttpGet("social/github/callback")]
-    [AllowAnonymous]
-    public async Task<IActionResult> GitHubSocialCallback(
-        [FromQuery] string? code, [FromQuery] string? state, [FromQuery] string? error, CancellationToken ct)
-    {
-        var payload = TryDecodeSocialState(state);
-        if (payload is null) return BadRequest("Invalid or expired sign-in request. Go back and try again.");
-
-        if (!string.IsNullOrEmpty(error) || string.IsNullOrWhiteSpace(code))
-            return Redirect($"{payload.Origin}/login?socialError={Uri.EscapeDataString("Sign-in with GitHub was cancelled.")}");
-
-        var clientId = _appSettings.GitHubOAuthClientId;
-        var clientSecret = _appSettings.GitHubOAuthClientSecret;
-        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
-            return Redirect($"{payload.Origin}/login?socialError={Uri.EscapeDataString("Social sign-in isn't configured.")}");
-
-        var accessToken = await ExchangeGitHubCodeAsync(clientId, clientSecret, code, payload.RedirectUri, ct);
-        var email = accessToken is null ? null : await FetchVerifiedGitHubEmailAsync(accessToken, ct);
-        if (email is null)
-            return Redirect($"{payload.Origin}/login?socialError={Uri.EscapeDataString("Could not read a verified email from your GitHub account.")}");
-
-        try
-        {
-            var result = await _auth.AuthenticateSocialAsync(email, payload.AppKey);
-            var returnParam = payload.ReturnUrl is null ? "" : $"&return={Uri.EscapeDataString(payload.ReturnUrl)}";
-            return Redirect($"{payload.Origin}/login"
-                + $"?twoFactorToken={Uri.EscapeDataString(result.TwoFactorToken!)}"
-                + $"&emailFallback={result.EmailFallbackAvailable}"
-                + $"&smsFallback={result.SmsFallbackAvailable}"
-                + $"&whatsAppFallback={result.WhatsAppFallbackAvailable}"
-                + returnParam);
-        }
-        catch (AuthException ex)
-        {
-            return Redirect($"{payload.Origin}/login?socialError={Uri.EscapeDataString(ex.Message)}");
-        }
-    }
+    /// <summary>Second factor. Ends the login the same way step 1 does — including the case where
     /// another session is already active for this same site (then it's a conflict prompt too).</summary>
     [HttpPost("2fa/verify")]
     [AllowAnonymous]
@@ -288,94 +243,12 @@ public sealed class SsoController : ControllerBase
         return new SsoSessionResponse(tokens.AccessToken, tokens.AccessTokenExpiresAt, tokens.User);
     }
 
-    /// <summary>Only ever redirect back to a *.keshavsingh.in origin (or localhost in dev) — mirrors
-    /// GitHubOAuthController's identical check for the Packages-inventory OAuth flow.</summary>
-    private string? ResolveTrustedOrigin()
-    {
-        var raw = Request.Headers["Origin"].FirstOrDefault()
-            ?? (Request.Headers["Referer"].FirstOrDefault() is { } referer && Uri.TryCreate(referer, UriKind.Absolute, out var refUri)
-                ? refUri.GetLeftPart(UriPartial.Authority)
-                : null);
-        if (raw is null || !Uri.TryCreate(raw, UriKind.Absolute, out var uri)) return null;
-        return IsFamilyUrl(raw) ? uri.GetLeftPart(UriPartial.Authority) : null;
-    }
-
-    /// <summary>Absolute https (or http://localhost in dev) on the keshavsingh.in family — the same
-    /// allowlist `LoginComponent.isAllowedExternal` applies client-side to `?return=`.</summary>
-    private static bool IsFamilyUrl(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value) || !Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
-        var isLocalhost = uri.Host == "localhost";
-        if (uri.Scheme != Uri.UriSchemeHttps && !(isLocalhost && uri.Scheme == Uri.UriSchemeHttp)) return false;
-        return isLocalhost || uri.Host == "keshavsingh.in" || uri.Host.EndsWith(".keshavsingh.in", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private SocialStatePayload? TryDecodeSocialState(string? state)
-    {
-        if (string.IsNullOrWhiteSpace(state)) return null;
-        try
-        {
-            var payload = JsonSerializer.Deserialize<SocialStatePayload>(_protector.Decrypt(state));
-            if (payload is null || DateTimeOffset.UtcNow - payload.IssuedAt > SocialStateLifetime) return null;
-            return payload;
-        }
-        catch (Exception) { return null; } // Wrong/rotated key, tampered value, malformed JSON — reject, don't throw.
-    }
-
-    private async Task<string?> ExchangeGitHubCodeAsync(string clientId, string clientSecret, string code, string redirectUri, CancellationToken ct)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://github.com/login/oauth/access_token");
-        request.Headers.Accept.ParseAdd("application/json");
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["client_id"] = clientId,
-            ["client_secret"] = clientSecret,
-            ["code"] = code,
-            ["redirect_uri"] = redirectUri,
-        });
-
-        try
-        {
-            using var response = await _httpClientFactory.CreateClient().SendAsync(request, ct);
-            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            return document.RootElement.TryGetProperty("access_token", out var tokenElement) ? tokenElement.GetString() : null;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException) { return null; }
-    }
-
-    /// <summary>The account's verified primary email — never an unverified one, and never guessed from
-    /// the public profile (GitHub's `email` field on `/user` can be null or unverified).</summary>
-    private async Task<string?> FetchVerifiedGitHubEmailAsync(string accessToken, CancellationToken ct)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user/emails");
-        request.Headers.UserAgent.ParseAdd("KeshavSingh-Admin-SocialLogin/1.0");
-        request.Headers.Accept.ParseAdd("application/vnd.github+json");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-
-        try
-        {
-            using var response = await _httpClientFactory.CreateClient().SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode) return null;
-            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            foreach (var entry in document.RootElement.EnumerateArray())
-            {
-                var verified = entry.TryGetProperty("verified", out var v) && v.GetBoolean();
-                var primary = entry.TryGetProperty("primary", out var p) && p.GetBoolean();
-                if (verified && primary && entry.TryGetProperty("email", out var e))
-                    return e.GetString();
-            }
-            return null;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException) { return null; }
-    }
-
-    private sealed record SocialStatePayload(string Nonce, string Origin, string RedirectUri, string AppKey, string? ReturnUrl, DateTimeOffset IssuedAt);
 }
 
-/// <summary>The GitHub authorize URL to navigate the whole page to (a full-page redirect, not an XHR).</summary>
-public sealed record GitHubSocialStartResponse(string AuthorizeUrl);
+/// <summary>The provider's authorize URL to navigate the whole page to (a full-page redirect, not an XHR).</summary>
+public sealed record SocialStartResponse(string AuthorizeUrl);
 
 /// <summary>Which site is signing the user in — same meaning as <see cref="LoginRequest.AppKey"/> —
 /// and, if the user arrived here via another site's own redirect, where to send them back afterwards.</summary>
-public sealed record GitHubSocialStartRequest(string? AppKey, string? ReturnUrl);
+public sealed record SocialStartRequest(string? AppKey, string? ReturnUrl);
  

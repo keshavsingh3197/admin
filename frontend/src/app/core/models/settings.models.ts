@@ -27,8 +27,18 @@ export interface SettingsView {
   storageS3AccessKeyId: string;
   storageS3SecretAccessKeySet: boolean;
   gitHubPackagesTokenSet: boolean;
+  /** Canonical origin every OAuth provider redirects back to; blank = use this request's own host. */
+  oAuthCallbackBaseUrl: string;
+  /** Read-only: the exact URL to register with GitHub/LinkedIn (blank until the base URL is set). */
+  oAuthCallbackUrl: string;
   gitHubOAuthClientId: string;
   gitHubOAuthClientSecretSet: boolean;
+  gitHubSocialLoginEnabled: boolean;
+  linkedInSocialLoginEnabled: boolean;
+  linkedInOAuthClientId: string;
+  linkedInOAuthClientSecretSet: boolean;
+  /** The only repositories the Packages screen scans — chosen here, stored server-side. */
+  packageInventoryRepositories: string[];
   updatedAt: string;
 }
 
@@ -37,8 +47,14 @@ export interface SettingsView {
  * via whatsAppAccessToken / storageS3SecretAccessKey instead — a blank value keeps the stored one.
  */
 export type UpdateSettingsRequest =
-  Partial<Omit<SettingsView, 'updatedAt' | 'whatsAppAccessTokenSet' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet' | 'gitHubOAuthClientSecretSet'>>
-  & { whatsAppAccessToken?: string; storageS3SecretAccessKey?: string; gitHubPackagesToken?: string; gitHubOAuthClientSecret?: string };
+  Partial<Omit<SettingsView, 'updatedAt' | 'oAuthCallbackUrl' | 'whatsAppAccessTokenSet' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet' | 'gitHubOAuthClientSecretSet' | 'linkedInOAuthClientSecretSet'>>
+  & {
+    whatsAppAccessToken?: string;
+    storageS3SecretAccessKey?: string;
+    gitHubPackagesToken?: string;
+    gitHubOAuthClientSecret?: string;
+    linkedInOAuthClientSecret?: string;
+  };
 
 export interface GitHubOAuthStartResponse {
   authorizeUrl: string;
