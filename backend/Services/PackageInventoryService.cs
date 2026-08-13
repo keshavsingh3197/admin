@@ -76,6 +76,13 @@ public sealed class PackageInventoryService
             return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [], diagnostics, PackageInventoryState.RepoSelectionMissing);
         }
 
+        var repositories = SettingsService.NormalizePackageInventoryRepositories(_settings.PackageInventoryRepositories);
+        if (repositories.Count == 0)
+        {
+            return new PackageInventoryDto(DateTimeOffset.UtcNow, true, [],
+                ["No repositories are selected — choose which ones to scan on Settings → Package inventory (GitHub)."]);
+        }
+
         var diagnostics = new List<string>();
         var (producers, consumers) = await DiscoverViaGitHubAsync(repositories, token, diagnostics, cancellationToken);
         var packages = new List<PackageInventoryItemDto>();
