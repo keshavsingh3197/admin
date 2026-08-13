@@ -57,4 +57,13 @@
     <ProjectReference Include="..\..\KeshavSingh-Packages-Localization\src\KeshavSingh.Localization\KeshavSingh.Localization.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The admin Docker build publishes this app project from the backend folder. The test project
+         lives under backend/tests, so exclude it here or the publish step tries to compile xUnit files
+         into the runtime app and fails during deployment. -->
+    <Compile Remove="tests/**/*.cs" />
+    <None Remove="tests/**/*" />
+    <Content Remove="tests/**/*" />
+  </ItemGroup>
+
 </Project>
