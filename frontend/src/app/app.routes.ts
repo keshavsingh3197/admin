@@ -8,6 +8,15 @@ export const routes: Routes = [
       import('./features/login/login.component').then((m) => m.LoginComponent),
   },
   {
+    // Public by design: someone with no account has to be able to reach this. It creates a
+    // request, never a session — see AccountRequestsController.
+    path: 'request-account',
+    loadComponent: () =>
+      import('./features/account-request/request-account.component').then(
+        (m) => m.RequestAccountComponent
+      ),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     loadComponent: () =>
@@ -140,6 +149,15 @@ export const routes: Routes = [
     canActivate: [adminGuard],
     loadComponent: () =>
       import('./features/users/users.component').then((m) => m.UsersComponent),
+  },
+  {
+    // Approving one of these is the only way a new account comes into existence.
+    path: 'account-requests',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/account-request/account-requests.component').then(
+        (m) => m.AccountRequestsComponent
+      ),
   },
   {
     path: 'roles',

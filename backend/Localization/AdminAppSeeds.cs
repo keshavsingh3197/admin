@@ -35,6 +35,7 @@ public sealed class AdminAppSeeds : ILocalizationSeedSource
         ("admin", "nav.websites", "Websites", "वेबसाइटें"),
         ("admin", "nav.database", "Database", "डेटाबेस"),
         ("admin", "nav.users", "Users", "उपयोगकर्ता"),
+        ("admin", "nav.accountRequests", "Account requests", "खाता अनुरोध"),
         ("admin", "nav.groups", "Groups", "समूह"),
         ("admin", "nav.roles", "Roles", "भूमिकाएँ"),
         ("admin", "nav.moderation", "Chat moderation", "चैट मॉडरेशन"),
