@@ -54,6 +54,7 @@ const ADMIN_LINKS: NavLink[] = [
   { path: '/website', labelKey: 'admin.nav.websites', icon: '🌐', exact: false },
   { path: '/database', labelKey: 'admin.nav.database', icon: '🗃️', exact: false },
   { path: '/users', labelKey: 'admin.nav.users', icon: '👤', exact: false },
+  { path: '/account-requests', labelKey: 'admin.nav.accountRequests', icon: '🙋', exact: false },
   { path: '/groups', labelKey: 'admin.nav.groups', icon: '👪', exact: false },
   { path: '/roles', labelKey: 'admin.nav.roles', icon: '🎫', exact: false },
   { path: '/analytics', labelKey: 'admin.nav.analytics', icon: '📊', exact: false },

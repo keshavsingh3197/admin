@@ -67,6 +67,7 @@ builder.Services.AddSingleton<FinanceService>();
 builder.Services.AddKeshavFinance();
 // Inbox for the portfolio's public "Contact me" form (submissions encrypted at rest; admin-only reads).
 builder.Services.AddSingleton<ContactService>();
+builder.Services.AddSingleton<AccountRequestService>();
 // Live chat with visitors on the public sites, answered from the admin app. Anonymous on the visitor
 // side (an opaque token, only its hash stored) and encrypted at rest, like the contact inbox.
 builder.Services.AddSingleton<VisitorChatService>();
@@ -224,6 +225,16 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(10),
             QueueLimit = 0,
         }));
+    // "Request an account". A real applicant submits once, so this only has to be loose enough to
+    // survive a retry and tight enough that the queue cannot be filled from one address.
+    options.AddPolicy("account-request", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(15),
+            QueueLimit = 0,
+        }));
     // The anonymous config + localisation reads. Every public page load fetches these, and clients
     // poll the manifest, so the budget is generous — it exists to stop one address hammering them,
     // not to pace a normal visit. Responses are ETagged, so a poll that finds nothing new is a 304.
@@ -325,6 +336,7 @@ await app.Services.GetRequiredService<WebsiteContentService>()
 await app.Services.GetRequiredService<TwoFactorDeviceService>()
     .EnsureIndexesAsync();
 await app.Services.GetRequiredService<ContactService>().EnsureIndexesAsync();
+await app.Services.GetRequiredService<AccountRequestService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<VisitorChatService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<CustomRoleService>().EnsureIndexesAsync();
 await app.Services.GetRequiredService<PermissionMasterService>().EnsureIndexesAsync();
