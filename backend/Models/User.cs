@@ -37,6 +37,16 @@ public sealed class User
     // ---- Two-factor (TOTP authenticator, default method) ----
     public bool TwoFactorEnabled { get; set; }
     public string? TotpSecretEncrypted { get; set; }
+
+    /// <summary>An enrollment that was started but never confirmed. Kept apart from the live secret
+    /// so an abandoned (or hostile) enrollment cannot break a working authenticator — see
+    /// <c>AuthEngine.StartEnrollmentAsync</c>.</summary>
+    public string? PendingTotpSecretEncrypted { get; set; }
+
+    /// <summary>The TOTP time step of the last accepted code, so it cannot be replayed within its
+    /// drift window.</summary>
+    public long? LastTotpStep { get; set; }
+
     public List<string> BackupCodeHashes { get; set; } = new();
 
     // ---- Email / SMS OTP fallback ----

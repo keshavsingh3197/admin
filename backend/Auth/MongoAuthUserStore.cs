@@ -15,12 +15,24 @@ public sealed class MongoAuthUserStore : IAuthUserStore
 
     public MongoAuthUserStore(MongoDbService db) => _users = db.GetCollection<User>("users");
 
+    /// <summary>
+    /// Resolves a login to an account. Email is tried first and username only if that misses:
+    /// a single <c>OR</c> with <c>FirstOrDefault</c> leaves the winner up to Mongo's document
+    /// order, so an account whose USERNAME equals another account's EMAIL could answer for either.
+    /// Both comparisons are case-insensitive, matching how the values are stored.
+    /// </summary>
     public async Task<AuthUser?> FindByLoginAsync(string identifier, CancellationToken ct = default)
     {
-        var lower = identifier.ToLowerInvariant();
+        var normalized = identifier.Trim().ToLowerInvariant();
+
         var user = await _users
-            .Find(u => (u.Email == lower || u.Username == identifier) && !u.IsDeleted)
+            .Find(u => u.Email == normalized && !u.IsDeleted)
             .FirstOrDefaultAsync(ct);
+
+        user ??= await _users
+            .Find(u => u.Username == normalized && !u.IsDeleted)
+            .FirstOrDefaultAsync(ct);
+
         return user is null ? null : Map(user);
     }
 
@@ -37,6 +49,8 @@ public sealed class MongoAuthUserStore : IAuthUserStore
             .Set(u => u.MustChangePassword, user.MustChangePassword)
             .Set(u => u.TwoFactorEnabled, user.TwoFactorEnabled)
             .Set(u => u.TotpSecretEncrypted, user.TotpSecretEncrypted)
+            .Set(u => u.PendingTotpSecretEncrypted, user.PendingTotpSecretEncrypted)
+            .Set(u => u.LastTotpStep, user.LastTotpStep)
             .Set(u => u.BackupCodeHashes, user.BackupCodeHashes.ToList())
             .Set(u => u.EmailOtpHash, user.EmailOtpHash)
             .Set(u => u.EmailOtpExpiresAt, user.EmailOtpExpiresAt)
@@ -60,6 +74,8 @@ public sealed class MongoAuthUserStore : IAuthUserStore
         Roles = u.Roles.ToList(),
         TwoFactorEnabled = u.TwoFactorEnabled,
         TotpSecretEncrypted = u.TotpSecretEncrypted,
+        PendingTotpSecretEncrypted = u.PendingTotpSecretEncrypted,
+        LastTotpStep = u.LastTotpStep,
         BackupCodeHashes = u.BackupCodeHashes.ToList(),
         EmailOtpHash = u.EmailOtpHash,
         EmailOtpExpiresAt = u.EmailOtpExpiresAt,

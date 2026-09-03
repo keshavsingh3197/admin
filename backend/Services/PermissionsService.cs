@@ -2,6 +2,7 @@ using Admin.Api.Dtos;
 using Admin.Api.Models;
 using KeshavSingh.Auth;
 using KeshavSingh.Auth.Abstractions;
+using Microsoft.Extensions.Caching.Memory;
 using MongoDB.Driver;
 using System.Security.Claims;
 
@@ -19,20 +20,35 @@ namespace Admin.Api.Services;
 /// </summary>
 public sealed class PermissionsService : IPageAccessEvaluator
 {
+    /// <summary>
+    /// How long a resolved access set is reused. Resolving one costs ~5 round trips (user, groups,
+    /// roles, master keys, website list) and <see cref="IPageAccessEvaluator.HasAccessAsync"/> runs
+    /// on EVERY request to a [RequirePagePermission] endpoint — a screen that fires five API calls
+    /// otherwise pays ~25 queries purely to answer "may you?". Short enough that a revoked grant
+    /// takes effect promptly on its own; <see cref="PermissionCacheSignal"/> makes it immediate.
+    /// </summary>
+    private static readonly TimeSpan AccessCacheTtl = TimeSpan.FromSeconds(30);
+
     private readonly IMongoCollection<User> _users;
     private readonly CustomRoleService _roles;
     private readonly GroupService _groups;
     private readonly WebsiteRegistryService _websites;
     private readonly PermissionMasterService _master;
+    private readonly IMemoryCache _cache;
+    private readonly PermissionCacheSignal _signal;
 
-    public PermissionsService(MongoDbService db, CustomRoleService roles, GroupService groups, WebsiteRegistryService websites, PermissionMasterService master)
+    public PermissionsService(MongoDbService db, CustomRoleService roles, GroupService groups, WebsiteRegistryService websites, PermissionMasterService master, IMemoryCache cache, PermissionCacheSignal signal)
     {
         _users = db.GetCollection<User>("users");
         _roles = roles;
         _groups = groups;
         _websites = websites;
         _master = master;
+        _cache = cache;
+        _signal = signal;
     }
+
+
 
     public async Task<PermissionCatalogResponse> GetCatalogAsync(CancellationToken ct = default)
     {
@@ -44,6 +60,17 @@ public sealed class PermissionsService : IPageAccessEvaluator
     }
 
     public async Task<EffectiveAccessDto> GetEffectiveAccessAsync(string userId, CancellationToken ct = default)
+    {
+        var key = $"access:{_signal.Generation}:{userId}";
+        if (_cache.TryGetValue(key, out EffectiveAccessDto? cached) && cached is not null)
+            return cached;
+
+        var access = await ResolveEffectiveAccessAsync(userId, ct);
+        _cache.Set(key, access, AccessCacheTtl);
+        return access;
+    }
+
+    private async Task<EffectiveAccessDto> ResolveEffectiveAccessAsync(string userId, CancellationToken ct)
     {
         var user = await _users.Find(x => x.Id == userId && !x.IsDeleted).FirstOrDefaultAsync(ct);
         if (user is null)

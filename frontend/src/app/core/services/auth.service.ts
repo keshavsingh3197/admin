@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, finalize, shareReplay, tap } from 'rxjs';
+import { Observable, finalize, map, shareReplay, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ConfirmTwoFactorDeviceEnrollmentResponse,
@@ -141,8 +141,14 @@ export class AuthService {
 
   // ---- Self-service (bearer-based /api/auth/*, requires a live session) ----
 
-  enrollStart(): Observable<EnrollStartResponse> {
-    return this.http.post<EnrollStartResponse>(`${this.base}/auth/2fa/enroll/start`, {});
+  /**
+   * Begins authenticator enrollment. `password` is required only when 2FA is ALREADY enabled:
+   * replacing a working authenticator is as sensitive as disabling one, so the server refuses it
+   * (403) on the strength of a session alone. Omitting it for a first-time enrollment is correct.
+   */
+  enrollStart(password?: string): Observable<EnrollStartResponse> {
+    return this.http.post<EnrollStartResponse>(
+      `${this.base}/auth/2fa/enroll/start`, password ? { password } : {});
   }
 
   enrollConfirm(code: string): Observable<{ backupCodes: string[] }> {
@@ -155,9 +161,21 @@ export class AuthService {
       .pipe(tap(() => this.patchUser({ twoFactorEnabled: false })));
   }
 
+  /**
+   * Changes the password. The server revokes every session for this user — the point of changing a
+   * password you think has leaked — and hands back a fresh pair, so the token returned here must
+   * replace the one in memory or this very tab is the first thing signed out.
+   */
   changePassword(currentPassword: string, newPassword: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/auth/change-password`, { currentPassword, newPassword })
-      .pipe(tap(() => this.patchUser({ mustChangePassword: false })));
+    return this.http
+      .post<SsoSessionResponse>(`${this.base}/auth/change-password`, { currentPassword, newPassword })
+      .pipe(
+        tap(session => {
+          if (session?.accessToken) this.accessToken.set(session.accessToken);
+          this.patchUser({ mustChangePassword: false });
+        }),
+        map(() => void 0),
+      );
   }
 
   // ---- Authenticator devices (TOTP registry) ----
@@ -170,8 +188,11 @@ export class AuthService {
     return this.http.get<TwoFactorDeviceCapabilities>(`${this.base}/auth/2fa/devices/capabilities`);
   }
 
-  twoFactorDeviceEnrollStart(): Observable<StartTwoFactorDeviceEnrollmentResponse> {
-    return this.http.post<StartTwoFactorDeviceEnrollmentResponse>(`${this.base}/auth/2fa/devices/enroll/start`, {});
+  twoFactorDeviceEnrollStart(password?: string): Observable<StartTwoFactorDeviceEnrollmentResponse> {
+    // Adding a device to an account that already has 2FA returns the account's live TOTP secret,
+    // so the server asks for the password first — same bar as removing one.
+    return this.http.post<StartTwoFactorDeviceEnrollmentResponse>(
+      `${this.base}/auth/2fa/devices/enroll/start`, password ? { password } : {});
   }
 
   twoFactorDeviceEnrollConfirm(code: string, name: string | null, deviceType: string | null): Observable<ConfirmTwoFactorDeviceEnrollmentResponse> {

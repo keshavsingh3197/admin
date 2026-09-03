@@ -41,6 +41,28 @@ public sealed class AdminSeeder
             Builders<User>.IndexKeys.Ascending(u => u.Email),
             new CreateIndexOptions { Unique = true, Name = "ux_user_email" }));
 
+        // Usernames are the other login identifier, so they need the same guarantee email has:
+        // without a unique index two accounts can share one, and which of them a login resolves to
+        // is then arbitrary. Sparse, because the field is optional.
+        //
+        // Non-fatal: a database that predates username normalisation may hold two accounts whose
+        // names differ only by case, and Mongo will refuse to build the index over them. Refusing to
+        // START over that would take the identity provider — and every app that depends on it —
+        // offline for a data problem that migration 005 exists to report and fix.
+        try
+        {
+            await _users.Indexes.CreateOneAsync(new CreateIndexModel<User>(
+                Builders<User>.IndexKeys.Ascending(u => u.Username),
+                new CreateIndexOptions { Unique = true, Sparse = true, Name = "ux_user_username" }));
+        }
+        catch (MongoCommandException ex)
+        {
+            _logger.LogError(ex,
+                "Could not create the unique username index — most likely two accounts whose usernames " +
+                "differ only by case. Run db/migrations/005_normalize-usernames.mongodb.js, which reports " +
+                "the collisions. Until then usernames are not enforced unique.");
+        }
+
         if (await _users.Find(FilterDefinition<User>.Empty).AnyAsync())
             return; // Already seeded.
 

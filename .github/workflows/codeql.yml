@@ -1,0 +1,56 @@
+# Static analysis for both languages in this repo. The organisation standard for SCA/SAST is Snyk;
+# CodeQL is here because it needs no token or account setup and runs on every PR from day one. If a
+# Snyk token is added later, add its step alongside rather than replacing this.
+name: CodeQL
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # Catches newly-published advisories against code that hasn't changed.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [csharp, javascript-typescript]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      # The C# analysis needs a real build. An isolated checkout has no sibling packages, so this
+      # restores the published KeshavSingh.* versions from GitHub Packages like Render does.
+      - name: Build backend
+        if: matrix.language == 'csharp'
+        env:
+          PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN || github.token }}
+        run: dotnet build backend/Admin.Api.csproj --configuration Release
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

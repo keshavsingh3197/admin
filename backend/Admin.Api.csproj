@@ -15,6 +15,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The test project asserts against the real implementations of the pure helpers
+         (version matching, tag normalisation) rather than re-declaring copies of them,
+         which is the only way those tests can actually fail when the code changes. -->
+    <InternalsVisibleTo Include="Admin.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MongoDB.Driver" Version="3.10.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <!-- WebAuthn / FIDO2 passkeys (public nuget.org). Pinned; verifies attestation & assertion. -->
@@ -32,13 +39,14 @@
   <ItemGroup Condition="'$(SkipPrivatePackages)' != 'true'">
     <!-- Shared auth + crypto from GitHub Packages. Restore reads the "github" source in
          the repo-root nuget.config, which needs the PACKAGES_READ_TOKEN env var. -->
-    <PackageReference Include="KeshavSingh.Security" Version="0.5.0" />
-    <PackageReference Include="KeshavSingh.Auth" Version="0.9.0" />
-    <!-- 0.2.0 adds the guarded query console used by DbConsoleController. -->
-    <PackageReference Include="KeshavSingh.Mongo.NoSql" Version="0.3.0" />
+    <PackageReference Include="KeshavSingh.Security" Version="0.6.0" />
+    <PackageReference Include="KeshavSingh.Auth" Version="0.10.0" />
+    <!-- 0.4.0 stops the console reading secrets under a renamed field, and applies the
+         collection denylist to $lookup targets. -->
+    <PackageReference Include="KeshavSingh.Mongo.NoSql" Version="0.4.0" />
     <!-- 0.6.0 adds the chat hub typing indicator. -->
     <PackageReference Include="KeshavSingh.Realtime" Version="0.7.0" />
-    <PackageReference Include="KeshavSingh.Core" Version="0.5.0" />
+    <PackageReference Include="KeshavSingh.Core" Version="0.6.0" />
     <PackageReference Include="KeshavSingh.Storage" Version="0.3.0" />
     <PackageReference Include="KeshavSingh.Finance" Version="0.4.0" />
     <!-- Runtime localisation + the config registry: languages, the string catalogue with JSON/CSV/Excel

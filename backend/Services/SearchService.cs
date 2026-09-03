@@ -29,13 +29,35 @@ public sealed class SearchService
         _groups = groups;
     }
 
+    /// <summary>
+    /// Creates the text indexes global search runs against. A Mongo <c>$regex</c> that is not
+    /// anchored to the start of a value cannot use a normal index, so without these every search
+    /// scans notes, short links and users in full.
+    /// </summary>
+    public async Task EnsureIndexesAsync(CancellationToken ct = default)
+    {
+        await _notes.Indexes.CreateOneAsync(new CreateIndexModel<Note>(
+            Builders<Note>.IndexKeys.Text(x => x.Title).Text(x => x.Content),
+            new CreateIndexOptions { Name = "tx_notes_search" }), cancellationToken: ct);
+
+        await _shortLinks.Indexes.CreateOneAsync(new CreateIndexModel<ShortLink>(
+            Builders<ShortLink>.IndexKeys.Text(x => x.Code).Text(x => x.TargetUrl),
+            new CreateIndexOptions { Name = "tx_shortlinks_search" }), cancellationToken: ct);
+
+        await _users.Indexes.CreateOneAsync(new CreateIndexModel<User>(
+            Builders<User>.IndexKeys.Text(x => x.Email).Text(x => x.DisplayName).Text(x => x.Username),
+            new CreateIndexOptions { Name = "tx_users_search" }), cancellationToken: ct);
+    }
+
     public async Task<IReadOnlyList<SearchResultDto>> SearchAsync(string query, bool isAdmin, CancellationToken ct = default)
     {
         var q = query.Trim();
         if (q.Length < 2) return Array.Empty<SearchResultDto>();
 
         var results = new List<SearchResultDto>();
-        var regex = new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(q), "i");
+        // Anchored to the start of the value so Mongo can seek the index above instead of scanning
+        // the collection. Escaped, so a query full of regex metacharacters is matched literally.
+        var regex = new BsonRegularExpression("^" + System.Text.RegularExpressions.Regex.Escape(q), "i");
 
         var notes = await _notes.Find(Builders<Note>.Filter.Or(
                 Builders<Note>.Filter.Regex(x => x.Title, regex),

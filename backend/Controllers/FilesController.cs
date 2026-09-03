@@ -45,8 +45,18 @@ public class FilesController : ControllerBase
 
         var caller = await CallerAsync();
         await using var stream = file.OpenReadStream();
+
+        // The declared Content-Type is chosen by whoever is uploading, so on its own the allowlist
+        // above checks a value the caller controls. Sniff the leading bytes and store what the file
+        // ACTUALLY is: that is the type served back on download, so it is what a browser would act on.
+        var detected = await FileSignature.DetectAsync(stream, file.ContentType);
+        if (detected is null)
+            return BadRequest(new { error = "That file's contents don't match its type." });
+        if (!_opts.AllowedContentTypes.Contains(detected))
+            return BadRequest(new { error = "Unsupported file type." });
+
         var saved = await _files.SaveAsync(
-            caller, stream, Path.GetFileName(file.FileName), file.ContentType, file.Length, NormalizeFolderId(folderId));
+            caller, stream, Path.GetFileName(file.FileName), detected, file.Length, NormalizeFolderId(folderId));
 
         // Null = no Editor rights on the target folder → 404 (don't confirm the folder exists).
         if (saved is null) return NotFound();

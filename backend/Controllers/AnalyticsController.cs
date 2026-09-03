@@ -3,6 +3,7 @@ using Admin.Api.Models;
 using Admin.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Admin.Api.Controllers;
 
@@ -40,8 +41,14 @@ public sealed class AnalyticsController : ControllerBase
             : Ok(dashboard);
     }
 
+    /// <summary>
+    /// Records one page view from a public site. Anonymous by necessity — the visitor has no
+    /// session — and therefore rate-limited: it is the only unauthenticated write in the app, so
+    /// without a budget anyone can inflate the numbers and grow the collection without bound.
+    /// </summary>
     [HttpPost("visit")]
     [AllowAnonymous]
+    [EnableRateLimiting("analytics-visit")]
     public async Task<IActionResult> TrackVisit(TrackVisitRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.WebsiteKey))
@@ -53,9 +60,11 @@ public sealed class AnalyticsController : ControllerBase
             return BadRequest(new { error = "Unknown websiteKey." });
 
         var country = GetCountryCode(Request);
-        var ip = Request.Headers.TryGetValue("X-Forwarded-For", out var forwarded)
-            ? forwarded.ToString().Split(',')[0].Trim()
-            : HttpContext.Connection.RemoteIpAddress?.ToString();
+        // UseForwardedHeaders has already resolved the real client address from X-Forwarded-For,
+        // taking the entry the proxy appended. Re-reading the header here and taking the LEFTMOST
+        // entry would undo that and hand the visitor control of their own visitor key, since a
+        // client can prepend whatever it likes to that header.
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         var visitorKey = WebsiteVisitService.BuildVisitorKey(ip, Request.Headers.UserAgent.ToString());
 
         await _visits.TrackAsync(request.WebsiteKey.Trim().ToLowerInvariant(), request.Path, request.Referrer, country, visitorKey, ct);

@@ -10,12 +10,14 @@ public sealed class GroupService
     private readonly IMongoCollection<Group> _groups;
     private readonly IMongoCollection<User> _users;
     private readonly CustomRoleService _roles;
+    private readonly PermissionCacheSignal _cacheSignal;
 
-    public GroupService(MongoDbService db, CustomRoleService roles)
+    public GroupService(MongoDbService db, CustomRoleService roles, PermissionCacheSignal cacheSignal)
     {
         _groups = db.GetCollection<Group>("groups");
         _users = db.GetCollection<User>("users");
         _roles = roles;
+        _cacheSignal = cacheSignal;
     }
 
     public async Task EnsureIndexesAsync(CancellationToken ct = default)
@@ -57,6 +59,7 @@ public sealed class GroupService
             IsFamilyCircle = request.IsFamilyCircle,
         };
         await _groups.InsertOneAsync(entity, cancellationToken: ct);
+        _cacheSignal.Invalidate();
         return Map(entity);
     }
 
@@ -72,11 +75,15 @@ public sealed class GroupService
 
         var updated = await _groups.FindOneAndUpdateAsync(x => x.Id == id, update,
             new FindOneAndUpdateOptions<Group> { ReturnDocument = ReturnDocument.After }, ct);
+        _cacheSignal.Invalidate();
         return updated is null ? null : Map(updated);
     }
 
-    public Task DeleteAsync(string id, CancellationToken ct = default) =>
-        _groups.DeleteOneAsync(x => x.Id == id, ct);
+    public async Task DeleteAsync(string id, CancellationToken ct = default)
+    {
+        await _groups.DeleteOneAsync(x => x.Id == id, ct);
+        _cacheSignal.Invalidate();
+    }
 
     public async Task<GroupView?> AddMemberAsync(string id, string userId, CancellationToken ct = default)
     {
@@ -85,6 +92,7 @@ public sealed class GroupService
         var updated = await _groups.FindOneAndUpdateAsync(x => x.Id == id,
             Builders<Group>.Update.AddToSet(x => x.MemberUserIds, userId).Set(x => x.UpdatedAt, DateTime.UtcNow),
             new FindOneAndUpdateOptions<Group> { ReturnDocument = ReturnDocument.After }, ct);
+        _cacheSignal.Invalidate();
         return updated is null ? null : Map(updated);
     }
 
@@ -93,6 +101,7 @@ public sealed class GroupService
         var updated = await _groups.FindOneAndUpdateAsync(x => x.Id == id,
             Builders<Group>.Update.Pull(x => x.MemberUserIds, userId).Set(x => x.UpdatedAt, DateTime.UtcNow),
             new FindOneAndUpdateOptions<Group> { ReturnDocument = ReturnDocument.After }, ct);
+        _cacheSignal.Invalidate();
         return updated is null ? null : Map(updated);
     }
 

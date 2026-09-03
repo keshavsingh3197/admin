@@ -7,6 +7,7 @@ using KeshavSingh.Mongo.NoSql.Console;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace Admin.Api.Controllers;
 
@@ -18,7 +19,9 @@ namespace Admin.Api.Controllers;
 /// KeshavSingh.Mongo.NoSql console guard, which allows finds and read-only aggregations, refuses
 /// server-side JavaScript and stages that write collections out, and only ever edits or deletes one
 /// document at a time, addressed by its <c>_id</c>. Secret fields (password hashes, tokens, keys) come
-/// back redacted whatever collection they live in.
+/// back redacted whatever collection they live in — and a query that merely REFERENCES one is refused
+/// outright, because a pipeline can rename a field on the way out and redaction by output name alone
+/// would not see it.
 ///
 /// Queries are logged by user, collection and operation — never their filters or documents, which would
 /// put the personal data being queried straight into the logs.
@@ -32,13 +35,19 @@ public sealed class DbConsoleController : ControllerBase
     private readonly MongoDbService _mongo;
     private readonly ILogger<DbConsoleController> _log;
     private readonly DatabaseBackupService _backups;
+    private readonly long? _capacityBytes;
 
-    public DbConsoleController(MongoQueryConsole console, MongoDbService mongo, DatabaseBackupService backups, ILogger<DbConsoleController> log)
+    public DbConsoleController(
+        MongoQueryConsole console, MongoDbService mongo, DatabaseBackupService backups,
+        IConfiguration configuration, ILogger<DbConsoleController> log)
     {
         _console = console;
         _mongo = mongo;
         _log = log;
         _backups = backups;
+        _capacityBytes = long.TryParse(configuration["DatabaseOperations:CapacityBytes"], out var value) && value > 0
+            ? value
+            : null;
     }
 
     private string Me => User.GetUserId();
@@ -67,11 +76,23 @@ public sealed class DbConsoleController : ControllerBase
         foreach (var name in names)
         {
             if (name.StartsWith("system.", StringComparison.Ordinal)) continue;
-            var detail = await _mongo.Database.RunCommandAsync<BsonDocument>(new BsonDocument("collStats", new BsonString(name)), cancellationToken: ct);
+
+            // $collStats (the aggregation stage), not the collStats command, which MongoDB
+            // deprecated in 6.2. The stage nests its numbers under "storageStats".
+            var pipeline = new[]
+            {
+                new BsonDocument("$collStats", new BsonDocument("storageStats", new BsonDocument())),
+            };
+            using var statsCursor = await _mongo.Database.GetCollection<BsonDocument>(name)
+                .AggregateAsync<BsonDocument>(pipeline, cancellationToken: ct);
+            var collStats = await statsCursor.FirstOrDefaultAsync(ct);
+            var detail = collStats is not null && collStats.TryGetValue("storageStats", out var storage)
+                ? storage.AsBsonDocument
+                : new BsonDocument();
+
             usage.Add(new(name, N(detail, "count"), N(detail, "size"), N(detail, "storageSize"), N(detail, "totalIndexSize")));
         }
-        var configured = HttpContext.RequestServices.GetRequiredService<IConfiguration>()["DatabaseOperations:CapacityBytes"];
-        var capacity = long.TryParse(configured, out var value) && value > 0 ? value : (long?)null;
+        var capacity = _capacityBytes;
         var used = N(stats, "storageSize") + N(stats, "indexSize");
         return Ok(new DatabaseUsageDto(_mongo.Database.DatabaseNamespace.DatabaseName, N(stats, "dataSize"), N(stats, "storageSize"), N(stats, "indexSize"), capacity, capacity is null ? null : Math.Max(0, capacity.Value - used), capacity is null ? null : Math.Round(Math.Min(100, used * 100d / capacity.Value), 1), usage.OrderByDescending(x => x.StorageBytes).ToList()));
     }
@@ -135,7 +156,7 @@ public sealed class DbConsoleController : ControllerBase
                 operation, collection, Me);
             return BadRequest(new { error = ex.Message });
         }
-        catch (MongoDB.Driver.MongoException ex)
+        catch (MongoException ex)
         {
             // The driver's message can carry server internals, so it is logged, not returned.
             _log.LogError(ex, "DB console {Operation} on {Collection} failed for {UserId}",

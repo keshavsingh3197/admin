@@ -1,57 +1,55 @@
+using Admin.Api.Services;
 using Xunit;
 
 namespace Admin.Api.Tests;
 
+/// <summary>
+/// Exercises <see cref="PackageInventoryService"/>'s pure helpers through <c>InternalsVisibleTo</c>.
+/// These used to be re-declared inside the test class, which meant they asserted against a copy and
+/// would keep passing however the service behaved.
+/// </summary>
 public class PackageInventoryServiceTests
 {
-    [Fact]
-    public void VersionMatches_HandlesFlexibleConstraints()
-    {
-        Assert.True(VersionMatches("^1.2.3", "1.2.3"));
-        Assert.True(VersionMatches("~1.2.3", "1.2.3"));
-        Assert.True(VersionMatches("=1.2.3", "1.2.3"));
-        Assert.True(VersionMatches("v1.2.3", "1.2.3"));
-        Assert.True(VersionMatches("1.2.3", "1.2.3"));
-        Assert.False(VersionMatches("1.2.3", "1.2.4"));
-    }
+    [Theory]
+    [InlineData("^1.2.3", "1.2.3", true)]
+    [InlineData("~1.2.3", "1.2.3", true)]
+    [InlineData("=1.2.3", "1.2.3", true)]
+    [InlineData("v1.2.3", "1.2.3", true)]
+    [InlineData("1.2.3", "1.2.3", true)]
+    [InlineData(" 1.2.3 ", "1.2.3", true)]
+    [InlineData("1.2.3", "1.2.4", false)]
+    [InlineData("^1.2.3", "1.3.0", false)]
+    public void VersionMatches_HandlesFlexibleConstraints(string constraint, string version, bool expected) =>
+        Assert.Equal(expected, PackageInventoryService.VersionMatches(constraint, version));
 
     [Fact]
-    public void NormalizeTags_DeduplicatesAndKeepsOnlyCurrentReleaseSeries()
+    public void SummarizePublishedVersions_KeepsOnlyTheLatestStableRelease()
     {
-        var versions = new[]
+        var summary = PackageInventoryService.SummarizePublishedVersions(new[]
         {
-            "1.2.3",
-            "1.2.2",
-            "1.2.3-beta.1",
-            "1.2.3-rc.1",
-            "1.0.0",
-            "latest"
-        };
+            "1.2.3", "1.2.2", "1.2.3-beta.1", "1.2.3-rc.1", "1.0.0", "latest",
+        });
 
-        var tags = NormalizeTags(versions);
-
-        Assert.Equal(new[] { "1.2.3" }, tags);
-        Assert.DoesNotContain("1.2.2", tags);
-        Assert.DoesNotContain("latest", tags);
-        Assert.DoesNotContain("1.2.3-beta.1", tags);
-        Assert.DoesNotContain("1.2.3-rc.1", tags);
+        Assert.Equal("1.2.3", summary.LatestTag);
+        Assert.Equal(new[] { "1.2.3" }, summary.Tags);
+        Assert.DoesNotContain("latest", summary.PublishedVersions);
+        Assert.DoesNotContain("1.2.3-beta.1", summary.PublishedVersions);
     }
 
-    private static bool VersionMatches(string constraint, string version) =>
-        constraint.Trim().TrimStart('^', '~', '=', 'v').Equals(version.Trim().TrimStart('v'), StringComparison.OrdinalIgnoreCase);
-
-    private static IReadOnlyList<string> NormalizeTags(IEnumerable<string> versions)
+    [Fact]
+    public void SummarizePublishedVersions_HandlesNothingPublished()
     {
-        var distinct = versions
-            .Where(v => !string.IsNullOrWhiteSpace(v))
-            .Select(v => v.Trim())
-            .Where(v => !v.Equals("latest", StringComparison.OrdinalIgnoreCase))
-            .Where(v => !v.Contains('-', StringComparison.Ordinal))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(v => v, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var summary = PackageInventoryService.SummarizePublishedVersions(Array.Empty<string>());
 
-        var latest = distinct.FirstOrDefault();
-        return latest is null ? Array.Empty<string>() : new[] { latest };
+        Assert.Null(summary.LatestTag);
+        Assert.Empty(summary.Tags);
+    }
+
+    [Fact]
+    public void SummarizePublishedVersions_IgnoresBlanksAndDuplicates()
+    {
+        var summary = PackageInventoryService.SummarizePublishedVersions(new[] { "1.0.0", " ", "1.0.0", "" });
+
+        Assert.Equal(new[] { "1.0.0" }, summary.PublishedVersions);
     }
 }

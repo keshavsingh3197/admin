@@ -26,9 +26,12 @@ public sealed class TwoFactorDeviceController : ControllerBase
     public async Task<ActionResult<TwoFactorDeviceCapabilitiesDto>> Capabilities(CancellationToken ct)
         => Ok(await _devices.GetCapabilitiesAsync(User.GetUserId(), ct));
 
+    /// <summary>Adding a device to an account that already has 2FA requires the password — the
+    /// response carries the account's live TOTP secret.</summary>
     [HttpPost("enroll/start")]
-    public async Task<ActionResult<StartTwoFactorDeviceEnrollmentResponse>> StartEnrollment(CancellationToken ct)
-        => Ok(await _devices.StartEnrollmentAsync(User.GetUserId(), ct));
+    public async Task<ActionResult<StartTwoFactorDeviceEnrollmentResponse>> StartEnrollment(
+        StartTwoFactorDeviceEnrollmentRequest? request, CancellationToken ct)
+        => Ok(await _devices.StartEnrollmentAsync(User.GetUserId(), request?.Password, ct));
 
     [HttpPost("enroll/confirm")]
     public async Task<ActionResult<ConfirmTwoFactorDeviceEnrollmentResponse>> ConfirmEnrollment(
