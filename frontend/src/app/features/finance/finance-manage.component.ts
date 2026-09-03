@@ -338,11 +338,11 @@ type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'li
     .btn-primary { background:var(--brand); color:var(--brand-text); border:none; padding:0.5rem 1rem; border-radius:6px; cursor:pointer; text-decoration:none; font-weight:600; }
     .btn-primary[disabled] { opacity:0.6; cursor:default; }
     .btn-secondary { background:transparent; border:1px solid var(--border); padding:0.5rem 1rem; border-radius:6px; cursor:pointer; text-decoration:none; color:var(--text); }
-    .btn-danger { background:transparent; border:1px solid #d03b3b; color:#d03b3b; padding:0.5rem 1rem; border-radius:6px; cursor:pointer; }
+    .btn-danger { background:transparent; border:1px solid var(--danger-border); color:var(--danger); padding:0.5rem 1rem; border-radius:6px; cursor:pointer; }
     .btn-secondary.sm, .btn-danger.sm, .btn-primary.sm { padding:0.3rem 0.6rem; font-size:0.82rem; }
     .actions .btn-secondary.sm { margin-left:0.3rem; }
-    .error-banner { background:color-mix(in srgb, #d03b3b 14%, var(--surface)); color:#d03b3b;
-      border:1px solid color-mix(in srgb, #d03b3b 40%, var(--surface)); border-radius:6px; padding:0.75rem 1rem; margin-bottom:1rem; }
+    .error-banner { background:color-mix(in srgb, var(--danger) 14%, var(--surface)); color:var(--danger);
+      border:1px solid color-mix(in srgb, var(--danger-border) 40%, var(--surface)); border-radius:6px; padding:0.75rem 1rem; margin-bottom:1rem; }
     .scrim { position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:1000; padding:1rem; }
     .dialog { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:12px;
       padding:1.5rem; width:100%; max-width:540px; max-height:90vh; overflow-y:auto; box-shadow:var(--shadow-sm); }

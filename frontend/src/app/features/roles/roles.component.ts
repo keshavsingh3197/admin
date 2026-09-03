@@ -198,15 +198,15 @@ const ADMIN_WEBSITE_KEY = 'admin';
     td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--text); }
     .badge { display: inline-block; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.78rem; }
     .badge.sys { background: color-mix(in srgb, var(--brand) 18%, var(--surface)); color: var(--brand); margin-left: 0.4rem; font-size: 0.72rem; }
-    .scope-chip { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border)); border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 1rem; font-size: 0.86rem; }
+    .scope-chip { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border: 1px solid var(--brand-border); border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 1rem; font-size: 0.86rem; }
     .scope-chip a { color: var(--brand); text-decoration: none; margin-left: auto; }
     .linkish { background: none; border: none; color: var(--brand); cursor: pointer; padding: 0 0.3rem; }
-    .linkish.danger { color: #d93025; }
+    .linkish.danger { color: var(--danger); }
     .view-row td { background: var(--bg); }
     .view-panel { display: flex; flex-direction: column; gap: 0.6rem; }
     .muted-inline { font-size: 0.85rem; color: var(--muted); }
-    .banner { background: color-mix(in srgb, #d93025 12%, var(--surface)); color: #c5221f; border: 1px solid color-mix(in srgb, #d93025 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
-    .banner.ok { background: color-mix(in srgb, #137333 12%, var(--surface)); color: #137333; border-color: color-mix(in srgb, #137333 30%, var(--border)); }
+    .banner { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger-border) 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
+    .banner.ok { background: color-mix(in srgb, var(--success) 12%, var(--surface)); color: var(--success); border-color: color-mix(in srgb, var(--success-border) 30%, var(--border)); }
   `]
 })
 export class RolesComponent implements OnInit {

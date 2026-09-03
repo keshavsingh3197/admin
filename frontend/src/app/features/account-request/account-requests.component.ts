@@ -134,11 +134,11 @@ import {
       background: var(--surface); color: var(--text); font-size: 0.88rem; cursor: pointer;
     }
     .btn:disabled { opacity: 0.55; cursor: default; }
-    .btn-approve { background: #137333; border-color: #137333; color: #fff; }
-    .btn-reject { background: var(--surface); border-color: #c5221f; color: #c5221f; }
+    .btn-approve { background: var(--success); border-color: var(--success-border); color: var(--on-accent); }
+    .btn-reject { background: var(--surface); border-color: var(--danger-border); color: var(--danger); }
 
-    .status { font-size: 0.85rem; color: #c5221f; font-weight: 600; }
-    .status.approved { color: #137333; }
+    .status { font-size: 0.85rem; color: var(--danger); font-weight: 600; }
+    .status.approved { color: var(--success); }
 
     .notice { margin-top: 1rem; font-size: 0.88rem; color: var(--muted); }
   `]

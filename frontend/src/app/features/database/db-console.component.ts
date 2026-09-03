@@ -223,7 +223,7 @@ const MAX_COLUMNS = 12;
     .json { max-height:46vh; overflow:auto; background:var(--bg); border:1px solid var(--border); border-radius:8px;
       padding:.6rem; font-size:.76rem; margin-top:.5rem; white-space:pre; }
     .message { color:var(--muted); font-size:.82rem; margin:.3rem 0; }
-    .message.error { color:#d93025; }
+    .message.error { color:var(--danger); }
     .tag { font-size:.7rem; background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:0 .45rem; }
     .btn { display:inline-flex; align-items:center; gap:.3rem; border:1px solid transparent; border-radius:7px;
       padding:.45rem .8rem; font-size:.85rem; cursor:pointer; }
@@ -231,7 +231,7 @@ const MAX_COLUMNS = 12;
     .btn.primary { background:var(--brand); color:var(--brand-text); }
     .btn.secondary { background:var(--bg); color:var(--text); border-color:var(--border); }
     .btn.ghost { background:transparent; color:var(--text); border-color:var(--border); }
-    .btn.danger { background:transparent; color:#d93025; border-color:color-mix(in srgb, #d93025 40%, transparent); }
+    .btn.danger { background:transparent; color:var(--danger); border-color:color-mix(in srgb, var(--danger-border) 40%, transparent); }
     .btn:disabled { opacity:.5; cursor:default; }
     .muted { color:var(--muted); } .small { font-size:.78rem; } .pad { padding:1rem; }
     .scrim { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center;
@@ -240,8 +240,8 @@ const MAX_COLUMNS = 12;
       padding:1.25rem; width:100%; max-width:640px; max-height:90vh; overflow-y:auto; }
     .dialog h2 { margin:0 0 .5rem; }
     .form-actions { display:flex; gap:.5rem; margin-top:.75rem; }
-    .toast { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:#fce8e6; color:#c5221f;
-      border:1px solid #f5c6c6; border-radius:8px; padding:.6rem 1rem; z-index:1100; cursor:pointer; }
+    .toast { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:var(--danger-soft); color:var(--danger);
+      border:1px solid var(--danger-border); border-radius:8px; padding:.6rem 1rem; z-index:1100; cursor:pointer; }
     @media (max-width: 900px) { .grid { grid-template-columns:1fr; } .list { max-height:30vh; } }
   `],
 })

@@ -153,7 +153,7 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
     .btn-primary:hover:not(:disabled) { filter: brightness(0.92); }
     .btn-primary:disabled { opacity: 0.6; cursor: default; }
     .error-banner {
-      background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c3;
+      background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border);
       border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; font-size: 0.9rem;
     }
     .alt-methods { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
@@ -174,7 +174,7 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
     .btn-passkey:disabled { opacity: 0.6; cursor: default; }
     .btn-passkey.social + .btn-passkey.social { margin-top: 0.5rem; }
     .info-banner {
-      background: #e6f4ea; color: #137333; border: 1px solid #ceead6;
+      background: var(--success-soft); color: var(--success); border: 1px solid var(--success-border);
       border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.9rem;
     }
     .conflict-panel .btn-primary { margin-top: 0.5rem; }

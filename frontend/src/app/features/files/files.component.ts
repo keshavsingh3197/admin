@@ -272,11 +272,11 @@ type PreviewKind = 'image' | 'pdf' | 'text';
     .uploads li { display: flex; align-items: center; gap: .75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .85rem; font-size: .9rem; }
     .uploads li.failed { border-color: #f3c9c6; }
     .u-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .u-err { color: #c5221f; }
+    .u-err { color: var(--danger); }
     .bar { width: 140px; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
     .fill { display: block; height: 100%; background: var(--brand); transition: width .2s; }
     .pct { width: 3ch; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .banner { margin-bottom: 1rem; background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 6px; padding: .7rem 1rem; }
+    .banner { margin-bottom: 1rem; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border); border-radius: 6px; padding: .7rem 1rem; }
     .muted { color: var(--muted); }
     .muted.sm { font-size: .85rem; }
     .empty { display: flex; flex-direction: column; align-items: center; gap: .5rem; color: var(--muted); padding: 3rem 0; }
@@ -290,12 +290,14 @@ type PreviewKind = 'image' | 'pdf' | 'text';
     .folder-ico { width: 44px; height: 44px; fill: color-mix(in srgb, var(--brand) 70%, var(--muted)); }
     .tile.shared .folder-ico { fill: color-mix(in srgb, #7a54c0 70%, var(--muted)); }
     .shared-tag { position: absolute; top: 8px; right: 8px; font-size: .72rem; background: var(--surface); border: 1px solid var(--border); border-radius: 99px; padding: .05rem .4rem; color: var(--muted); }
+    /* Literal white on purpose: the tile gradients below are fixed saturated colours in every
+       theme, so this label is not sitting on a themed surface. */
     .tile.doc .type { font-weight: 700; letter-spacing: .06em; color: #fff; font-size: 1.05rem; }
     .tile.doc[data-kind=img]   { background: linear-gradient(135deg,#3a8dde,#5ea9f0); }
-    .tile.doc[data-kind=pdf]   { background: linear-gradient(135deg,#d64541,#e06b64); }
-    .tile.doc[data-kind=sheet] { background: linear-gradient(135deg,#1e8e50,#39a869); }
+    .tile.doc[data-kind=pdf]   { background: linear-gradient(135deg,var(--danger),#e06b64); }
+    .tile.doc[data-kind=sheet] { background: linear-gradient(135deg,var(--success),#39a869); }
     .tile.doc[data-kind=doc]   { background: linear-gradient(135deg,#2b5dc0,#4a7ce0); }
-    .tile.doc[data-kind=txt]   { background: linear-gradient(135deg,#5a6472,#78838f); }
+    .tile.doc[data-kind=txt]   { background: linear-gradient(135deg,var(--muted),var(--muted)); }
     .tile.doc[data-kind=file]  { background: linear-gradient(135deg,#7a54c0,#9670d6); }
     figcaption { display: flex; flex-direction: column; gap: .15rem; padding: .6rem .75rem; }
     .name { font-weight: 600; font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -305,7 +307,7 @@ type PreviewKind = 'image' | 'pdf' | 'text';
     .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px;
       border: 1px solid var(--border); background: var(--surface); border-radius: 7px; color: var(--text); cursor: pointer; transition: .12s; }
     .icon-btn:hover { border-color: var(--brand); color: var(--brand); }
-    .icon-btn.danger:hover { border-color: #d93025; color: #d93025; }
+    .icon-btn.danger:hover { border-color: var(--danger-border); color: var(--danger); }
     .icon-btn.sm { width: 26px; height: 26px; }
     .icon-btn:disabled { opacity: .5; cursor: default; }
 
@@ -321,7 +323,7 @@ type PreviewKind = 'image' | 'pdf' | 'text';
     .p-body { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; background: var(--bg); }
     .p-body.pad { display: block; padding: 1rem; background: var(--surface); }
     .p-body img { max-width: 100%; max-height: 82vh; object-fit: contain; }
-    .p-body iframe { width: 100%; height: 82vh; border: none; background: #fff; }
+    .p-body iframe { width: 100%; height: 82vh; border: none; background: var(--surface); }
     .p-body pre { width: 100%; margin: 0; padding: 1rem; white-space: pre-wrap; word-break: break-word; font-size: .85rem; color: var(--text); }
     .share-add { display: flex; gap: .5rem; margin: .75rem 0; flex-wrap: wrap; }
     .share-add .input:nth-child(2) { flex: 1; min-width: 140px; }

@@ -1,206 +1,523 @@
-/* Global styles */
-* {
-  box-sizing: border-box;
-}
+/* =============================================================================================
+   Global stylesheet — design tokens + the shared component layer.
 
+   TOKENS ARE THE CONTRACT. Every colour a component paints must come from a token defined here,
+   because a theme is nothing but a different set of token values on `body[data-theme]`. The
+   previous version of this file could not hold that line: it had no tokens for danger/success/
+   warning, so ~30 components hard-coded `#d93025` and `#137333`, those hexes stayed light-mode red
+   and green on a dark background, and the file compensated with ~150 lines of `!important`
+   overrides keyed to a hand-maintained list of component class names (`.pk-details`, `.idp-card`,
+   …). Every new component had to be added to that list by hand or it silently rendered wrong in two
+   of the three themes. The override block is gone; the tokens it was compensating for are below.
+
+   Anything a page needs that is not here should be ADDED here, not hard-coded in a component.
+   ============================================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ---------------------------------------------------------------------------------------------
+   Theme-independent scales. These never change between themes — only colour does.
+   --------------------------------------------------------------------------------------------- */
 :root {
-  --font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
-  --bg: #f4f7fb;
+  --font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Type scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.82rem;
+  --text-base: 0.9rem;
+  --text-md: 1rem;
+  --text-lg: 1.15rem;
+  --text-xl: 1.4rem;
+  --text-2xl: 1.75rem;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Layout */
+  --sidebar-width: 248px;
+  --sidebar-width-collapsed: 68px;
+  --topbar-height: 56px;
+  --content-max: 1180px;
+
+  /* Accent borders. Derived from the accent tokens, so they follow the theme without needing a
+     per-theme definition — and so a component writes `var(--danger-border)` rather than
+     repeating a color-mix() recipe at every call site. */
+  --danger-border: color-mix(in srgb, var(--danger) 40%, var(--border));
+  --success-border: color-mix(in srgb, var(--success) 40%, var(--border));
+  --warning-border: color-mix(in srgb, var(--warning) 40%, var(--border));
+  --info-border: color-mix(in srgb, var(--info) 40%, var(--border));
+  --brand-border: color-mix(in srgb, var(--brand) 40%, var(--border));
+
+  --transition-fast: 120ms ease;
+  --transition: 200ms ease;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Light (default)
+   --------------------------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  --bg: #f5f7fb;
   --surface: #ffffff;
-  --text: #1d2735;
-  --muted: #5f6c7b;
-  --brand: #1a73e8;
+  --surface-2: #f1f4f9;      /* sunken rows, table headers, hovered menu items */
+  --surface-3: #e7ecf4;      /* pressed / selected */
+  --overlay: rgba(15, 23, 36, 0.42);
+
+  --text: #172033;
+  --text-strong: #0b111d;
+  --muted: #5c6a7e;
+  --faint: #8593a7;
+
+  --border: #dfe5ee;
+  --border-strong: #c5d0df;
+
+  --brand: #2563eb;
   --brand-text: #ffffff;
-  --border: #dce3ec;
-  --shadow-sm: 0 2px 8px rgba(19, 35, 58, 0.14);
+  --brand-strong: #1d4fd8;
+  --brand-soft: #e8effd;     /* tinted background that stays readable with --brand text on it */
+
+  --danger: #d92d20;
+  --danger-soft: #fdeceb;
+  --success: #087443;
+  --success-soft: #e6f5ee;
+  --warning: #b54708;
+  --warning-soft: #fdf1e3;
+  --info: #175cd3;
+  --info-soft: #e8f0fd;
+  /* Text printed ON a solid --danger/--success/… fill. */
+  --on-accent: #ffffff;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.10);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.10), 0 2px 4px -2px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
+
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--brand) 28%, transparent);
 }
 
+/* ---------------------------------------------------------------------------------------------
+   Dark. Accents are LIGHTENED rather than reused: #d92d20 on #151d2e fails contrast, which is the
+   bug the old `!important` sheet was working around instead of fixing.
+   --------------------------------------------------------------------------------------------- */
 body[data-theme='dark'] {
-  --bg: #0f1724;
-  --surface: #162033;
-  --text: #e8eef9;
-  --muted: #b6c0d1;
-  --brand: #4b97ff;
-  --brand-text: #f4f8ff;
-  --border: #2f3c54;
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.38);
+  color-scheme: dark;
+
+  --bg: #0d1320;
+  --surface: #151d2e;
+  --surface-2: #1c2537;
+  --surface-3: #253044;
+  --overlay: rgba(0, 0, 0, 0.58);
+
+  --text: #e6ecf7;
+  --text-strong: #f8fafc;
+  --muted: #97a5ba;
+  --faint: #74839a;
+
+  --border: #2a3548;
+  --border-strong: #3b4860;
+
+  --brand: #5b9bff;
+  --brand-text: #08121f;
+  --brand-strong: #7db0ff;
+  --brand-soft: #17263f;
+
+  --danger: #ff7a70;
+  --danger-soft: #33191a;
+  --success: #45cf94;
+  --success-soft: #12291f;
+  --warning: #f2b455;
+  --warning-soft: #2d2314;
+  --info: #7cb2ff;
+  --info-soft: #14243c;
+  --on-accent: #0b111d;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40), 0 1px 3px rgba(0, 0, 0, 0.30);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 28px rgba(0, 0, 0, 0.50);
+
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--brand) 34%, transparent);
 }
 
+/* ---------------------------------------------------------------------------------------------
+   Brand — the teal identity. Same structure, different hues; nothing here is a special case.
+   --------------------------------------------------------------------------------------------- */
 body[data-theme='brand'] {
-  --bg: #f6f7ff;
+  color-scheme: light;
+
+  --bg: #f2f8f7;
   --surface: #ffffff;
-  --text: #181f31;
-  --muted: #4f5d7b;
+  --surface-2: #eaf3f1;
+  --surface-3: #dcebe8;
+  --overlay: rgba(9, 42, 38, 0.40);
+
+  --text: #12241f;
+  --text-strong: #06120f;
+  --muted: #4a6660;
+  --faint: #7a938d;
+
+  --border: #d3e3df;
+  --border-strong: #b3ccc6;
+
   --brand: #0f7b6c;
   --brand-text: #f4fffd;
-  --border: #d5dde8;
-  --shadow-sm: 0 3px 12px rgba(26, 39, 65, 0.14);
+  --brand-strong: #0b6255;
+  --brand-soft: #e0f2ee;
+
+  --danger: #c5221f;
+  --danger-soft: #fbeceb;
+  --success: #087443;
+  --success-soft: #e2f4ea;
+  --warning: #a85703;
+  --warning-soft: #fbf0e2;
+  --info: #0f6b8f;
+  --info-soft: #e2f1f7;
+  --on-accent: #ffffff;
+
+  --shadow-sm: 0 1px 2px rgba(6, 40, 35, 0.07), 0 1px 3px rgba(6, 40, 35, 0.10);
+  --shadow-md: 0 4px 10px rgba(6, 40, 35, 0.10);
+  --shadow-lg: 0 14px 24px rgba(6, 40, 35, 0.12);
+
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--brand) 26%, transparent);
 }
 
+/* ---------------------------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------------------------- */
 body {
   margin: 0;
   font-family: var(--font-family);
+  font-size: var(--text-base);
+  line-height: 1.5;
   background: var(--bg);
   color: var(--text);
+  -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--brand); }
+h1, h2, h3, h4 { color: var(--text-strong); line-height: 1.25; margin: 0; }
+h1 { font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.015em; }
+h2 { font-size: var(--text-xl); font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: var(--text-lg); font-weight: 650; }
+h4 { font-size: var(--text-md); font-weight: 650; }
 
-body[data-theme='dark'] .card,
-body[data-theme='dark'] .set-wrap .card,
-body[data-theme='dark'] .table-wrap,
-body[data-theme='dark'] .website-editor,
-body[data-theme='dark'] .input,
-body[data-theme='dark'] .icon-btn,
-body[data-theme='dark'] .btn-secondary,
-body[data-theme='dark'] .login-card,
-body[data-theme='dark'] .note-card,
-body[data-theme='dark'] .form-card,
-body[data-theme='dark'] .tbl,
-body[data-theme='dark'] .edit-row td,
-body[data-theme='dark'] .pk-details,
-body[data-theme='dark'] .site-overview,
-body[data-theme='dark'] .detail-card,
-body[data-theme='dark'] .idp-card,
-body[data-theme='dark'] .route-loader-card {
-  background: var(--surface) !important;
-  color: var(--text) !important;
-  border-color: var(--border) !important;
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code, pre, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+
+hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-4) 0; }
+
+/* One focus treatment for the whole app. Keyboard-only, so it never fires on a mouse click. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-body[data-theme='brand'] .card,
-body[data-theme='brand'] .set-wrap .card,
-body[data-theme='brand'] .table-wrap,
-body[data-theme='brand'] .website-editor,
-body[data-theme='brand'] .input,
-body[data-theme='brand'] .icon-btn,
-body[data-theme='brand'] .btn-secondary,
-body[data-theme='brand'] .login-card,
-body[data-theme='brand'] .note-card,
-body[data-theme='brand'] .form-card,
-body[data-theme='brand'] .tbl,
-body[data-theme='brand'] .edit-row td,
-body[data-theme='brand'] .pk-details,
-body[data-theme='brand'] .site-overview,
-body[data-theme='brand'] .detail-card,
-body[data-theme='brand'] .idp-card,
-body[data-theme='brand'] .route-loader-card {
-  background: var(--surface) !important;
-  color: var(--text) !important;
-  border-color: var(--border) !important;
+::selection { background: color-mix(in srgb, var(--brand) 24%, transparent); }
+
+/* Scrollbars follow the theme instead of staying OS-light on a dark page. */
+* { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--faint); background-clip: content-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-body[data-theme='dark'] .field span,
-body[data-theme='dark'] .hint,
-body[data-theme='dark'] .updated,
-body[data-theme='dark'] .loading,
-body[data-theme='dark'] .empty,
-body[data-theme='dark'] .tbl td,
-body[data-theme='dark'] .tbl th,
-body[data-theme='dark'] .checklist,
-body[data-theme='dark'] .chk,
-body[data-theme='dark'] .subtitle,
-body[data-theme='dark'] .login-sub,
-body[data-theme='dark'] .muted,
-body[data-theme='dark'] .pk-meta small,
-body[data-theme='dark'] .note-card p,
-body[data-theme='dark'] .idp-card p,
-body[data-theme='dark'] .card h3,
-body[data-theme='dark'] .idp-grid span {
-  color: var(--muted) !important;
-}
+/* =============================================================================================
+   Component layer — the shared defaults every feature inherits.
 
-body[data-theme='brand'] .field span,
-body[data-theme='brand'] .hint,
-body[data-theme='brand'] .updated,
-body[data-theme='brand'] .loading,
-body[data-theme='brand'] .empty,
-body[data-theme='brand'] .tbl td,
-body[data-theme='brand'] .tbl th,
-body[data-theme='brand'] .checklist,
-body[data-theme='brand'] .chk,
-body[data-theme='brand'] .subtitle,
-body[data-theme='brand'] .login-sub,
-body[data-theme='brand'] .muted,
-body[data-theme='brand'] .pk-meta small,
-body[data-theme='brand'] .note-card p,
-body[data-theme='brand'] .idp-card p,
-body[data-theme='brand'] .card h3,
-body[data-theme='brand'] .idp-grid span {
-  color: var(--muted) !important;
-}
+   A feature component may still define these classes in its own `styles:` block; component styles
+   are injected after this file, so a local rule wins. That is deliberate: this layer sets the
+   default, it does not fight anyone. What it removes is the need for each feature to re-derive
+   what a card or a danger button looks like.
+   ============================================================================================= */
 
-body[data-theme='dark'] .tbl th {
-  background: #1b2b43 !important;
-}
-
-body[data-theme='brand'] .tbl th {
-  background: #edf3fb !important;
-}
-
-body[data-theme='dark'] .btn-link { color: #8ec0ff !important; }
-body[data-theme='dark'] .btn-link.danger { color: #ff8c8a !important; }
-
-body[data-theme='brand'] .btn-link { color: #0f7b6c !important; }
-body[data-theme='brand'] .btn-link.danger { color: #c5221f !important; }
-
-body[data-theme='dark'] .input:focus {
-  box-shadow: 0 0 0 2px rgba(75, 151, 255, 0.28) !important;
-}
-
-body[data-theme='brand'] .input:focus {
-  box-shadow: 0 0 0 2px rgba(15, 123, 108, 0.22) !important;
-}
-
-body[data-theme='dark'] .btn-primary,
-body[data-theme='brand'] .btn-primary {
-  background: var(--brand) !important;
-  color: var(--brand-text) !important;
-}
-
-body[data-theme='dark'] .btn-passkey,
-body[data-theme='brand'] .btn-passkey,
-body[data-theme='dark'] .btn-secondary,
-body[data-theme='brand'] .btn-secondary,
-body[data-theme='dark'] .icon-action,
-body[data-theme='brand'] .icon-action,
-body[data-theme='dark'] .icon-btn,
-body[data-theme='brand'] .icon-btn,
-body[data-theme='dark'] .theme-btn,
-body[data-theme='brand'] .theme-btn {
-  color: var(--text) !important;
-  border-color: var(--border) !important;
-}
-
-body[data-theme='dark'] .badge,
-body[data-theme='brand'] .badge {
-  background: color-mix(in srgb, var(--brand) 15%, var(--surface)) !important;
-  color: var(--brand) !important;
-}
-
-body[data-theme='dark'] .status.ok,
-body[data-theme='brand'] .status.ok {
-  background: color-mix(in srgb, #137333 18%, var(--surface)) !important;
-}
-
-body[data-theme='dark'] .status.down,
-body[data-theme='brand'] .status.down {
-  background: color-mix(in srgb, #c5221f 16%, var(--surface)) !important;
-}
-
-/* ---- Interface style: always the "modern" look — elevated, rounded, roomier. ---- */
-
-.app-header {
-  background: linear-gradient(100deg, var(--brand), color-mix(in srgb, var(--brand) 68%, #7b5cff));
-}
-
-.app-nav > a,
-.nav-group-btn { border-radius: 99px; }
-
-.app-main { padding: 2rem 1.5rem; }
-
-:is(.card, .panel, .call-card, .route-loader-card, .table-wrap, .form-card,
-    .note-card, .login-card, .reminder, .cal, .col, .side, .thread-pane) {
-  border-radius: 14px;
+/* ---- Surfaces ---- */
+.card, .panel, .table-wrap, .form-card, .note-card, .detail-card {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+}
+
+.card-flush { padding: 0; overflow: hidden; }
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.page-title { margin: 0; font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.015em; }
+.subtitle, .hint, .muted, .updated, .empty, .loading { color: var(--muted); }
+.subtitle { font-size: var(--text-base); }
+.hint { font-size: var(--text-sm); }
+.faint { color: var(--faint); }
+
+.empty, .loading {
+  display: grid;
+  place-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  font-size: var(--text-base);
+}
+
+/* ---- Buttons ---- */
+.btn, .btn-primary, .btn-secondary, .btn-danger, .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 550;
+  line-height: 1.3;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+              color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.btn-primary { background: var(--brand); color: var(--brand-text); }
+.btn-primary:hover:not(:disabled) { background: var(--brand-strong); }
+
+.btn, .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+.btn:hover:not(:disabled), .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+
+.btn-danger { background: var(--danger); color: var(--on-accent); }
+.btn-danger:hover:not(:disabled) { filter: brightness(0.94); }
+
+.btn-ghost { background: transparent; color: var(--text); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-2); }
+
+.btn-sm { padding: 0.3rem 0.6rem; font-size: var(--text-sm); }
+
+button:disabled, .btn[aria-disabled='true'] { opacity: 0.55; cursor: not-allowed; }
+
+/* A button that reads as a link. `.danger` is the destructive variant. */
+.btn-link, .linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--brand);
+  font: inherit;
+  cursor: pointer;
+}
+.btn-link:hover, .linkish:hover { text-decoration: underline; }
+.btn-link.danger, .linkish.danger { color: var(--danger); }
+
+/* Square icon button — toolbars, table row actions. */
+.icon-btn, .icon-action {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.icon-btn:hover, .icon-action:hover { background: var(--surface-2); border-color: var(--border-strong); }
+
+/* ---- Forms ---- */
+.input, input[type='text'], input[type='email'], input[type='password'], input[type='search'],
+input[type='number'], input[type='url'], input[type='date'], input[type='datetime-local'],
+input[type='time'], select, textarea {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input:focus, input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: var(--focus-ring);
+}
+
+.input::placeholder, input::placeholder, textarea::placeholder { color: var(--faint); }
+.input:disabled, input:disabled, select:disabled, textarea:disabled { background: var(--surface-2); opacity: 0.7; }
+.input.sm { width: auto; }
+
+.field { display: block; }
+.field > span, .field-label {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.chk, .checklist {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text);
+  font-size: var(--text-base);
+}
+
+input[type='checkbox'], input[type='radio'] { width: auto; accent-color: var(--brand); }
+
+/* ---- Tables ---- */
+.tbl { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
+
+.tbl th {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.tbl td {
+  padding: 0.65rem 0.75rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.tbl tbody tr:last-child td { border-bottom: 0; }
+.tbl tbody tr:hover td { background: var(--surface-2); }
+
+/* Any table wider than its column scrolls itself rather than the page. */
+.table-scroll { overflow-x: auto; }
+
+/* ---- Badges, chips, status ---- */
+.badge, .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.1rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* One tone vocabulary across badges, chips and status pills, so a component picks a MEANING
+   ("warn") rather than a colour. `.down` is kept as an alias of danger for the health screens. */
+.badge.neutral, .chip.neutral, .status.neutral { background: var(--surface-3); color: var(--muted); }
+.badge.ok, .chip.ok, .status.ok { background: var(--success-soft); color: var(--success); }
+.badge.warn, .chip.warn, .status.warn { background: var(--warning-soft); color: var(--warning); }
+.badge.danger, .chip.danger, .status.danger, .status.down { background: var(--danger-soft); color: var(--danger); }
+.badge.info, .chip.info, .status.info { background: var(--info-soft); color: var(--info); }
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* ---- Banners ---- */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--text-base);
+}
+
+.banner.ok { border-color: var(--success-border); background: var(--success-soft); color: var(--success); }
+.banner.warn { border-color: var(--warning-border); background: var(--warning-soft); color: var(--warning); }
+.banner.info { border-color: var(--info-border); background: var(--info-soft); color: var(--info); }
+
+/* Keyboard hint, e.g. the palette's ⌘K. An element selector, so it belongs here rather than in
+   whichever component happens to render the first one. */
+kbd {
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* ---- Loading placeholder ---- */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  border-radius: var(--radius-sm);
+  animation: skeleton-sweep 1.3s ease-in-out infinite;
+}
+
+@keyframes skeleton-sweep {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ---- Utilities ---- */
+.stack { display: grid; gap: var(--space-3); }
+.row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.grow { flex: 1; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Visually hidden but still announced to screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

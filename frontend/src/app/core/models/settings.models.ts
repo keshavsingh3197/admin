@@ -13,6 +13,7 @@ export interface SettingsView {
   refreshTokenRetentionDays: number;
   analyticsRetentionDays: number;
   loginAuditRetentionDays: number;
+  adminAuditRetentionDays: number;
   emailOtpMinutes: number;
   maxFailedLoginAttempts: number;
   lockoutMinutes: number;

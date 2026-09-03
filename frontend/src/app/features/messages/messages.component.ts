@@ -286,8 +286,8 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
     .conv-name { font-weight: 600; font-size: .9rem; }
     .conv-prev { color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .unread { background: var(--brand); color: var(--brand-text); border-radius: 99px; font-size: .7rem; padding: .05rem .4rem; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: #9aa5b1; }
-    .dot.online { background: #2ecc71; } .dot.idle { background: #f1c40f; } .dot.offline { background: #9aa5b1; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--faint); }
+    .dot.online { background: #2ecc71; } .dot.idle { background: #f1c40f; } .dot.offline { background: var(--faint); }
     .thread-pane { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
     .t-head { display: flex; align-items: center; justify-content: space-between; padding: .6rem 1rem; border-bottom: 1px solid var(--border); }
     .who { display: inline-flex; align-items: center; gap: .5rem; }
@@ -325,7 +325,7 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
     .msg-tools { display: flex; gap: .3rem; }
     .mini-btn { background: none; border: none; cursor: pointer; font-size: .78rem; opacity: .7; padding: 0 .15rem; color: inherit; }
     .mini-btn:hover { opacity: 1; }
-    .icon-btn.recording { background: #d93025; color: #fff; }
+    .icon-btn.recording { background: var(--danger); color: var(--on-accent); }
     .time { font-size: .68rem; opacity: .7; align-self: flex-end; }
     .rcpt { margin-left: .25rem; }
     .deleted { opacity: .7; }
@@ -341,13 +341,13 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
     .btn.sm { padding: .35rem .7rem; font-size: .82rem; } .btn.xs { padding: .25rem .55rem; font-size: .78rem; }
     .btn.primary { background: var(--brand); color: var(--brand-text); }
     .btn.secondary { background: var(--bg); color: var(--text); border-color: var(--border); }
-    .btn.danger { background: transparent; color: #d93025; border-color: color-mix(in srgb, #d93025 40%, transparent); }
+    .btn.danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger-border) 40%, transparent); }
     .btn:disabled { opacity: .5; cursor: default; }
     .icon-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; width: 34px; height: 34px; cursor: pointer; }
     .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); }
     .muted { color: var(--muted); } .muted.sm { font-size: .82rem; } .pad { padding: 1rem; }
-    .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 8px; padding: .6rem 1rem; z-index: 50; }
-    .toast.info { background: #e6f4ea; color: #137333; border-color: #b7dfc0; }
+    .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border); border-radius: 8px; padding: .6rem 1rem; z-index: 50; }
+    .toast.info { background: var(--success-soft); color: var(--success); border-color: var(--success-border); }
     .overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, #0a1020 55%, transparent); backdrop-filter: blur(2px); }
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: min(420px, 92%); max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
     .p-head { display: flex; align-items: center; justify-content: space-between; padding: .75rem 1rem; border-bottom: 1px solid var(--border); }

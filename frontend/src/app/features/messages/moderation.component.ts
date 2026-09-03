@@ -108,20 +108,20 @@ import { AdminCall } from '../../core/models/call.models';
     .names { font-weight: 600; font-size: .9rem; }
     .tags { display: flex; align-items: center; gap: .4rem; }
     .tag { font-size: .72rem; background: var(--bg); border: 1px solid var(--border); border-radius: 99px; padding: .05rem .5rem; text-transform: capitalize; }
-    .tag.spam { background: #fce8e6; color: #c5221f; border-color: #f5c6c6; }
+    .tag.spam { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-border); }
     .count { font-size: .72rem; color: var(--muted); }
     .thread { padding: .75rem; }
     .msg { border-bottom: 1px solid var(--border); padding: .5rem 0; display: flex; flex-direction: column; gap: .2rem; }
     .msg-top { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); }
     .body { white-space: pre-wrap; word-break: break-word; font-size: .9rem; }
     .attach { font-size: .82rem; color: var(--muted); }
-    .del { align-self: flex-start; background: transparent; border: 1px solid color-mix(in srgb, #d93025 40%, transparent); color: #d93025; border-radius: 6px; padding: .15rem .5rem; cursor: pointer; font-size: .76rem; }
+    .del { align-self: flex-start; background: transparent; border: 1px solid color-mix(in srgb, var(--danger-border) 40%, transparent); color: var(--danger); border-radius: 6px; padding: .15rem .5rem; cursor: pointer; font-size: .76rem; }
     .deleted { opacity: .7; }
     .tbl { width: 100%; border-collapse: collapse; margin-top: 1rem; }
     .tbl th, .tbl td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); font-size: .88rem; }
     .muted { color: var(--muted); } .pad { padding: 1rem; }
     .note { font-size: .84rem; margin: 1rem 0 0; }
-    .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 8px; padding: .6rem 1rem; }
+    .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border); border-radius: 8px; padding: .6rem 1rem; }
     @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
   `],
 })

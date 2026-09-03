@@ -15,6 +15,17 @@ public sealed class DataRetentionService
 {
     public const string LoginLogsDomain = "loginLogs";
     public const string AnalyticsDomain = "analyticsVisits";
+    public const string AdminActionsDomain = "adminActions";
+
+    /// <summary>
+    /// Authentication events and administrative events share the <c>audit</c> collection — one
+    /// timeline is the point — but they must NOT share a retention window. Sign-in traffic is
+    /// high-volume and stops being useful quickly; "who granted themselves Admin" is low-volume and
+    /// is the row you come back for. Purging the whole collection on the sign-in clock would quietly
+    /// delete the administrative trail along with the noise, so every purge here is scoped by
+    /// whether the event name is in the "admin." family.
+    /// </summary>
+    private const string AdminEventPrefix = "admin.";
 
     private readonly IMongoCollection<LoginAudit> _audit;
     private readonly IMongoCollection<WebsiteVisit> _visits;
@@ -31,13 +42,20 @@ public sealed class DataRetentionService
     {
         var auditOverview = await BuildOverviewAsync(
             _audit, x => x.Timestamp, LoginLogsDomain, "Login audit logs",
-            "Sign-in/out attempts, password and 2FA events.", _settings.LoginAuditRetentionDays, ct);
+            "Sign-in/out attempts, password and 2FA events.", _settings.LoginAuditRetentionDays, ct,
+            scope: NotAdminEvents);
+
+        var adminOverview = await BuildOverviewAsync(
+            _audit, x => x.Timestamp, AdminActionsDomain, "Administrative audit trail",
+            "Role grants, settings changes, user lifecycle and database console writes.",
+            _settings.AdminAuditRetentionDays, ct,
+            scope: AdminEvents);
 
         var visitsOverview = await BuildOverviewAsync(
             _visits, x => x.Timestamp, AnalyticsDomain, "Website analytics visits",
             "Per-visit page/country/referrer records behind the Analytics dashboard.", _settings.AnalyticsRetentionDays, ct);
 
-        return new[] { auditOverview, visitsOverview };
+        return new[] { auditOverview, adminOverview, visitsOverview };
     }
 
     /// <summary>Deletes every record with a timestamp in [fromUtc, toUtc] for the given domain.</summary>
@@ -49,7 +67,10 @@ public sealed class DataRetentionService
 
         return domain switch
         {
-            LoginLogsDomain => DeleteAsync(_audit, x => x.Timestamp >= fromUtc && x.Timestamp <= to, ct),
+            LoginLogsDomain => DeleteAsync(_audit,
+                x => x.Timestamp >= fromUtc && x.Timestamp <= to && !x.Event.StartsWith(AdminEventPrefix), ct),
+            AdminActionsDomain => DeleteAsync(_audit,
+                x => x.Timestamp >= fromUtc && x.Timestamp <= to && x.Event.StartsWith(AdminEventPrefix), ct),
             AnalyticsDomain => DeleteAsync(_visits, x => x.Timestamp >= fromUtc && x.Timestamp <= to, ct),
             _ => throw new ArgumentException($"Unknown data domain '{domain}'."),
         };
@@ -60,7 +81,12 @@ public sealed class DataRetentionService
     {
         return domain switch
         {
-            LoginLogsDomain => DeleteAsync(_audit, x => x.Timestamp < DateTime.UtcNow.AddDays(-_settings.LoginAuditRetentionDays), ct),
+            LoginLogsDomain => DeleteAsync(_audit,
+                x => x.Timestamp < DateTime.UtcNow.AddDays(-_settings.LoginAuditRetentionDays)
+                     && !x.Event.StartsWith(AdminEventPrefix), ct),
+            AdminActionsDomain => DeleteAsync(_audit,
+                x => x.Timestamp < DateTime.UtcNow.AddDays(-_settings.AdminAuditRetentionDays)
+                     && x.Event.StartsWith(AdminEventPrefix), ct),
             AnalyticsDomain => DeleteAsync(_visits, x => x.Timestamp < DateTime.UtcNow.AddDays(-_settings.AnalyticsRetentionDays), ct),
             _ => throw new ArgumentException($"Unknown data domain '{domain}'."),
         };
@@ -69,18 +95,30 @@ public sealed class DataRetentionService
     private static async Task<long> DeleteAsync<T>(IMongoCollection<T> collection, Expression<Func<T, bool>> filter, CancellationToken ct)
         => (await collection.DeleteManyAsync(filter, ct)).DeletedCount;
 
+    /// <summary>Both halves of the audit split, as filters the overview and the purges share.</summary>
+    private static readonly Expression<Func<LoginAudit, bool>> AdminEvents =
+        x => x.Event.StartsWith(AdminEventPrefix);
+    private static readonly Expression<Func<LoginAudit, bool>> NotAdminEvents =
+        x => !x.Event.StartsWith(AdminEventPrefix);
+
     private static async Task<DataDomainOverviewDto> BuildOverviewAsync<T>(
         IMongoCollection<T> collection,
         Expression<Func<T, DateTime>> timestamp,
-        string key, string label, string description, int retentionDays, CancellationToken ct)
+        string key, string label, string description, int retentionDays, CancellationToken ct,
+        Expression<Func<T, bool>>? scope = null)
         where T : class
     {
         Expression<Func<T, object>> sortField = Expression.Lambda<Func<T, object>>(
             Expression.Convert(timestamp.Body, typeof(object)), timestamp.Parameters);
 
-        var total = await collection.CountDocumentsAsync(FilterDefinition<T>.Empty, cancellationToken: ct);
-        var oldest = await collection.Find(FilterDefinition<T>.Empty).Sort(Builders<T>.Sort.Ascending(sortField)).Limit(1).FirstOrDefaultAsync(ct);
-        var newest = await collection.Find(FilterDefinition<T>.Empty).Sort(Builders<T>.Sort.Descending(sortField)).Limit(1).FirstOrDefaultAsync(ct);
+        // Two domains can share a collection (the audit split), so the overview counts only the
+        // rows its own purge would actually delete — otherwise both would report the same totals
+        // and an operator could not tell what a purge was about to remove.
+        var filter = scope is null ? FilterDefinition<T>.Empty : Builders<T>.Filter.Where(scope);
+
+        var total = await collection.CountDocumentsAsync(filter, cancellationToken: ct);
+        var oldest = await collection.Find(filter).Sort(Builders<T>.Sort.Ascending(sortField)).Limit(1).FirstOrDefaultAsync(ct);
+        var newest = await collection.Find(filter).Sort(Builders<T>.Sort.Descending(sortField)).Limit(1).FirstOrDefaultAsync(ct);
         var compiled = timestamp.Compile();
         return new DataDomainOverviewDto(
             key, label, description, total,

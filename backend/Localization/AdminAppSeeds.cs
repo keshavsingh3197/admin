@@ -24,6 +24,12 @@ public sealed class AdminAppSeeds : ILocalizationSeedSource
     {
         // ---- Shell navigation. The keys the nav tables in app.ts point at. ----
         ("admin", "nav.dashboard", "Dashboard", "डैशबोर्ड"),
+        // Sidebar section headings. The nav is grouped by what a page is FOR, not by who may
+        // see it — see frontend/src/app/core/models/navigation.ts, the one place the grouping lives.
+        ("admin", "nav.group.workspace", "Workspace", "कार्यक्षेत्र"),
+        ("admin", "nav.group.content", "Content", "सामग्री"),
+        ("admin", "nav.group.people", "People", "लोग"),
+        ("admin", "nav.group.platform", "Platform", "प्लेटफ़ॉर्म"),
         ("admin", "nav.inbox", "Inbox", "इनबॉक्स"),
         ("admin", "nav.meetings", "Meetings", "मीटिंग"),
         ("admin", "nav.notes", "Notes", "नोट्स"),
@@ -40,6 +46,7 @@ public sealed class AdminAppSeeds : ILocalizationSeedSource
         ("admin", "nav.roles", "Roles", "भूमिकाएँ"),
         ("admin", "nav.moderation", "Chat moderation", "चैट मॉडरेशन"),
         ("admin", "nav.analytics", "Analytics", "विश्लेषण"),
+        ("admin", "nav.audit", "Audit log", "ऑडिट लॉग"),
         ("admin", "nav.dataRetention", "Data retention", "डेटा प्रतिधारण"),
         ("admin", "nav.health", "Health", "स्वास्थ्य"),
         ("admin", "nav.packages", "Packages", "पैकेज"),

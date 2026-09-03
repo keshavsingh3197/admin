@@ -145,7 +145,7 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
       border: 1px solid var(--border); background: var(--surface); border-radius: 7px; cursor: pointer; transition: .12s;
     }
     .icon-btn:hover { border-color: var(--brand); }
-    .icon-btn.danger:hover { border-color: #d93025; }
+    .icon-btn.danger:hover { border-color: var(--danger-border); }
 
     .btn-primary { background: var(--brand); color: var(--brand-text); border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
     .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
@@ -158,7 +158,7 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
       padding: 3rem 1rem; color: var(--muted); text-align: center;
     }
     .empty-icon { font-size: 2.5rem; }
-    .error-banner { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
+    .error-banner { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border); border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
 
     .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
     .dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 100%; max-width: 440px; box-shadow: var(--shadow-sm); }

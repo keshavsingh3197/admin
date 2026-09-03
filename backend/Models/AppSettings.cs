@@ -41,6 +41,13 @@ public sealed class AppSettings
     public int AnalyticsRetentionDays { get; set; } = 90;
     public int LoginAuditRetentionDays { get; set; } = 180;
 
+    /// <summary>
+    /// How long administrative audit events ("admin.*") are kept. Deliberately far longer than the
+    /// sign-in window: those rows are low-volume and are exactly what an incident review needs,
+    /// whereas sign-in traffic is high-volume and loses value quickly.
+    /// </summary>
+    public int AdminAuditRetentionDays { get; set; } = 730;
+
     // ---- WhatsApp security alerts (Meta Cloud API), sent on account lockout ----
     public bool WhatsAppAlertsEnabled { get; set; }
     public string? WhatsAppAccessTokenEncrypted { get; set; }   // 🔒 AES-encrypted.

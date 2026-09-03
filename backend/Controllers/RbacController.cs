@@ -20,12 +20,14 @@ public sealed class RbacController : ControllerBase
     private readonly CustomRoleService _roles;
     private readonly GroupService _groups;
     private readonly PermissionsService _permissions;
+    private readonly AdminAuditService _audit;
 
-    public RbacController(CustomRoleService roles, GroupService groups, PermissionsService permissions)
+    public RbacController(CustomRoleService roles, GroupService groups, PermissionsService permissions, AdminAuditService audit)
     {
         _roles = roles;
         _groups = groups;
         _permissions = permissions;
+        _audit = audit;
     }
 
     /// <summary>The caller's own effective permissions/website access — used to gate nav/UI.</summary>
@@ -61,7 +63,13 @@ public sealed class RbacController : ControllerBase
     [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<CustomRoleView>> CreateRole(UpsertCustomRoleRequest request, CancellationToken ct)
     {
-        try { return Ok(await _roles.CreateAsync(request, ct)); }
+        try
+        {
+            var created = await _roles.CreateAsync(request, ct);
+            await _audit.RecordAsync(AdminAuditEvents.RoleChanged, created.Key,
+                $"Role created granting {Describe(created.WebsiteGrants)}");
+            return Ok(created);
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return BadRequest(new { error = ex.Message });
@@ -75,6 +83,9 @@ public sealed class RbacController : ControllerBase
         try
         {
             var updated = await _roles.UpdateAsync(id, request, ct);
+            if (updated is not null)
+                await _audit.RecordAsync(AdminAuditEvents.RoleChanged, updated.Key,
+                    $"Role updated; now grants {Describe(updated.WebsiteGrants)}");
             return updated is null ? NotFound() : Ok(updated);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
@@ -90,6 +101,7 @@ public sealed class RbacController : ControllerBase
         try
         {
             await _roles.DeleteAsync(id, ct);
+            await _audit.RecordAsync(AdminAuditEvents.RoleChanged, id, "Role deleted.");
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -109,7 +121,13 @@ public sealed class RbacController : ControllerBase
     [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<GroupView>> CreateGroup(UpsertGroupRequest request, CancellationToken ct)
     {
-        try { return Ok(await _groups.CreateAsync(request, ct)); }
+        try
+        {
+            var created = await _groups.CreateAsync(request, ct);
+            await _audit.RecordAsync(AdminAuditEvents.GroupChanged, created.Name,
+                $"Group created with roles: {Join(created.RoleKeys)}");
+            return Ok(created);
+        }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
@@ -120,6 +138,9 @@ public sealed class RbacController : ControllerBase
         try
         {
             var updated = await _groups.UpdateAsync(id, request, ct);
+            if (updated is not null)
+                await _audit.RecordAsync(AdminAuditEvents.GroupChanged, updated.Name,
+                    $"Group updated; roles now: {Join(updated.RoleKeys)}");
             return updated is null ? NotFound() : Ok(updated);
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
@@ -130,6 +151,7 @@ public sealed class RbacController : ControllerBase
     public async Task<IActionResult> DeleteGroup(string id, CancellationToken ct)
     {
         await _groups.DeleteAsync(id, ct);
+        await _audit.RecordAsync(AdminAuditEvents.GroupChanged, id, "Group deleted.");
         return NoContent();
     }
 
@@ -140,6 +162,9 @@ public sealed class RbacController : ControllerBase
         try
         {
             var updated = await _groups.AddMemberAsync(id, request.UserId, ct);
+            if (updated is not null)
+                await _audit.RecordAsync(AdminAuditEvents.GrantChanged, updated.Name,
+                    $"User {request.UserId} added to the group.");
             return updated is null ? NotFound() : Ok(updated);
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
@@ -150,6 +175,26 @@ public sealed class RbacController : ControllerBase
     public async Task<ActionResult<GroupView>> RemoveMember(string id, string userId, CancellationToken ct)
     {
         var updated = await _groups.RemoveMemberAsync(id, userId, ct);
+        if (updated is not null)
+            await _audit.RecordAsync(AdminAuditEvents.GrantChanged, updated.Name,
+                $"User {userId} removed from the group.");
         return updated is null ? NotFound() : Ok(updated);
     }
+
+    /// <summary>
+    /// A role's grants as one audit line: "admin: page.users, action.users.manage | blog: site.read".
+    ///
+    /// <para>The permission keys themselves are recorded — unlike a display name or a phone number,
+    /// the granted keys ARE the security decision, and a trail that says only "a role changed" does
+    /// not answer the question you came to it with. Capped so one very broad role cannot flood the row.</para>
+    /// </summary>
+    private static string Describe(IReadOnlyList<WebsiteGrantDto> grants) =>
+        grants.Count == 0
+            ? "no permissions"
+            : string.Join(" | ", grants.Select(g => $"{g.WebsiteKey}: {Join(g.Permissions)}"));
+
+    private static string Join(IReadOnlyCollection<string> keys) =>
+        keys.Count == 0 ? "none"
+        : keys.Count <= 10 ? string.Join(", ", keys)
+        : string.Join(", ", keys.Take(10)) + $", +{keys.Count - 10} more";
 }

@@ -143,7 +143,7 @@ const FILTERS: { key: ContactStatus | 'all'; label: string }[] = [
     .row-tags { display: flex; gap: .3rem; }
     .tag { font-size: .7rem; background: var(--bg); border: 1px solid var(--border);
            border-radius: 99px; padding: 0 .45rem; text-transform: capitalize; color: var(--muted); }
-    .tag.spam { background: #fce8e6; color: #c5221f; border-color: #f5c6c6; }
+    .tag.spam { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-border); }
     .detail { display: flex; flex-direction: column; }
     .d-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem;
               flex-wrap: wrap; padding: .7rem .9rem; border-bottom: 1px solid var(--border); }
@@ -172,11 +172,11 @@ const FILTERS: { key: ContactStatus | 'all'; label: string }[] = [
     .btn.sm { padding: .35rem .7rem; font-size: .82rem; } .btn.xs { padding: .25rem .55rem; font-size: .76rem; }
     .btn.primary { background: var(--brand); color: var(--brand-text); }
     .btn.secondary { background: var(--bg); color: var(--text); border-color: var(--border); }
-    .btn.danger { background: transparent; color: #d93025; border-color: color-mix(in srgb, #d93025 40%, transparent); }
+    .btn.danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger-border) 40%, transparent); }
     .btn:disabled { opacity: .5; cursor: default; }
     .muted { color: var(--muted); } .pad { padding: 1rem; }
-    .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: #fce8e6;
-             color: #c5221f; border: 1px solid #f5c6c6; border-radius: 8px; padding: .6rem 1rem; z-index: 50; }
+    .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--danger-soft);
+             color: var(--danger); border: 1px solid var(--danger-border); border-radius: 8px; padding: .6rem 1rem; z-index: 50; }
     @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
   `],
 })

@@ -76,7 +76,7 @@ import { CreateUserRequest, UpdateUserRequest, UserListItem } from '../../core/m
     .btn-primary, .btn-secondary, .btn-danger { padding: 0.55rem 0.9rem; border-radius: 6px; cursor: pointer; font: inherit; }
     .btn-primary { background: var(--brand); color: var(--brand-text); border: 0; }
     .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-    .btn-danger { background: #d93025; color: #fff; border: 0; }
+    .btn-danger { background: var(--danger); color: var(--on-accent); border: 0; }
     button:disabled { opacity: 0.55; cursor: default; }
     .badge { display: inline-block; margin-right: 0.25rem; padding: 0.12rem 0.5rem; border-radius: 10px; font-size: 0.78rem; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); }
     .linkish { border: 0; background: none; color: var(--brand); cursor: pointer; font: inherit; }
@@ -84,9 +84,9 @@ import { CreateUserRequest, UpdateUserRequest, UserListItem } from '../../core/m
     .admin-actions { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1.25rem; }
     .reset { display: inline-flex; align-items: center; gap: 0.4rem; }
     .banner, .scope-chip { display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 0.8rem; margin-bottom: 1rem; border: 1px solid var(--border); border-radius: 6px; }
-    .banner { color: #c5221f; background: color-mix(in srgb, #d93025 12%, var(--surface)); }
-    .banner.ok { color: #137333; background: color-mix(in srgb, #137333 12%, var(--surface)); }
-    .scope-chip { background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border-color: color-mix(in srgb, var(--brand) 28%, var(--border)); }
+    .banner { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
+    .banner.ok { color: var(--success); background: color-mix(in srgb, var(--success) 12%, var(--surface)); }
+    .scope-chip { background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border-color: var(--brand-border); }
     .scope-chip a { color: var(--brand); text-decoration: none; margin-left: auto; }
     .muted { color: var(--muted); font-size: 0.85rem; }
   `]

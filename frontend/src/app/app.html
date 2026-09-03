@@ -1,134 +1,160 @@
-<div class="app-shell">
-  <header class="app-header">
-    <!-- Also the home link: there is no separate Dashboard entry in the nav. The glyph and the label
-         both come from the runtime config / translation catalogue, not from this template. -->
-    <a class="brand" routerLink="/" [title]="i18n.t('admin.nav.dashboard')"
-       [attr.aria-label]="i18n.t('admin.nav.dashboard')">
-      <span aria-hidden="true">{{ icon(keys.iconHome, '🏠') }}</span> {{ brandName() }}
-    </a>
+@let signedIn = auth.isAuthenticated() && (!permissionsLoaded() || hasAppAccess());
 
-    @if (auth.isAuthenticated() && (!permissionsLoaded() || hasAppAccess())) {
-      <button
-        class="nav-toggle"
-        type="button"
-        [class.open]="navOpen()"
-        (click)="toggleNav()"
-        [attr.aria-expanded]="navOpen()"
-        aria-controls="app-nav"
-        [attr.aria-label]="i18n.t('admin.nav.toggleMenu')">
-        <span class="hamburger" aria-hidden="true"></span>
-      </button>
+<div class="app-shell" [class.signed-in]="signedIn" [class.rail]="sidebarCollapsed()">
 
-      @if (navOpen()) {
-        <div class="nav-backdrop" (click)="closeNav()"></div>
-      }
+  @if (signedIn) {
+    @if (navOpen()) {
+      <div class="nav-backdrop" (click)="closeNav()"></div>
+    }
 
-      <nav class="app-nav" id="app-nav" [class.open]="navOpen()">
-        @for (link of visiblePrimaryLinks(); track link.path) {
-          <a [routerLink]="link.path" routerLinkActive="active"
-             [routerLinkActiveOptions]="{exact: link.exact}" (click)="closeNav()">
-            <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
-          </a>
-        }
+    <aside class="sidebar" [class.open]="navOpen()">
+      <!-- Also the home link: there is no separate Dashboard entry in the nav. The glyph and the
+           label both come from the runtime config / translation catalogue, not from this template. -->
+      <a class="brand" routerLink="/" (click)="closeNav()"
+         [title]="i18n.t('admin.nav.dashboard')" [attr.aria-label]="i18n.t('admin.nav.dashboard')">
+        <span class="brand-mark" aria-hidden="true">{{ icon(keys.iconHome, '◆') }}</span>
+        <span class="brand-name">{{ brandName() }}</span>
+      </a>
 
-        @if (visibleAdminLinks().length > 0) {
-          <div class="manage-menu" [class.open]="adminMenuOpen()">
-            <button class="manage-trigger" type="button" (click)="toggleAdminMenu()" [attr.aria-expanded]="adminMenuOpen()">
-              <span class="nav-ico" aria-hidden="true">⚙️</span>Manage<span class="caret" aria-hidden="true">▾</span>
-            </button>
-            <div class="manage-panel">
-              @for (link of visibleAdminLinks(); track link.path) {
-                <a [routerLink]="link.path" routerLinkActive="active"
-                   [routerLinkActiveOptions]="{exact: link.exact}" (click)="closeNav()">
-                  <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>{{ i18n.t(link.labelKey) }}
-                </a>
-              }
-            </div>
+      <nav class="nav" id="app-nav" [attr.aria-label]="i18n.t('admin.nav.toggleMenu')">
+        @for (group of visibleGroups(); track group.labelKey) {
+          <div class="nav-group">
+            <p class="nav-group-label">{{ groupLabel(group) }}</p>
+            @for (link of group.links; track link.path) {
+              <a [routerLink]="link.path" routerLinkActive="active" (click)="closeNav()"
+                 [title]="i18n.t(link.labelKey)">
+                <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>
+                <span class="nav-label">{{ i18n.t(link.labelKey) }}</span>
+              </a>
+            }
           </div>
         }
       </nav>
 
-      <div class="spacer"></div>
-
-      <div class="user-chip">
-        <a class="chip-btn" routerLink="/search" [attr.aria-label]="i18n.t('common.actions.search')"
-           [title]="i18n.t('common.actions.search')">
-          <span aria-hidden="true">{{ icon(keys.iconSearch, '🔍') }}</span>
-        </a>
-
-        <!--
-          Language picker. Rendered only when the languages are known and an admin has left the picker
-          enabled in the config registry — both are runtime values, not build-time ones.
-        -->
-        @if (i18n.showPicker() && i18n.locales().length > 1) {
-          <label class="lang-picker">
-            <span class="sr-only">{{ i18n.t('common.label.language') }}</span>
-            <span aria-hidden="true" class="lang-ico">{{ icon(keys.iconLanguage, '🌐') }}</span>
-            <select [ngModel]="i18n.locale()" (ngModelChange)="switchLanguage($event)"
-                    [title]="i18n.t('common.label.language')">
-              @for (l of i18n.locales(); track l.code) {
-                <option [value]="l.code">{{ l.nativeName }}</option>
-              }
-            </select>
-          </label>
-        }
-
-        <button class="chip-btn" type="button" (click)="toggleTheme()"
-                [attr.aria-label]="i18n.t('common.label.theme') + ': ' + theme()"
-                [title]="i18n.t('common.label.theme') + ': ' + theme()">
-          <span aria-hidden="true">{{
-            theme() === 'light' ? icon(keys.iconThemeLight, '☀')
-              : (theme() === 'dark' ? icon(keys.iconThemeDark, '☾') : icon(keys.iconThemeAuto, '✦'))
-          }}</span>
-        </button>
-        <div class="account-menu" [class.open]="accountOpen()">
-          <button class="account-trigger" type="button" (click)="toggleAccount()" [attr.aria-expanded]="accountOpen()">
-            <app-avatar [userId]="auth.user()?.id" [displayName]="auth.user()?.displayName || 'U'" [hasAvatar]="!!auth.user()?.hasAvatar" [size]="28" />
-            <span class="user-name">{{ auth.user()?.displayName }}</span><span class="caret" aria-hidden="true">▾</span>
-          </button>
-          <div class="account-panel">
-            <div class="account-summary"><strong>{{ auth.user()?.displayName }}</strong><small>{{ auth.user()?.email }}</small></div>
-            <a routerLink="/profile" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">🙂</span> Profile</a>
-            @if (auth.hasRole('Admin')) { <a routerLink="/settings" routerLinkActive="active" (click)="accountOpen.set(false)"><span aria-hidden="true">⚙️</span> Application settings</a> }
-            <button type="button" (click)="logout()"><span aria-hidden="true">{{ icon(keys.iconSignOut, '⏻') }}</span> {{ i18n.t('admin.nav.signout') }}</button>
-          </div>
-        </div>
-      </div>
-    }
-  </header>
-
-  @if (routeLoading()) {
-    <div class="route-loader" role="status" aria-live="polite" [attr.aria-label]="i18n.t('common.state.loading')">
-      <div class="route-loader-card">
-        <div class="logo-pulse" aria-hidden="true">KS</div>
-        <p>{{ i18n.t('common.state.loading') }}</p>
-      </div>
-    </div>
+      <button class="rail-toggle" type="button" (click)="toggleSidebar()"
+              [attr.aria-pressed]="sidebarCollapsed()"
+              [title]="sidebarCollapsed() ? 'Expand sidebar' : 'Collapse sidebar'">
+        <span class="nav-ico" aria-hidden="true">{{ sidebarCollapsed() ? '›' : '‹' }}</span>
+        <span class="nav-label">Collapse</span>
+      </button>
+    </aside>
   }
 
-  <main class="app-main">
-    @if (auth.isAuthenticated() && permissionsLoaded() && !hasAppAccess()) {
-      <div class="no-app-access">
-        <span aria-hidden="true">🚫</span>
-        <h1>You don't have access to this application</h1>
-        <p>Your account isn't granted any page in the admin console. Ask an administrator to grant you
-           access, or sign out and continue using the site(s) you do have access to.</p>
-        <button type="button" class="btn-secondary" (click)="logout()">{{ i18n.t('admin.nav.signout') }}</button>
-      </div>
-    } @else {
-      @if (accessDeniedMessage(); as message) {
-        <div class="access-denied-banner" role="alert">
-          <span aria-hidden="true">🚫</span> You don't have access to {{ message }}. Ask an administrator to grant it on the Roles page.
-          <button type="button" (click)="dismissAccessDenied()" aria-label="Dismiss">✕</button>
-        </div>
-      }
-      <router-outlet />
-    }
-  </main>
+  <div class="app-body">
+    @if (signedIn) {
+      <header class="topbar">
+        <button class="nav-toggle" type="button" [class.open]="navOpen()" (click)="toggleNav()"
+                [attr.aria-expanded]="navOpen()" aria-controls="app-nav"
+                [attr.aria-label]="i18n.t('admin.nav.toggleMenu')">
+          <span class="hamburger" aria-hidden="true"></span>
+        </button>
 
-  <footer class="app-footer">
-    <small>admin.keshavsingh.in</small>
-  </footer>
+        <h1 class="topbar-title">{{ currentPageLabel() }}</h1>
+
+        <div class="topbar-actions">
+          <!-- Doubles as the search affordance: the palette searches pages, and Enter on a free-text
+               query hands off to the full-text search page. -->
+          <button class="palette-trigger" type="button" (click)="openPalette()"
+                  [attr.aria-label]="i18n.t('common.actions.search')">
+            <span aria-hidden="true">{{ icon(keys.iconSearch, '🔍') }}</span>
+            <span class="palette-hint">{{ i18n.t('common.actions.search') }}</span>
+            <kbd>⌘K</kbd>
+          </button>
+
+          <!--
+            Language picker. Rendered only when the languages are known and an admin has left the
+            picker enabled in the config registry — both are runtime values, not build-time ones.
+          -->
+          @if (i18n.showPicker() && i18n.locales().length > 1) {
+            <label class="lang-picker">
+              <span class="sr-only">{{ i18n.t('common.label.language') }}</span>
+              <span aria-hidden="true" class="lang-ico">{{ icon(keys.iconLanguage, '🌐') }}</span>
+              <select [ngModel]="i18n.locale()" (ngModelChange)="switchLanguage($event)"
+                      [title]="i18n.t('common.label.language')">
+                @for (l of i18n.locales(); track l.code) {
+                  <option [value]="l.code">{{ l.nativeName }}</option>
+                }
+              </select>
+            </label>
+          }
+
+          <button class="icon-btn" type="button" (click)="toggleTheme()"
+                  [attr.aria-label]="i18n.t('common.label.theme') + ': ' + theme()"
+                  [title]="i18n.t('common.label.theme') + ': ' + theme()">
+            <span aria-hidden="true">{{
+              theme() === 'light' ? icon(keys.iconThemeLight, '☀')
+                : (theme() === 'dark' ? icon(keys.iconThemeDark, '☾') : icon(keys.iconThemeAuto, '✦'))
+            }}</span>
+          </button>
+
+          <div class="account-menu" [class.open]="accountOpen()">
+            <button class="account-trigger" type="button" (click)="toggleAccount()"
+                    [attr.aria-expanded]="accountOpen()">
+              <app-avatar [userId]="auth.user()?.id" [displayName]="auth.user()?.displayName || 'U'"
+                          [hasAvatar]="!!auth.user()?.hasAvatar" [size]="28" />
+              <span class="user-name">{{ auth.user()?.displayName }}</span>
+              <span class="caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="account-panel">
+              <div class="account-summary">
+                <strong>{{ auth.user()?.displayName }}</strong>
+                <small class="truncate">{{ auth.user()?.email }}</small>
+              </div>
+              <a routerLink="/profile" routerLinkActive="active" (click)="accountOpen.set(false)">
+                <span aria-hidden="true">🙂</span> Profile
+              </a>
+              <a routerLink="/profile/security" (click)="accountOpen.set(false)">
+                <span aria-hidden="true">🔐</span> Security &amp; devices
+              </a>
+              @if (auth.hasRole('Admin')) {
+                <a routerLink="/settings" routerLinkActive="active" (click)="accountOpen.set(false)">
+                  <span aria-hidden="true">⚙️</span> Application settings
+                </a>
+              }
+              <button type="button" (click)="logout()">
+                <span aria-hidden="true">{{ icon(keys.iconSignOut, '⏻') }}</span>
+                {{ i18n.t('admin.nav.signout') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+    }
+
+    @if (routeLoading()) {
+      <div class="route-progress" role="status" aria-live="polite"
+           [attr.aria-label]="i18n.t('common.state.loading')"></div>
+    }
+
+    <main class="app-main">
+      @if (auth.isAuthenticated() && permissionsLoaded() && !hasAppAccess()) {
+        <div class="no-app-access">
+          <span aria-hidden="true">🚫</span>
+          <h1>You don't have access to this application</h1>
+          <p>Your account isn't granted any page in the admin console. Ask an administrator to grant you
+             access, or sign out and continue using the site(s) you do have access to.</p>
+          <button type="button" class="btn-secondary" (click)="logout()">{{ i18n.t('admin.nav.signout') }}</button>
+        </div>
+      } @else {
+        @if (accessDeniedMessage(); as message) {
+          <div class="banner access-denied-banner" role="alert">
+            <span aria-hidden="true">🚫</span>
+            <span class="grow">You don't have access to {{ message }}. Ask an administrator to grant it on the Roles page.</span>
+            <button type="button" (click)="dismissAccessDenied()" aria-label="Dismiss">✕</button>
+          </div>
+        }
+        <router-outlet />
+      }
+    </main>
+
+    <footer class="app-footer">
+      <small>admin.keshavsingh.in</small>
+    </footer>
+  </div>
+
+  @if (signedIn) {
+    <app-command-palette [open]="paletteOpen()" [links]="visibleLinks()" (closed)="paletteOpen.set(false)" />
+  }
 
   @if (auth.isAuthenticated()) {
     <app-meeting-reminder />

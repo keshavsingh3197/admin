@@ -35,8 +35,9 @@ public sealed class UsersController : ControllerBase
     private readonly CustomRoleService _customRoles;
     private readonly IObjectStore _store;
     private readonly PermissionCacheSignal _cacheSignal;
+    private readonly AdminAuditService _audit;
 
-    public UsersController(MongoDbService db, PasswordHasher passwords, GroupService groups, CustomRoleService customRoles, IObjectStore store, PermissionCacheSignal cacheSignal)
+    public UsersController(MongoDbService db, PasswordHasher passwords, GroupService groups, CustomRoleService customRoles, IObjectStore store, PermissionCacheSignal cacheSignal, AdminAuditService audit)
     {
         _users = db.GetCollection<User>("users");
         _tokens = db.GetCollection<RefreshToken>("refresh_tokens");
@@ -45,6 +46,7 @@ public sealed class UsersController : ControllerBase
         _customRoles = customRoles;
         _store = store;
         _cacheSignal = cacheSignal;
+        _audit = audit;
     }
 
     /// <summary>The caller's own profile — available to any authenticated user.</summary>
@@ -223,6 +225,8 @@ public sealed class UsersController : ControllerBase
             MustChangePassword = true,
         };
         await _users.InsertOneAsync(user);
+        await _audit.RecordAsync(AdminAuditEvents.UserCreated, email,
+            $"Roles: {string.Join(", ", roles)}");
         return CreatedAtAction(nameof(Get), new { id = user.Id }, Map(user, Array.Empty<string>()));
     }
 
@@ -231,9 +235,15 @@ public sealed class UsersController : ControllerBase
     public async Task<ActionResult<UserListItem>> Update(string id, UpdateUserRequest request)
     {
         var update = Builders<User>.Update.Set(u => u.UpdatedAt, DateTime.UtcNow);
+        // What CHANGED, for the audit trail — field names only, never the values, which would put
+        // a phone number or a display name into a log that other operators can read.
+        var changed = new List<string>();
 
         if (request.DisplayName is not null)
+        {
             update = update.Set(u => u.DisplayName, request.DisplayName.Trim());
+            changed.Add("display name");
+        }
 
         if (request.Username is not null)
         {
@@ -243,17 +253,24 @@ public sealed class UsersController : ControllerBase
                 await _users.Find(u => u.Username == username && u.Id != id && !u.IsDeleted).AnyAsync())
                 return Conflict(new { error = "That username is already taken." });
             update = update.Set(u => u.Username, username);
+            changed.Add("username");
         }
 
         if (request.PhoneNumber is not null)
+        {
             update = update.Set(u => u.PhoneNumber,
                 string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim());
+            changed.Add("phone number");
+        }
 
         if (request.Roles is not null)
         {
             var roles = NormalizeRoles(request.Roles);
             if (roles is null) return BadRequest(new { error = "One or more roles are invalid." });
             update = update.Set(u => u.Roles, roles);
+            // Roles ARE the authorization decision, so unlike the other fields the new value is the
+            // whole point of auditing the change.
+            changed.Add($"roles → {string.Join(", ", roles)}");
         }
 
         if (request.CustomRoleKeys is not null)
@@ -263,12 +280,14 @@ public sealed class UsersController : ControllerBase
             if (!await _customRoles.AllKeysExistAsync(keys))
                 return BadRequest(new { error = "One or more selected custom roles no longer exist. Refresh and try again." });
             update = update.Set(u => u.CustomRoleKeys, keys);
+            changed.Add($"custom roles → {(keys.Count == 0 ? "none" : string.Join(", ", keys))}");
         }
 
         if (request.IsActive is { } active)
         {
             update = update.Set(u => u.IsActive, active);
             if (!active) await RevokeSessionsAsync(id); // Deactivating ends the user's sessions now.
+            changed.Add(active ? "reactivated" : "deactivated; sessions revoked");
         }
 
         var user = await _users.FindOneAndUpdateAsync<User>(u => u.Id == id, update,
@@ -278,6 +297,9 @@ public sealed class UsersController : ControllerBase
         // Roles, custom roles and active state all feed the cached access set — a revocation has to
         // land now, not whenever the entry happens to expire.
         _cacheSignal.Invalidate();
+
+        await _audit.RecordAsync(AdminAuditEvents.UserUpdated, user.Email,
+            changed.Count == 0 ? "No fields changed." : string.Join("; ", changed));
 
         var groupIds = (await _groups.ListForUserAsync(id)).Select(g => g.Id).ToList();
         return Ok(Map(user, groupIds));
@@ -294,6 +316,8 @@ public sealed class UsersController : ControllerBase
         if (result.MatchedCount == 0) return NotFound();
 
         await RevokeSessionsAsync(id); // Force re-authentication everywhere after a reset.
+        await _audit.RecordAsync(AdminAuditEvents.UserPasswordReset, id,
+            "Password reset by an administrator; all sessions revoked.");
         return NoContent();
     }
 
@@ -312,6 +336,7 @@ public sealed class UsersController : ControllerBase
         if (result.MatchedCount == 0) return NotFound();
 
         await RevokeSessionsAsync(id);
+        await _audit.RecordAsync(AdminAuditEvents.UserDeleted, id, "Soft-deleted; all sessions revoked.");
         return NoContent();
     }
 

@@ -14,60 +14,25 @@ import { CONFIG_KEYS } from './core/models/config.models';
 import { CallOverlayComponent } from './features/messages/call-overlay.component';
 import { MeetingReminderComponent } from './features/meetings/meeting-reminder.component';
 import { AvatarComponent } from './shared/avatar.component';
-
-interface NavLink {
-  path: string;
-  /**
-   * Translation key resolved through {@link I18nService}, so the nav follows the chosen language.
-   * The English text lives in the catalogue (namespace `admin`), not here.
-   */
-  labelKey: string;
-  icon: string;
-  exact: boolean;
-  /**
-   * The `PermissionCatalog` "page.*" key that gates this page server-side (see
-   * `RequirePagePermissionAttribute`). Undefined means every signed-in user can see it (nothing
-   * server-side gates it beyond `[Authorize]`). Admin role always sees everything regardless.
-   */
-  permissionKey?: string;
-}
+import { CommandPaletteComponent } from './shared/command-palette.component';
+import { NAV_GROUPS, NavGroup, NavLink } from './core/models/navigation';
 
 /**
- * Everyday pages stay on the bar; admin pages live behind the Manage menu (see app.html).
- * There is no Dashboard entry — the brand on the left is the link home.
+ * The application shell: a grouped sidebar, a context topbar, and the routed page.
  *
- * Icons are the fallback glyph only: the live one comes from the config registry (`ui.icon.*`) when
- * an admin has configured it — see {@link App.icon}.
+ * <para>It was a horizontal header until the app outgrew it. With 27 feature areas, six fitted on
+ * the bar and the other twelve lived behind a single "Manage" dropdown — so over half the product
+ * was two clicks deep and invisible until you went looking. A vertical sidebar has room to show
+ * every page the user can reach, grouped by what it is for, and {@link NAV_GROUPS} is the one place
+ * that grouping is declared.</para>
  */
-const PRIMARY_LINKS: NavLink[] = [
-  // One entry for every conversation — team chat, visitors and the contact form are tabs inside it.
-  { path: '/inbox', labelKey: 'admin.nav.inbox', icon: '💬', exact: false, permissionKey: 'page.inbox' },
-  { path: '/meetings', labelKey: 'admin.nav.meetings', icon: '📅', exact: false },
-  { path: '/notes', labelKey: 'admin.nav.notes', icon: '📝', exact: false, permissionKey: 'page.notes' },
-  { path: '/files', labelKey: 'admin.nav.files', icon: '📁', exact: false, permissionKey: 'page.files' },
-  { path: '/short-links', labelKey: 'admin.nav.shortLinks', icon: '🔗', exact: false, permissionKey: 'page.shortLinks' },
-  { path: '/finance', labelKey: 'admin.nav.finance', icon: '💰', exact: false, permissionKey: 'page.finance' },
-];
-
-const ADMIN_LINKS: NavLink[] = [
-  { path: '/localization', labelKey: 'admin.nav.localization', icon: '🌍', exact: false },
-  { path: '/website', labelKey: 'admin.nav.websites', icon: '🌐', exact: false },
-  { path: '/database', labelKey: 'admin.nav.database', icon: '🗃️', exact: false },
-  { path: '/users', labelKey: 'admin.nav.users', icon: '👤', exact: false },
-  { path: '/account-requests', labelKey: 'admin.nav.accountRequests', icon: '🙋', exact: false },
-  { path: '/groups', labelKey: 'admin.nav.groups', icon: '👪', exact: false },
-  { path: '/roles', labelKey: 'admin.nav.roles', icon: '🎫', exact: false },
-  { path: '/analytics', labelKey: 'admin.nav.analytics', icon: '📊', exact: false },
-  { path: '/data-retention', labelKey: 'admin.nav.dataRetention', icon: '🗄️', exact: false },
-  { path: '/health', labelKey: 'admin.nav.health', icon: '❤️', exact: false },
-  { path: '/packages', labelKey: 'admin.nav.packages', icon: '📦', exact: false },
-  { path: '/settings', labelKey: 'admin.nav.settings', icon: '⚙️', exact: false },
-];
-
 @Component({
   selector: 'app-root',
-  // FormsModule: the language picker in the header is an ngModel-bound <select>.
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule, CallOverlayComponent, MeetingReminderComponent, AvatarComponent],
+  // FormsModule: the language picker in the topbar is an ngModel-bound <select>.
+  imports: [
+    RouterOutlet, RouterLink, RouterLinkActive, FormsModule,
+    CallOverlayComponent, MeetingReminderComponent, AvatarComponent, CommandPaletteComponent,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -84,8 +49,6 @@ export class App {
   private rbac = inject(RbacService);
   protected readonly keys = CONFIG_KEYS;
 
-  readonly primaryLinks = PRIMARY_LINKS;
-  readonly adminLinks = ADMIN_LINKS;
   /** This user's `page.*` grants (see PermissionCatalog) — Admin role sees everything regardless. */
   readonly pagePermissions = signal<string[]>([]);
   /** True once the permissions fetch for the current identity has settled (success or failure) — so
@@ -93,6 +56,9 @@ export class App {
   readonly permissionsLoaded = signal(false);
   /** Set from `?denied=<page.key>`, left by `pagePermissionGuard` when it turns back a nav attempt. */
   readonly accessDeniedMessage = signal<string | null>(null);
+  /** Current URL, tracked so the topbar can name the page and the palette can highlight it. */
+  private readonly currentUrl = signal('/');
+
   /**
    * A signed-in identity with the Admin role, or at least one granted `page.*` key, has SOME reason to
    * be in this app. Everyone else — someone who only has a role/grant on another *.keshavsingh.in site
@@ -102,10 +68,43 @@ export class App {
   readonly hasAppAccess = computed(() =>
     this.auth.hasRole('Admin') || this.pagePermissions().length > 0);
 
+  /**
+   * The nav, filtered to what this identity can actually open, with any group left empty dropped.
+   * Filtering here (rather than rendering a link that 403s) is the same rule the route guards apply
+   * server-side — this is presentation of that decision, never the decision itself.
+   */
+  readonly visibleGroups = computed<NavGroup[]>(() => {
+    const isAdmin = this.auth.hasRole('Admin');
+    const granted = this.pagePermissions();
+    // Both gates, in the order the router applies them: an Admin-only route is Admin-only whatever
+    // page grants the identity holds, and a granted route needs its key. A link with neither is
+    // open to anyone signed in.
+    const allowed = (link: NavLink) =>
+      isAdmin || (!link.adminOnly && (!link.permissionKey || granted.includes(link.permissionKey)));
+    return NAV_GROUPS
+      .map(group => ({ ...group, links: group.links.filter(allowed) }))
+      .filter(group => group.links.length > 0);
+  });
+
+  /** Flattened, for the command palette and for naming the current page. */
+  readonly visibleLinks = computed<NavLink[]>(() => this.visibleGroups().flatMap(g => g.links));
+
+  /** The active page's label, shown in the topbar so the page always announces itself. */
+  readonly currentPageLabel = computed(() => {
+    const url = this.currentUrl().split('?')[0];
+    // Longest matching path wins, so /finance/accounts resolves to Finance and not to /.
+    const match = this.visibleLinks()
+      .filter(link => url === link.path || url.startsWith(link.path + '/'))
+      .sort((a, b) => b.path.length - a.path.length)[0];
+    return match ? this.i18n.t(match.labelKey) : this.i18n.t('admin.nav.dashboard');
+  });
+
   readonly routeLoading = signal(false);
+  /** Mobile drawer. Distinct from `sidebarCollapsed`, which is the desktop rail. */
   readonly navOpen = signal(false);
-  readonly adminMenuOpen = signal(false);
   readonly accountOpen = signal(false);
+  readonly paletteOpen = signal(false);
+  readonly sidebarCollapsed = signal(localStorage.getItem('admin.sidebar') === 'collapsed');
   readonly theme = signal<'light' | 'dark' | 'brand'>(this.detectInitialTheme());
 
   constructor() {
@@ -118,6 +117,10 @@ export class App {
       const nextTheme = this.theme();
       document.body.dataset['theme'] = nextTheme;
       localStorage.setItem('admin.theme', nextTheme);
+    });
+
+    effect(() => {
+      localStorage.setItem('admin.sidebar', this.sidebarCollapsed() ? 'collapsed' : 'expanded');
     });
 
     // Hold the chat hub open for the whole session (not just the Messages page) so incoming
@@ -156,6 +159,7 @@ export class App {
 
         // Track this admin app itself as a website in Analytics, same as the external sites.
         if (event instanceof NavigationEnd) {
+          this.currentUrl.set(event.urlAfterRedirects);
           this.analytics
             .trackVisit({ websiteKey: 'admin', path: event.urlAfterRedirects })
             .subscribe({ error: () => {} });
@@ -184,23 +188,19 @@ export class App {
     return this.i18n.configText(CONFIG_KEYS.brandName, 'Admin');
   }
 
-  /** Nav entries the signed-in user actually has a grant for — Admin role always sees all of them. */
-  visiblePrimaryLinks(): NavLink[] {
-    if (this.auth.hasRole('Admin')) return this.primaryLinks;
-    const granted = this.pagePermissions();
-    return this.primaryLinks.filter(link => !link.permissionKey || granted.includes(link.permissionKey));
-  }
-
-  /** Admin-only pages grouped behind the Manage menu. */
-  visibleAdminLinks(): NavLink[] {
-    if (this.auth.hasRole('Admin')) return this.adminLinks;
-    const granted = this.pagePermissions();
-    return this.adminLinks.filter(link => !link.permissionKey || granted.includes(link.permissionKey));
+  /**
+   * A section heading, falling back to the compiled-in English. `I18nService.t` returns the KEY when
+   * a string is missing, which would print "admin.nav.group.workspace" in the sidebar before the
+   * catalogue loads — so an unresolved key is treated as no translation at all.
+   */
+  groupLabel(group: NavGroup): string {
+    const text = this.i18n.t(group.labelKey);
+    return text === group.labelKey ? group.fallback : text;
   }
 
   /** A human label for a denied `page.*` key, for the access-denied banner — falls back to the raw key. */
   private labelForPermission(permissionKey: string): string {
-    const link = [...this.primaryLinks, ...this.adminLinks].find(l => l.permissionKey === permissionKey);
+    const link = NAV_GROUPS.flatMap(g => g.links).find(l => l.permissionKey === permissionKey);
     return link ? this.i18n.t(link.labelKey) : permissionKey;
   }
 
@@ -218,28 +218,41 @@ export class App {
 
   closeNav(): void {
     this.navOpen.set(false);
-    this.adminMenuOpen.set(false);
   }
 
-  toggleAdminMenu(): void {
-    this.adminMenuOpen.update((open) => !open);
+  toggleSidebar(): void {
+    this.sidebarCollapsed.update((collapsed) => !collapsed);
   }
 
   toggleAccount(): void {
     this.accountOpen.update((open) => !open);
   }
 
+  openPalette(): void {
+    this.paletteOpen.set(true);
+  }
+
+  /**
+   * Ctrl/Cmd-K opens the command palette from anywhere. Bound on the document rather than the shell
+   * element so it still fires while focus is inside a routed page.
+   */
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      if (this.auth.isAuthenticated() && this.hasAppAccess()) this.paletteOpen.set(true);
+    }
+  }
+
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
     if (this.accountOpen() && !target?.closest('.account-menu')) this.accountOpen.set(false);
-    if (this.adminMenuOpen() && !target?.closest('.manage-menu')) this.adminMenuOpen.set(false);
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
     this.accountOpen.set(false);
-    this.adminMenuOpen.set(false);
     this.navOpen.set(false);
   }
 
@@ -257,6 +270,8 @@ export class App {
       return stored;
     }
 
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    // Guarded: `matchMedia` is absent in a test DOM and in any non-browser render, and a missing
+    // OS preference is not a reason for the shell to fail to construct.
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 }

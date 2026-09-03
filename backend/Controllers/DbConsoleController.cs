@@ -35,16 +35,18 @@ public sealed class DbConsoleController : ControllerBase
     private readonly MongoDbService _mongo;
     private readonly ILogger<DbConsoleController> _log;
     private readonly DatabaseBackupService _backups;
+    private readonly AdminAuditService _audit;
     private readonly long? _capacityBytes;
 
     public DbConsoleController(
         MongoQueryConsole console, MongoDbService mongo, DatabaseBackupService backups,
-        IConfiguration configuration, ILogger<DbConsoleController> log)
+        AdminAuditService audit, IConfiguration configuration, ILogger<DbConsoleController> log)
     {
         _console = console;
         _mongo = mongo;
         _log = log;
         _backups = backups;
+        _audit = audit;
         _capacityBytes = long.TryParse(configuration["DatabaseOperations:CapacityBytes"], out var value) && value > 0
             ? value
             : null;
@@ -101,7 +103,12 @@ public sealed class DbConsoleController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<DatabaseBackupView>>> Backups(CancellationToken ct) => Ok(await _backups.ListAsync(ct));
 
     [HttpPost("backups")]
-    public async Task<ActionResult<DatabaseBackupView>> CreateBackup(CancellationToken ct) => Ok(await _backups.CreateAsync(Me, ct));
+    public async Task<ActionResult<DatabaseBackupView>> CreateBackup(CancellationToken ct)
+    {
+        var backup = await _backups.CreateAsync(Me, ct);
+        await _audit.RecordAsync(AdminAuditEvents.BackupCreated, "database", "Manual backup created.", ct: ct);
+        return Ok(backup);
+    }
 
     [HttpGet("collections/{collection}/indexes")]
     public Task<ActionResult<IReadOnlyList<string>>> Indexes(string collection, CancellationToken ct) =>
@@ -124,23 +131,27 @@ public sealed class DbConsoleController : ControllerBase
     public Task<ActionResult<IReadOnlyList<string>>> Distinct(DbDistinctRequest r, CancellationToken ct) =>
         Run("distinct", r.Collection, () => _console.DistinctAsync(r.Collection, r.Field, r.Filter, ct));
 
+    // The three writes are the only console operations that CHANGE anything, so they are the ones
+    // that get a durable audit row as well as a log line. The document id is recorded (it is what
+    // makes the row reconstructable) but never the document or the update — those are the data.
+
     [HttpPost("insert-one")]
     public Task<ActionResult<MongoConsoleWriteResult>> InsertOne(DbInsertRequest r, CancellationToken ct) =>
-        Run("insertOne", r.Collection, () => _console.InsertOneAsync(r.Collection, r.Document, ct));
+        Run("insertOne", r.Collection, () => _console.InsertOneAsync(r.Collection, r.Document, ct), audit: "document inserted");
 
     [HttpPost("update-one")]
     public Task<ActionResult<MongoConsoleWriteResult>> UpdateOne(DbUpdateRequest r, CancellationToken ct) =>
-        Run("updateOne", r.Collection, () => _console.UpdateOneAsync(r.Collection, r.Id, r.Update, ct));
+        Run("updateOne", r.Collection, () => _console.UpdateOneAsync(r.Collection, r.Id, r.Update, ct), audit: $"document {r.Id} updated");
 
     [HttpPost("delete-one")]
     public Task<ActionResult<MongoConsoleWriteResult>> DeleteOne(DbDeleteRequest r, CancellationToken ct) =>
-        Run("deleteOne", r.Collection, () => _console.DeleteOneAsync(r.Collection, r.Id, ct));
+        Run("deleteOne", r.Collection, () => _console.DeleteOneAsync(r.Collection, r.Id, ct), audit: $"document {r.Id} deleted");
 
     /// <summary>
     /// Runs one console operation: audit line first, then the call, with a rejected request coming back
     /// as a 400 carrying the guard's own explanation (which is written for the person who typed it).
     /// </summary>
-    private async Task<ActionResult<T>> Run<T>(string operation, string collection, Func<Task<T>> action)
+    private async Task<ActionResult<T>> Run<T>(string operation, string collection, Func<Task<T>> action, string? audit = null)
     {
         _log.LogInformation(
             "DB console {Operation} on {Collection} by {UserId} from {Ip}",
@@ -148,12 +159,20 @@ public sealed class DbConsoleController : ControllerBase
 
         try
         {
-            return Ok(await action());
+            var result = Ok(await action());
+            if (audit is not null)
+                await _audit.RecordAsync(AdminAuditEvents.ConsoleWrite, collection, audit);
+            return result;
         }
         catch (MongoConsoleException ex)
         {
             _log.LogWarning("DB console {Operation} on {Collection} rejected for {UserId}",
                 operation, collection, Me);
+            // A rejected write is worth keeping: a run of them is what an attempt to get around the
+            // guard looks like. The guard's reason is safe to record — it describes the RULE, not the data.
+            if (audit is not null)
+                await _audit.RecordAsync(AdminAuditEvents.ConsoleWrite, collection,
+                    $"Rejected {operation}: {ex.Message}", success: false);
             return BadRequest(new { error = ex.Message });
         }
         catch (MongoException ex)

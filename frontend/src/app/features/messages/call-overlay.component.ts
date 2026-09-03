@@ -209,7 +209,7 @@ import { PeerView } from '../../core/models/call.models';
     .roster .pstate { margin-left: auto; color: var(--muted); font-size: .74rem; }
     .tag { font-size: .68rem; background: var(--surface); border: 1px solid var(--border);
            border-radius: 99px; padding: 0 .35rem; font-style: normal; color: var(--muted); }
-    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #9aa5b1; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--faint); }
     .dot.on { background: #2ecc71; } .dot.ring { background: #f1c40f; }
 
     .add { position: relative; }
@@ -234,9 +234,9 @@ import { PeerView } from '../../core/models/call.models';
     .tiles:not(.gallery) { grid-template-columns: 1fr; }
     .tiles:not(.gallery) .tile.local {
       position: absolute; right: .5rem; bottom: .5rem; width: 28%; aspect-ratio: 4 / 3;
-      border: 1px solid color-mix(in srgb, #fff 25%, transparent); border-radius: 8px;
+      border: 1px solid color-mix(in srgb, var(--surface) 25%, transparent); border-radius: 8px;
     }
-    .camoff { position: absolute; inset: 0; display: grid; place-items: center; gap: .3rem; color: #cbd5e1; }
+    .camoff { position: absolute; inset: 0; display: grid; place-items: center; gap: .3rem; color: var(--border-strong); }
     .camoff small { font-size: .72rem; }
 
     .meters { display: flex; align-items: center; gap: .6rem; font-size: .78rem; color: var(--muted); }
@@ -244,9 +244,9 @@ import { PeerView } from '../../core/models/call.models';
     .bar { display: inline-block; width: 54px; height: 6px; border-radius: 99px; background: var(--border); overflow: hidden; }
     .bar b { display: block; height: 100%; background: #2ecc71; transition: width .2s linear; }
     .flags { margin-left: auto; }
-    .flags .bad { color: #d93025; font-weight: 600; }
+    .flags .bad { color: var(--danger); font-weight: 600; }
 
-    .unlock { background: #fef7e0; color: #8a5b00; border: 1px solid #f5d98a; border-radius: 8px;
+    .unlock { background: var(--warning-soft); color: var(--warning); border: 1px solid #f5d98a; border-radius: 8px;
               padding: .35rem .6rem; font-size: .8rem; cursor: pointer; }
 
     .vol { display: flex; align-items: center; gap: .4rem; }
@@ -262,8 +262,8 @@ import { PeerView } from '../../core/models/call.models';
     .cbtn { border: 1px solid var(--border); background: var(--bg); color: var(--text);
             border-radius: 8px; padding: .4rem .7rem; font-size: .82rem; cursor: pointer; }
     .cbtn.icon { padding: .2rem .5rem; }
-    .cbtn.accept { background: #137333; border-color: transparent; color: #fff; }
-    .cbtn.end { background: transparent; color: #d93025; border-color: color-mix(in srgb, #d93025 40%, transparent); }
+    .cbtn.accept { background: var(--success); border-color: transparent; color: var(--on-accent); }
+    .cbtn.end { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger-border) 40%, transparent); }
     .cbtn.plain.on { background: var(--brand); color: var(--brand-text); border-color: transparent; }
     @media (prefers-reduced-motion: no-preference) {
       .call-card { animation: rise .18s ease-out; }
