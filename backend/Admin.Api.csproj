@@ -28,7 +28,7 @@
     <PackageReference Include="Fido2" Version="4.0.1" />
     <!-- Override Fido2's transitive Microsoft.Bcl.Memory 9.0.0 (advisory GHSA-73j8-2gch-69rq)
          with the patched build. Remove once Fido2 ships a fixed transitive pin. -->
-    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.11" />
     <!-- Excel (.xlsx) export of finance data (public nuget.org). Pinned; Snyk-scanned. -->
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <!-- Bank statement PDFs, including password-protected ones (public nuget.org, Apache-2.0).
