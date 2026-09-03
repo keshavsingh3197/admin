@@ -90,10 +90,10 @@ import { DataDomainOverview } from '../../core/models/data-retention.models';
     .range-inputs label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--muted); }
     .input { padding: 0.45rem 0.55rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
     .btn-secondary { padding: 0.45rem 0.8rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
-    .btn-danger { padding: 0.45rem 0.8rem; background: #d93025; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-danger { padding: 0.45rem 0.8rem; background: var(--danger); color: var(--on-accent); border: none; border-radius: 6px; cursor: pointer; }
     .btn-secondary:disabled, .btn-danger:disabled { opacity: 0.55; cursor: default; }
-    .banner { background: color-mix(in srgb, #d93025 12%, var(--surface)); color: #c5221f; border: 1px solid color-mix(in srgb, #d93025 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
-    .banner.ok { background: color-mix(in srgb, #137333 12%, var(--surface)); color: #137333; border-color: color-mix(in srgb, #137333 30%, var(--border)); }
+    .banner { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger-border) 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
+    .banner.ok { background: color-mix(in srgb, var(--success) 12%, var(--surface)); color: var(--success); border-color: color-mix(in srgb, var(--success-border) 30%, var(--border)); }
   `]
 })
 export class DataRetentionComponent implements OnInit {

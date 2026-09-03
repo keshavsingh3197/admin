@@ -76,9 +76,9 @@ const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/g
     .btn-primary:disabled { opacity: .6; cursor: default; }
     .btn-secondary { padding: .4rem .85rem; border: 1px solid var(--border); border-radius: 7px; background: var(--bg);
       color: var(--text); cursor: pointer; }
-    .btn-link-danger { border: none; background: none; color: #c5221f; cursor: pointer; padding: 0; font-size: .85rem; }
-    .banner { padding: .6rem .8rem; border-radius: 7px; margin-bottom: 1rem; background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c3; }
-    .banner.ok { background: #e6f4ea; color: #137333; border-color: #b7e1c4; }
+    .btn-link-danger { border: none; background: none; color: var(--danger); cursor: pointer; padding: 0; font-size: .85rem; }
+    .banner { padding: .6rem .8rem; border-radius: 7px; margin-bottom: 1rem; background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border); }
+    .banner.ok { background: var(--success-soft); color: var(--success); border-color: var(--success-border); }
     .muted { color: var(--muted); }
   `],
 })

@@ -7,10 +7,14 @@ when it ships; don't delete history.
 ## To do
 
 - **Publish the four bumped packages, in dependency order, before the next admin deploy** —
-  `KeshavSingh.Security` 0.6.0 → `KeshavSingh.Auth` 0.10.0 → `KeshavSingh.Core` 0.6.0 →
+  `KeshavSingh.Security` 0.6.0 → `KeshavSingh.Auth` 0.10.0 → `KeshavSingh.Core` **0.7.0** →
   `KeshavSingh.Mongo.NoSql` 0.4.0. Local builds use sibling `ProjectReference`s so everything
   compiles today; an isolated Render/CI checkout restores from the registry and will fail until
   these are published. `Admin.Api.csproj` already points at the new versions.
+  Core went to 0.7.0 (not 0.6.0) for the audit viewer: `LoginAudit` gained `Target`/`Details` and
+  `[BsonIgnoreExtraElements]`. The change is additive, so the other consumers
+  (`content-blog`, `ghar-ledger`, `Localization`, `Realtime`) were deliberately left on 0.6.0 —
+  bumping them would have forced two more package publishes for no behaviour change.
 - **Run `db/migrations/005_normalize-usernames.mongodb.js`** against each environment before the
   deploy that carries the username-normalisation change.
 - **A real `IEmailSender` / `ISmsSender`.** Both are still wired to the `Logging*` stubs
@@ -20,13 +24,42 @@ when it ships; don't delete history.
 - **Split the largest frontend components.** `localization.component.ts` (60 KB),
   `finance-manage.component.ts` (46 KB), `messages.component.ts` (38 KB) and
   `call.service.ts` (37 KB) each carry template, styles and logic in one file, and have no tests.
-  Deliberately left alone in the security pass: they are the highest-regression-risk files in the
-  repo and this WSL environment cannot run `npm`, so the change could not be verified.
-- **Frontend lint + specs.** There is no `lint` script and one spec for ~17,000 lines. Adding
-  `ng lint` needs `ng add @angular-eslint/schematics` first — an npm operation.
+  Still outstanding, but no longer blocked: the frontend *can* be built and tested in this WSL shell
+  by invoking the Windows Node directly —
+  `"/mnt/c/Program Files/nodejs/node.exe" node_modules/@angular/cli/bin/ng.js build` (the Linux
+  `npm` shim is the part that fails, with `exec: node: Permission denied`).
+- **Frontend lint.** There is still no `lint` script; adding `ng lint` needs
+  `ng add @angular-eslint/schematics` first, which writes to `package.json` and installs packages.
+- **Sixteen components exceed the 4 kB component-style warning budget** (`files`, `messages`,
+  `meetings`, `finance-dashboard` worst). Pre-existing, and unchanged by the design-system pass —
+  the token sweep grew component CSS by ~2.3 kB in total and pushed nothing over the line — but the
+  fix is to move the repeated block/table/form rules into the shared layer in `styles.css` rather
+  than to raise the budget.
 - **Consider RS256 + JWKS for the SSO signing key.** `SSO.md` already names the tradeoff: the shared
   HS256 secret means every resource server can *mint* tokens, not just validate them. `DataProtector`
   now versions its ciphertext for rotation; the JWT key has no equivalent.
+
+## Done (UI redesign pass)
+
+- **Design system.** `src/styles.css` rewritten around semantic tokens (status, surface, border and
+  accent families across all three themes) plus a shared component layer. The ~150-line
+  `!important` override block is gone: it existed only because there were no danger/success/warning
+  tokens, so ~30 components hard-coded `#d93025`/`#137333` and those hexes could not follow a theme.
+  254 hard-coded colours across 29 components were mapped to tokens, and the 62 repeated
+  `color-mix(… var(--border))` border recipes were promoted to `--danger-border` and friends.
+- **Sidebar shell.** The horizontal header could show six of 27 feature areas, with the other twelve
+  behind one "Manage" dropdown. Replaced with a grouped, collapsible sidebar + context topbar.
+  `core/models/navigation.ts` is now the single declaration the sidebar and the palette share.
+  It also carries `adminOnly`, which fixed a real leak: the old Manage menu listed every Admin page
+  — the database console among them — to any signed-in user holding any grant at all.
+- **Command palette (⌘K).** Searches pages (from the same permission-filtered list the sidebar
+  renders) and real records through `/api/search`, with keyboard navigation.
+- **Audit log viewer** (`page.audit`, `/api/audit`, read-only by construction) — plus the recording
+  that makes it non-empty: user lifecycle, role/group/grant changes, settings changes, database
+  console writes, backups and retention purges now leave durable rows instead of only an `ILogger`
+  line in Render's rolling buffer. Administrative events get their own retention window
+  (`AdminAuditRetentionDays`, default 730 days) so they are not purged on the sign-in clock.
+- **Tests:** frontend 2 failing → 14 passing; backend 207 → 217.
 
 ## Done (this review pass)
 

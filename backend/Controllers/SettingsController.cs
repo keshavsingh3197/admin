@@ -15,12 +15,14 @@ public sealed class SettingsController : ControllerBase
     private readonly SettingsService _settings;
     private readonly WebsiteRegistryService _websites;
     private readonly ApplicationMetricsService _applicationMetrics;
+    private readonly AdminAuditService _audit;
 
-    public SettingsController(SettingsService settings, WebsiteRegistryService websites, ApplicationMetricsService applicationMetrics)
+    public SettingsController(SettingsService settings, WebsiteRegistryService websites, ApplicationMetricsService applicationMetrics, AdminAuditService audit)
     {
         _settings = settings;
         _websites = websites;
         _applicationMetrics = applicationMetrics;
+        _audit = audit;
     }
 
     [HttpGet]
@@ -31,10 +33,18 @@ public sealed class SettingsController : ControllerBase
     {
         try
         {
-            return Ok(await _settings.ApplyAsync(request));
+            var view = await _settings.ApplyAsync(request);
+            // These settings ARE security controls — lockout thresholds, token lifetimes, which
+            // second factors are on — so a change to them belongs in the same trail as a role grant.
+            // The values are not recorded: some of this section holds secrets.
+            await _audit.RecordAsync(AdminAuditEvents.SettingsChanged, "auth & application settings",
+                "Runtime settings updated.");
+            return Ok(view);
         }
         catch (ArgumentException ex)
         {
+            await _audit.RecordAsync(AdminAuditEvents.SettingsChanged, "auth & application settings",
+                "Rejected: invalid value.", success: false);
             return BadRequest(new { error = ex.Message });
         }
     }

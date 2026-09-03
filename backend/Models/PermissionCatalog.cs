@@ -28,6 +28,7 @@ public static class PermissionCatalog
         new("page.groups", "Pages", "Groups", "Access group management."),
         new("page.search", "Pages", "Search", "Use the global search."),
         new("page.health", "Pages", "System Health", "View diagnostic checks for data and configuration integrity."),
+        new("page.audit", "Pages", "Audit Log", "View the security and administrative audit trail."),
         new("page.files", "Pages", "Files", "Access private documents and folders."),
         new("page.finance", "Pages", "Finance", "Access household finance tracking."),
         new("page.inbox", "Pages", "Inbox", "Access team chat, visitor chat, and the contact form."),

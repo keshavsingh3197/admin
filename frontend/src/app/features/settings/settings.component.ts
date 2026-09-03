@@ -69,7 +69,12 @@ interface SettingsImportPayload {
               <input class="input" type="number" min="1" max="3650" name="ar" [(ngModel)]="m.analyticsRetentionDays" /></label>
             <label class="field"><span>Login audit log retention (days)</span>
               <input class="input" type="number" min="1" max="3650" name="lar" [(ngModel)]="m.loginAuditRetentionDays" /></label>
+            <label class="field"><span>Administrative audit retention (days)</span>
+              <input class="input" type="number" min="1" max="3650" name="aar" [(ngModel)]="m.adminAuditRetentionDays" /></label>
           </div>
+          <p class="hint">Administrative events (role grants, settings changes, console writes) are kept
+            on their own clock, and deliberately far longer than sign-in traffic: they are low-volume and
+            are what an incident review actually needs. See the <a routerLink="/audit">Audit log</a>.</p>
           <p class="hint">These retention windows are enforced automatically every 30 minutes. Use <a routerLink="/data-retention">Data retention</a> to clear a specific date range on demand.</p>
           <label class="chk"><input type="checkbox" name="singleSession" [(ngModel)]="m.enforceSingleSessionPerUser" /> Enforce single active session per user (new login closes others)</label>
 
@@ -308,11 +313,11 @@ interface SettingsImportPayload {
     .card h2 { font-size: 1.05rem; margin: 1.25rem 0 0.75rem; }
     .card h2:first-of-type { margin-top: 0; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
-    .field span { display: block; margin-bottom: 0.3rem; font-size: 0.82rem; color: #444; }
-    .input { width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
-    .input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px #e8f0fe; }
-    .hint { color: #666; font-size: 0.85rem; margin: 0 0 0.6rem; }
-    .hint.warn { color: #8a4b00; }
+    .field span { display: block; margin-bottom: 0.3rem; font-size: 0.82rem; color: var(--text); }
+    .input { width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; }
+    .input:focus { outline: none; border-color: var(--brand-border); box-shadow: 0 0 0 2px var(--brand-soft); }
+    .hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.6rem; }
+    .hint.warn { color: var(--warning); }
     .card h3.sub { font-size: 0.95rem; margin: 1.1rem 0 0.5rem; }
     .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
     .chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.5rem; border-radius: 12px;
@@ -321,25 +326,25 @@ interface SettingsImportPayload {
     .repo-search { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; }
     .repo-list { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem; }
     .repo-list .chk { font-size: 0.85rem; }
-    .checklist { margin: 0 0 0.8rem 1.2rem; color: #444; font-size: 0.9rem; }
+    .checklist { margin: 0 0 0.8rem 1.2rem; color: var(--text); font-size: 0.9rem; }
     .chk { display: block; margin-bottom: 0.5rem; font-size: 0.92rem; }
-    .website-editor { border: 1px solid #e0e0e0; border-radius: 8px; padding: 0.8rem; margin-bottom: 0.9rem; }
-    .table-wrap { overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .website-editor { border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; margin-bottom: 0.9rem; }
+    .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
     .tbl { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
     .tbl th, .tbl td { padding: 0.55rem; border-bottom: 1px solid #eef0f2; text-align: left; vertical-align: top; }
-    .tbl th { background: #f9fafb; font-weight: 600; }
-    .tbl td a { color: #1a73e8; text-decoration: none; }
+    .tbl th { background: var(--surface-2); font-weight: 600; }
+    .tbl td a { color: var(--brand); text-decoration: none; }
     .row-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .btn-secondary { padding: 0.45rem 0.8rem; border: 1px solid #cfd4da; border-radius: 6px; background: #fff; cursor: pointer; }
+    .btn-secondary { padding: 0.45rem 0.8rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); cursor: pointer; }
     .hidden-input { display: none; }
-    .btn-link { border: none; background: transparent; color: #1a73e8; cursor: pointer; padding: 0; }
-    .btn-link.danger { color: #c5221f; }
+    .btn-link { border: none; background: transparent; color: var(--brand); cursor: pointer; padding: 0; }
+    .btn-link.danger { color: var(--danger); }
     .foot { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; }
-    .btn-primary { padding: 0.6rem 1.2rem; background: #1a73e8; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-primary { padding: 0.6rem 1.2rem; background: var(--brand); color: var(--brand-text); border: none; border-radius: 6px; cursor: pointer; }
     .btn-primary:disabled { opacity: 0.6; cursor: default; }
-    .updated { color: #888; font-size: 0.8rem; }
-    .banner { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c3; border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
-    .banner.ok { background: #e6f4ea; color: #137333; border-color: #b7e1c4; }
+    .updated { color: var(--faint); font-size: 0.8rem; }
+    .banner { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
+    .banner.ok { background: var(--success-soft); color: var(--success); border-color: var(--success-border); }
   `]
 })
 export class SettingsComponent implements OnInit {
@@ -569,6 +574,7 @@ export class SettingsComponent implements OnInit {
       refreshTokenRetentionDays: Number(m.refreshTokenRetentionDays),
       analyticsRetentionDays: Number(m.analyticsRetentionDays),
       loginAuditRetentionDays: Number(m.loginAuditRetentionDays),
+      adminAuditRetentionDays: Number(m.adminAuditRetentionDays),
       emailOtpMinutes: Number(m.emailOtpMinutes),
       maxFailedLoginAttempts: Number(m.maxFailedLoginAttempts),
       lockoutMinutes: Number(m.lockoutMinutes),

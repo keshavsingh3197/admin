@@ -201,6 +201,14 @@ export const routes: Routes = [
       import('./features/analytics/analytics.component').then((m) => m.AnalyticsComponent),
   },
   {
+    // Grantable on its own rather than Admin-only: the trail names who signed in from where, so it
+    // is closer to personal data than most screens. Mirrors [RequirePagePermission] on AuditController.
+    path: 'audit',
+    canActivate: [pagePermissionGuard('page.audit')],
+    loadComponent: () =>
+      import('./features/audit/audit.component').then((m) => m.AuditComponent),
+  },
+  {
     path: 'data-retention',
     canActivate: [adminGuard],
     loadComponent: () =>

@@ -96,6 +96,20 @@ the SPA hard-codes — everything else comes from `/api/config`. `auth.intercept
 bearer to same-origin API calls and retries a 401 once through a silent SSO session (never on
 `/sso/*`), then fails closed to `/login`.
 
+**The three themes are a token contract, not a stylesheet.** `src/styles.css` defines every colour
+as a semantic token (`--danger`, `--success-soft`, `--brand-border`, `--surface-2`, `--on-accent`…)
+and `body[data-theme='light'|'dark'|'brand']` only redefines those values. A component must paint
+with tokens: a hard-coded hex does not change with the theme, which is how the file previously ended
+up carrying ~150 lines of `!important` overrides keyed to a hand-maintained list of component class
+names. If a component needs a colour the tokens don't cover, add the token. The same file holds the
+shared component layer (`.card`, `.btn-*`, `.input`, `.tbl`, `.badge`, `.status`, `.banner`) —
+component styles are injected after it, so a local rule still wins where a feature needs to differ.
+
+**The nav is declared once**, in `src/app/core/models/navigation.ts`: the sidebar and the ⌘K command
+palette both render from `NAV_GROUPS`, so a new page appears in both from one entry. An entry must
+state the gate its route actually enforces — `permissionKey` for `pagePermissionGuard`, `adminOnly`
+for `adminGuard` — or the sidebar will advertise a page that bounces the user straight back.
+
 ## Traps
 
 - The real test project is `tests/Admin.Api.Tests/`. `backend/tests/Admin.Api.Tests/` is a stale copy

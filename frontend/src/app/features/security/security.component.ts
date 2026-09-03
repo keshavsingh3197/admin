@@ -232,30 +232,30 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
   styles: [`
     .sec-wrap { max-width: 560px; margin: 0 auto; padding: 1rem; }
     .page-title { font-size: 1.5rem; margin: 0 0 1rem; }
-    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.25rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.25rem; }
     .card h2 { font-size: 1.1rem; margin: 0 0 1rem; }
     .field { display: block; margin-bottom: 1rem; }
-    .field span { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #444; }
-    .input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
-    .input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px #e8f0fe; }
-    .btn-primary { padding: 0.6rem 1.1rem; background: #1a73e8; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    .field span { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: var(--text); }
+    .input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; }
+    .input:focus { outline: none; border-color: var(--brand-border); box-shadow: 0 0 0 2px var(--brand-soft); }
+    .btn-primary { padding: 0.6rem 1.1rem; background: var(--brand); color: var(--brand-text); border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
     .btn-primary:hover:not(:disabled) { background: #1663c7; }
     .btn-primary:disabled, .btn-danger:disabled { opacity: 0.6; cursor: default; }
-    .btn-danger { padding: 0.6rem 1.1rem; background: #d93025; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
-    .btn-danger:hover:not(:disabled) { background: #b3271d; }
+    .btn-danger { padding: 0.6rem 1.1rem; background: var(--danger); color: var(--on-accent); border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    .btn-danger:hover:not(:disabled) { background: var(--danger); }
     .banner {
-      background: color-mix(in srgb, #c5221f 16%, var(--surface));
-      color: #f7d8d5;
-      border: 1px solid color-mix(in srgb, #c5221f 45%, var(--border));
+      background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+      color: var(--danger-soft);
+      border: 1px solid color-mix(in srgb, var(--danger-border) 45%, var(--border));
       border-radius: 6px;
       padding: 0.6rem 0.75rem;
       margin-bottom: 1rem;
       font-size: 0.9rem;
     }
     .banner.ok {
-      background: color-mix(in srgb, #137333 16%, var(--surface));
-      color: color-mix(in srgb, #8df0b5 86%, #ffffff);
-      border-color: color-mix(in srgb, #137333 48%, var(--border));
+      background: color-mix(in srgb, var(--success) 16%, var(--surface));
+      color: color-mix(in srgb, #8df0b5 86%, var(--surface));
+      border-color: color-mix(in srgb, var(--success-border) 48%, var(--border));
     }
     .ok-text { color: color-mix(in srgb, #7fe7ab 90%, var(--text)); }
     .qr { display: block; width: 200px; height: 200px; margin: 0.5rem 0; border: 1px solid #eee; border-radius: 6px; }
@@ -283,8 +283,8 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
       text-align: center;
     }
     .code-actions { display: flex; gap: 0.5rem; margin: 0.75rem 0 0.5rem; }
-    .btn-secondary { padding: 0.5rem 0.9rem; background: #fff; color: #1a73e8; border: 1px solid #1a73e8; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
-    .btn-secondary:hover { background: #e8f0fe; }
+    .btn-secondary { padding: 0.5rem 0.9rem; background: var(--surface); color: var(--brand); border: 1px solid var(--brand-border); border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
+    .btn-secondary:hover { background: var(--brand-soft); }
     .hint { font-size: 0.8rem; color: var(--muted); margin: 0.25rem 0 0; }
     .muted { color: var(--muted); font-size: 0.9rem; }
     .pk-list { list-style: none; padding: 0; margin: 0 0 1rem; }
@@ -292,18 +292,18 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
     .pk-icon { font-size: 1.2rem; }
     .pk-meta { display: flex; flex-direction: column; flex: 1; }
     .pk-meta small { color: var(--muted); font-size: 0.78rem; }
-    .btn-link-danger { background: none; border: none; color: #d93025; cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.4rem; }
+    .btn-link-danger { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.4rem; }
     .btn-link-danger:hover:not(:disabled) { text-decoration: underline; }
     .btn-link-danger:disabled { opacity: 0.5; cursor: default; }
     .pk-confirm { flex-basis: 100%; display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
     .pk-confirm .input { flex: 1; padding: 0.45rem 0.6rem; font-size: 0.9rem; }
-    .btn-danger-sm { padding: 0.45rem 0.8rem; background: #d93025; color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
-    .btn-danger-sm:hover:not(:disabled) { background: #b3271d; }
+    .btn-danger-sm { padding: 0.45rem 0.8rem; background: var(--danger); color: var(--on-accent); border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+    .btn-danger-sm:hover:not(:disabled) { background: var(--danger); }
     .btn-danger-sm:disabled { opacity: 0.6; cursor: default; }
     .btn-link { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.4rem; }
     .btn-link:hover:not(:disabled) { text-decoration: underline; }
     .pk-details { flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem;
-      margin: 0.5rem 0 0.25rem; padding: 0.6rem 0.75rem; background: #f8f9fa; border-radius: 6px; }
+      margin: 0.5rem 0 0.25rem; padding: 0.6rem 0.75rem; background: var(--surface-2); border-radius: 6px; }
     .pk-details dt { color: var(--muted); font-size: 0.78rem; }
     .pk-details dd { margin: 0; font-size: 0.82rem; color: var(--text); }
     .pk-details dd.mono { font-family: monospace; }

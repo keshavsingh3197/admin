@@ -631,7 +631,7 @@ interface EditRow {
     .filters { display:flex; gap:.6rem; flex-wrap:wrap; align-items:flex-end; }
     .inline { display:flex; flex-direction:column; gap:.15rem; font-size:.78rem; color:var(--muted); }
     .card { border:1px solid var(--border); border-radius:12px; background:var(--surface); padding:1rem; margin-top:1rem; }
-    .form.card { border-color:color-mix(in srgb, var(--brand) 40%, var(--border)); }
+    .form.card { border-color:var(--brand-border); }
     .table { width:100%; border-collapse:collapse; font-size:.86rem; background:var(--surface);
       border:1px solid var(--border); border-radius:12px; overflow:hidden; }
     .table th, .table td { text-align:left; padding:.5rem .65rem; border-bottom:1px solid var(--border);
@@ -663,7 +663,7 @@ interface EditRow {
     .pad { padding:.9rem; }
     /* Status hues stay fixed across themes (a red is still a warning in dark mode); blending them with
        var(--surface)/var(--border) via color-mix keeps contrast correct in light, dark and brand themes. */
-    :host { --st-good:#0ca30c; --st-warning:#c2410c; --st-critical:#c5221f; }
+    :host { --st-good:var(--success); --st-warning:var(--warning); --st-critical:var(--danger); }
     .warn { color:var(--st-warning); font-weight:600; }
     .tag { font-size:.68rem; background:var(--bg); border:1px solid var(--border); border-radius:99px;
       padding:.05rem .45rem; color:var(--muted); }
@@ -680,8 +680,8 @@ interface EditRow {
     .result { margin-top:.7rem; font-size:.82rem; }
     .result ul { margin:.3rem 0 0; padding-left:1.1rem; color:var(--st-warning); }
     .message { margin-top:1rem; color:var(--st-good); font-size:.85rem; }
-    .toast { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:#fce8e6; color:#c5221f;
-      border:1px solid #f5c6c6; border-radius:8px; padding:.6rem 1rem; z-index:50; cursor:pointer; }
+    .toast { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:var(--danger-soft); color:var(--danger);
+      border:1px solid var(--danger-border); border-radius:8px; padding:.6rem 1rem; z-index:50; cursor:pointer; }
     @media (max-width: 760px) { .k, .src { width:auto; } }
   `],
 })

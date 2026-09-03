@@ -14,7 +14,13 @@ public sealed class DataRetentionController : ControllerBase
 {
     private readonly DataRetentionService _service;
 
-    public DataRetentionController(DataRetentionService service) => _service = service;
+    private readonly AdminAuditService _audit;
+
+    public DataRetentionController(DataRetentionService service, AdminAuditService audit)
+    {
+        _service = service;
+        _audit = audit;
+    }
 
     [HttpGet("overview")]
     public async Task<ActionResult<IReadOnlyList<DataDomainOverviewDto>>> Overview(CancellationToken ct) =>
@@ -26,6 +32,10 @@ public sealed class DataRetentionController : ControllerBase
         try
         {
             var deleted = await _service.PurgeRangeAsync(request.Domain, request.FromUtc, request.ToUtc, ct);
+            // Deleting records is itself an administrative action, and the audit rows are one of the
+            // things a purge can delete — so the purge must leave a record of its own.
+            await _audit.RecordAsync(AdminAuditEvents.RetentionPurge, request.Domain,
+                $"Purged {deleted} record(s) dated {request.FromUtc:yyyy-MM-dd} to {request.ToUtc:yyyy-MM-dd}.", ct: ct);
             return Ok(new PurgeResultDto(deleted));
         }
         catch (ArgumentException ex)
@@ -40,6 +50,8 @@ public sealed class DataRetentionController : ControllerBase
         try
         {
             var deleted = await _service.PurgeExpiredAsync(domain, ct);
+            await _audit.RecordAsync(AdminAuditEvents.RetentionPurge, domain,
+                $"Purged {deleted} record(s) past the configured retention window.", ct: ct);
             return Ok(new PurgeResultDto(deleted));
         }
         catch (ArgumentException ex)

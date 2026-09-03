@@ -239,9 +239,9 @@ import {
       /* Validated categorical hues (light defaults); dark steps applied below via the themed body. */
       --v-blue:#2a78d6; --v-aqua:#1baf7a; --v-yellow:#eda100; --v-orange:#eb6834;
       --v-green:#0a9d5a; --v-magenta:#e87ba4; --v-violet:#6d5ce0;
-      --st-warning:#fab219; --st-critical:#d03b3b; --st-good:#0ca30c; }
+      --st-warning:#fab219; --st-critical:var(--danger); --st-good:var(--success); }
     :host-context(body[data-theme='dark']) .finance {
-      --v-blue:#3987e5; --v-aqua:#199e70; --v-yellow:#c98500; --v-orange:#d95926;
+      --v-blue:#3987e5; --v-aqua:#199e70; --v-yellow:var(--warning); --v-orange:#d95926;
       --v-green:#12a866; --v-magenta:#d55181; --v-violet:#9085e9; }
     .fin-head { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; margin-bottom:1.5rem; }
     .subtitle { color:var(--muted); margin:0.25rem 0 0; }
@@ -283,7 +283,7 @@ import {
     .advis-msg { margin:0.25rem 0 0; font-size:0.86rem; color:var(--muted); }
     .advis-action { margin:0.4rem 0 0; font-size:0.82rem; color:var(--text); font-weight:500; }
     .sev-tag { font-size:0.66rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;
-      padding:0.1rem 0.45rem; border-radius:99px; color:#fff; flex-shrink:0; }
+      padding:0.1rem 0.45rem; border-radius:99px; color:var(--surface); flex-shrink:0; }
     .sev-tag.sev-critical { background:var(--st-critical); }
     .sev-tag.sev-warning { background:var(--st-warning); color:#3a2c00; }
     .sev-tag.sev-info { background:var(--brand); color:var(--brand-text); }
@@ -324,7 +324,7 @@ import {
     .stat { display:flex; flex-direction:column; }
     .stat small { color:var(--muted); font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; }
     .stat strong { font-size:1.05rem; }
-    .stat .pos { color:#137333; } .stat .neg { color:#c5221f; }
+    .stat .pos { color:var(--success); } .stat .neg { color:var(--danger); }
     .bars { display:flex; align-items:flex-end; gap:.6rem; height:120px; padding:.5rem 0 0;
             border-bottom:1px solid var(--border); }
     .bar-col { display:flex; flex-direction:column; align-items:center; gap:.25rem; flex:1; height:100%; }

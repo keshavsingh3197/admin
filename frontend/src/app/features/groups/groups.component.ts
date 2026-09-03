@@ -146,7 +146,7 @@ import { UserListItem } from '../../core/models/user.models';
     .wrap { max-width: 1000px; margin: 0 auto; padding: 1rem; }
     .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
     .page-title { font-size: 1.5rem; margin: 0; color: var(--text); }
-    .scope-chip { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border)); border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 1rem; font-size: 0.86rem; }
+    .scope-chip { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border: 1px solid var(--brand-border); border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 1rem; font-size: 0.86rem; }
     .scope-chip a { color: var(--brand); text-decoration: none; margin-left: auto; }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
@@ -169,7 +169,7 @@ import { UserListItem } from '../../core/models/user.models';
     .badge.member { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
     .badge.member .rm { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0; font-size: 0.8rem; }
     .linkish { background: none; border: none; color: var(--brand); cursor: pointer; padding: 0 0.3rem; }
-    .linkish.danger { color: #d93025; }
+    .linkish.danger { color: var(--danger); }
     .edit-row td { background: var(--bg); }
     .edit-panel { display: flex; flex-direction: column; gap: 0.75rem; }
     .view-row td { background: var(--bg); }
@@ -179,8 +179,8 @@ import { UserListItem } from '../../core/models/user.models';
     .grant-perms { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .add-member { display: flex; align-items: center; gap: 0.5rem; }
     .muted { color: var(--muted); font-size: 0.85rem; }
-    .banner { background: color-mix(in srgb, #d93025 12%, var(--surface)); color: #c5221f; border: 1px solid color-mix(in srgb, #d93025 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
-    .banner.ok { background: color-mix(in srgb, #137333 12%, var(--surface)); color: #137333; border-color: color-mix(in srgb, #137333 30%, var(--border)); }
+    .banner { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger-border) 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
+    .banner.ok { background: color-mix(in srgb, var(--success) 12%, var(--surface)); color: var(--success); border-color: color-mix(in srgb, var(--success-border) 30%, var(--border)); }
   `]
 })
 export class GroupsComponent implements OnInit {

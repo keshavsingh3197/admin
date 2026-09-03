@@ -86,19 +86,19 @@ type StatusFilter = 'all' | HealthStatus;
     .lead { color: var(--muted); margin: 0.2rem 0 0; font-size: 0.9rem; }
     .btn-secondary { padding: 0.45rem 0.8rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
     .btn-secondary:disabled { opacity: 0.55; cursor: default; }
-    .banner { background: color-mix(in srgb, #d93025 12%, var(--surface)); color: #c5221f; border: 1px solid color-mix(in srgb, #d93025 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
+    .banner { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger-border) 30%, var(--border)); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
     .initial-loading, .loading-overlay { display: flex; align-items: center; justify-content: center; gap: 0.6rem; color: var(--muted); font-size: 0.9rem; }
     .initial-loading { padding: 2rem 0; }
     .loading-overlay { position: absolute; inset: 0; z-index: 2; background: color-mix(in srgb, var(--bg) 65%, transparent); border-radius: 10px; backdrop-filter: blur(1px); }
     .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.8rem 0; }
-    .overall { flex: 1 0 100%; display: flex; flex-direction: column; gap: .2rem; border-left: 4px solid #c5221f; background: var(--surface); padding: .75rem 1rem; border-radius: 6px; }
-    .overall.healthy { border-color: #137333; } .overall.degraded { border-color: #b06000; } .overall span { color: var(--muted); font-size: .82rem; }
+    .overall { flex: 1 0 100%; display: flex; flex-direction: column; gap: .2rem; border-left: 4px solid var(--danger-border); background: var(--surface); padding: .75rem 1rem; border-radius: 6px; }
+    .overall.healthy { border-color: var(--success-border); } .overall.degraded { border-color: var(--warning-border); } .overall span { color: var(--muted); font-size: .82rem; }
     .pill { padding: 0.3rem 0.7rem; border-radius: 999px; font-weight: 600; font-size: 0.85rem; }
-    .pill.ok { background: #e6f4ea; color: #137333; }
-    .pill.warning { background: #fef7e0; color: #b06000; }
-    .pill.error { background: #fce8e6; color: #c5221f; }
+    .pill.ok { background: var(--success-soft); color: var(--success); }
+    .pill.warning { background: var(--warning-soft); color: var(--warning); }
+    .pill.error { background: var(--danger-soft); color: var(--danger); }
     .generated { color: var(--muted); margin-left: 0.3rem; }
     .filters { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem; }
     .filters label { font-size: 0.85rem; color: var(--muted); }
@@ -112,11 +112,11 @@ type StatusFilter = 'all' | HealthStatus;
     .check p { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.85rem; }
     .check-foot { display:flex; justify-content:space-between; margin-top:.55rem; color:var(--muted); font-size:.72rem; }.check-foot a{color:var(--brand);text-decoration:none;font-weight:600}
     .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-    .check.ok .dot { background: #137333; }
-    .check.warning .dot { background: #b06000; }
-    .check.error .dot { background: #c5221f; }
-    .check.error { border-color: color-mix(in srgb, #c5221f 40%, var(--border)); }
-    .check.warning { border-color: color-mix(in srgb, #b06000 40%, var(--border)); }
+    .check.ok .dot { background: var(--success); }
+    .check.warning .dot { background: var(--warning); }
+    .check.error .dot { background: var(--danger); }
+    .check.error { border-color: color-mix(in srgb, var(--danger-border) 40%, var(--border)); }
+    .check.warning { border-color: color-mix(in srgb, var(--warning-border) 40%, var(--border)); }
     .empty { color: var(--muted); }
   `]
 })

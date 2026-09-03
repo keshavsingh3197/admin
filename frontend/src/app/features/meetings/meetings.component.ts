@@ -333,9 +333,9 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     .desc, .people { color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; }
     .tag { font-size: .7rem; font-style: normal; background: var(--bg); border: 1px solid var(--border);
            border-radius: 99px; padding: 0 .4rem; color: var(--muted); }
-    .tag.live { background: #e6f4ea; color: #137333; border-color: #b7dfc0; }
+    .tag.live { background: var(--success-soft); color: var(--success); border-color: var(--success-border); }
     .ops { display: flex; gap: .3rem; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #9aa5b1; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--faint); }
     .dot.online { background: #2ecc71; } .dot.idle { background: #f1c40f; }
     .chk { display: inline-flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .85rem; }
     .btn { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid transparent;
@@ -343,7 +343,7 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     .btn.sm { padding: .35rem .7rem; font-size: .82rem; } .btn.xs { padding: .25rem .55rem; font-size: .78rem; }
     .btn.primary { background: var(--brand); color: var(--brand-text); }
     .btn.secondary { background: var(--bg); color: var(--text); border-color: var(--border); }
-    .btn.danger { background: transparent; color: #d93025; border-color: color-mix(in srgb, #d93025 40%, transparent); }
+    .btn.danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger-border) 40%, transparent); }
     .btn:disabled { opacity: .5; cursor: default; }
     .icon-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; width: 30px; height: 30px; cursor: pointer; }
     .overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
@@ -368,10 +368,10 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
                color: var(--text); font-size: .85rem; }
     .dir-row:hover { background: var(--bg); }
     .pick { width: 1rem; }
-    .err { color: #d93025; font-size: .8rem; }
+    .err { color: var(--danger); font-size: .8rem; }
     .muted { color: var(--muted); } .pad { padding: 1rem; }
-    .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: #fce8e6;
-             color: #c5221f; border: 1px solid #f5c6c6; border-radius: 8px; padding: .6rem 1rem; z-index: 50; }
+    .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--danger-soft);
+             color: var(--danger); border: 1px solid var(--danger-border); border-radius: 8px; padding: .6rem 1rem; z-index: 50; }
     @media (max-width: 640px) { .card { grid-template-columns: 1fr; } .row { flex-direction: column; } }
   `],
 })

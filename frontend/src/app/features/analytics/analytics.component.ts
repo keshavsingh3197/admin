@@ -223,7 +223,7 @@ type Tab = 'website' | 'identity';
       gap: 0.35rem;
     }
     .site-overview h2 { margin: 0; }
-    .site-overview a { color: #1a73e8; text-decoration: none; }
+    .site-overview a { color: var(--brand); text-decoration: none; }
     .status {
       width: fit-content;
       padding: 0.3rem 0.6rem;
@@ -234,8 +234,8 @@ type Tab = 'website' | 'identity';
       gap: 0.4rem;
       align-items: center;
     }
-    .status.ok { background: #e6f4ea; color: #137333; }
-    .status.down { background: #fce8e6; color: #c5221f; }
+    .status.ok { background: var(--success-soft); color: var(--success); }
+    .status.down { background: var(--danger-soft); color: var(--danger); }
     .status span { font-weight: 500; opacity: 0.9; }
     .cards {
       display: grid;
@@ -310,7 +310,7 @@ type Tab = 'website' | 'identity';
     .tbl { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
     .tbl th, .tbl td { padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: left; }
     .tbl th { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
-    .error { color: #c5221f; }
+    .error { color: var(--danger); }
     .loading, .empty { color: var(--muted); }
 
     @media (max-width: 720px) {

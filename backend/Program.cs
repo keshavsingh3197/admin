@@ -105,6 +105,7 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddSingleton<DataRetentionService>();
 builder.Services.AddSingleton<HealthCheckService>();
 builder.Services.AddSingleton<PackageInventoryService>();
+builder.Services.AddSingleton<AdminAuditService>();
 builder.Services.AddSingleton<DatabaseBackupService>();
 builder.Services.AddHostedService<SessionRetentionCleanupWorker>();
 builder.Services.AddMemoryCache();
