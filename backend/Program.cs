@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json.Serialization;
-using System.Threading.RateLimiting;
 using Admin.Api.Auth;
 using Admin.Api.Services;
+using Admin.Api.Startup;
 using Admin.Api.Dtos;
 using Admin.Api.Localization;
 using Fido2NetLib;
@@ -88,6 +88,7 @@ builder.Services.AddSingleton<SessionRetentionService>();
 builder.Services.AddSingleton<CustomRoleService>();
 builder.Services.AddSingleton<GroupService>();
 builder.Services.AddSingleton<PermissionMasterService>();
+builder.Services.AddSingleton<PermissionCacheSignal>();
 builder.Services.AddSingleton<PermissionsService>();
 builder.Services.AddSingleton<IPageAccessEvaluator>(sp => sp.GetRequiredService<PermissionsService>());
 builder.Services.AddSingleton<SearchService>();
@@ -162,11 +163,20 @@ builder.Services
     .AddKeshavLocalizationControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-// ---- CORS: allow the SSO family — any keshavsingh.in subdomain (admin, id, git, blog, …)
-// over https, plus localhost in dev. Credentialed, so this is a scoped predicate allowlist
-// (never AllowAnyOrigin). New sibling apps work without touching this. ----
+// ---- CORS: the SSO family. This policy is credentialed AND the browsers that satisfy it hold the
+// .keshavsingh.in refresh cookie, so whatever it admits is effectively a fully trusted origin.
+//
+// AllowedOrigins is therefore the real control, not decoration: listing the origins we actually run
+// means a *.keshavsingh.in subdomain whose DNS outlives the service behind it (a retired Pages or
+// Render CNAME someone else can claim) does NOT inherit that trust. Leave the list empty only to
+// fall back to the wildcard-subdomain rule. localhost is dev-only — in production it bought nothing,
+// because local development runs the API on localhost too, which is same-origin. ----
 const string CorsPolicy = "AdminCorsPolicy";
-builder.Services.AddKeshavSsoCors(CorsPolicy);
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddKeshavSsoCors(
+    CorsPolicy,
+    allowedOrigins,
+    allowLocalhost: builder.Environment.IsDevelopment());
 
 // ---- Authentication: OAuth2 bearer (JWT) validated on every request ----
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -203,80 +213,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
-// ---- Rate limiting: stricter window on auth endpoints to blunt brute force ----
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 20,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
-    // The public contact form: a real visitor sends one message, so this only has to be generous enough
-    // not to block a retry, and tight enough that the inbox can't be flooded from one address.
-    options.AddPolicy("contact", context => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(10),
-            QueueLimit = 0,
-        }));
-    // "Request an account". A real applicant submits once, so this only has to be loose enough to
-    // survive a retry and tight enough that the queue cannot be filled from one address.
-    options.AddPolicy("account-request", context => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(15),
-            QueueLimit = 0,
-        }));
-    // The anonymous config + localisation reads. Every public page load fetches these, and clients
-    // poll the manifest, so the budget is generous — it exists to stop one address hammering them,
-    // not to pace a normal visit. Responses are ETagged, so a poll that finds nothing new is a 304.
-    options.AddPolicy("public-config", context => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 240,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
-    // Visitor chat polls every few seconds while the widget is open, so this has to be roomy — it is
-    // here to stop a flood, not to pace a conversation.
-    options.AddPolicy("visitor-chat", context => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 120,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
-    // Starting a conversation is once-per-visitor, so it gets its own much tighter budget: this is what
-    // stops the queue being filled with empty threads.
-    options.AddPolicy("visitor-chat-start", context => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromHours(1),
-            QueueLimit = 0,
-        }));
-    // Public short-link redirects: generous, since a shared link can get a real burst of clicks — this
-    // exists to blunt scripted abuse, not to pace normal traffic.
-    options.AddPolicy("shortlink-redirect", context => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 120,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0,
-        }));
-});
+// ---- Rate limiting: see Startup/RateLimitingExtensions.cs for every policy and why it exists ----
+builder.Services.AddAdminRateLimiting();
 
 builder.Services.AddHealthChecks();
 
@@ -321,43 +259,7 @@ app.MapControllers();
 app.MapKeshavChatHub(app.Configuration);
 app.MapHealthChecks("/health");
 
-// ---- First-run settings load + admin seed ----
-await app.Services.GetRequiredService<SettingsService>().InitAsync();
-await app.Services.GetRequiredService<WebsiteRegistryService>()
-    .EnsureIndexesAsync();
-await app.Services.GetRequiredService<WebsiteVisitService>()
-    .EnsureIndexesAsync();
-// Localisation first, and before the localised-content index: it supplies the default language that
-// index and its backfill need. Creates the indexes, applies both seed sources (additively — an
-// editor's change is never overwritten) and leaves the caches warm.
-await app.Services.InitKeshavLocalizationAsync();
-await app.Services.GetRequiredService<WebsiteContentService>()
-    .EnsureIndexesAsync();
-await app.Services.GetRequiredService<TwoFactorDeviceService>()
-    .EnsureIndexesAsync();
-await app.Services.GetRequiredService<ContactService>().EnsureIndexesAsync();
-await app.Services.GetRequiredService<AccountRequestService>().EnsureIndexesAsync();
-await app.Services.GetRequiredService<VisitorChatService>().EnsureIndexesAsync();
-await app.Services.GetRequiredService<CustomRoleService>().EnsureIndexesAsync();
-await app.Services.GetRequiredService<PermissionMasterService>().EnsureIndexesAsync();
-await app.Services.GetRequiredService<PermissionMasterService>().SeedAsync();
-await app.Services.GetRequiredService<CustomRoleService>().SeedSystemRolesAsync();
-await app.Services.GetRequiredService<GroupService>().EnsureIndexesAsync();
-await app.Services.GetRequiredService<FolderService>().EnsureIndexesAsync();
-await app.Services.GetRequiredService<FileService>().EnsureIndexesAsync();
-await app.Services.GetRequiredService<ShortLinkService>().EnsureIndexesAsync();
-var publicConfig = app.Services.GetRequiredService<SettingsService>().ToPublicConfig();
-// The portfolio's URL isn't part of the shared PublicConfig (nothing else needs it), so it comes from
-// Websites:PortfolioUrl — only ever used to seed the registry row, which is editable on Settings after.
-await app.Services.GetRequiredService<WebsiteRegistryService>()
-    .SeedDefaultsAsync(
-        publicConfig.BlogUrl,
-        publicConfig.BlogAdminUrl,
-        app.Configuration["Websites:PortfolioUrl"] ?? "https://keshavsingh.in");
-using (var scope = app.Services.CreateScope())
-{
-    await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();
-    await scope.ServiceProvider.GetRequiredService<PasskeyService>().EnsureIndexesAsync();
-}
+// ---- One-time setup: indexes, seeds, warm caches. The ORDER matters — see the file. ----
+await app.InitializeAdminAsync();
 
 app.Run();

@@ -80,17 +80,22 @@ The custom domain `admin.keshavsingh.in` is configured via the `frontend/public/
 
 ## API Endpoints
 
-| Method | Path                      | Description                                                       |
-|--------|---------------------------|-------------------------------------------------------------------|
-| GET    | /api/notes                | List all notes                                                    |
-| GET    | /api/notes/{id}           | Get note by ID                                                    |
-| POST   | /api/notes                | Create note                                                       |
-| PUT    | /api/notes/{id}           | Update note                                                       |
-| DELETE | /api/notes/{id}           | Delete note                                                       |
-| GET    | /api/config               | Central runtime config: URLs, icons, flags, languages (anonymous) |
-| GET    | /api/i18n/manifest        | Languages + per-locale bundle versions (anonymous)                |
-| GET    | /api/i18n/bundle/{locale} | Translated strings for one language (anonymous)                   |
-| GET    | /health                   | Health check                                                      |
+`backend/Controllers/` is the inventory — 26 controllers, so a hand-maintained table here goes stale
+faster than it helps. The anonymous surface is the part worth naming, because everything else
+requires a session:
 
-The editorial and admin sides of localisation and configuration are listed in
-[docs/LOCALIZATION.md](docs/LOCALIZATION.md).
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/sso/login · /api/sso/session · /api/sso/logout | The SSO surface every family app calls |
+| GET | /api/config | Central runtime config: URLs, icons, flags, languages |
+| GET | /api/i18n/manifest · /api/i18n/bundle/{locale} | Languages and translated strings |
+| GET | /api/website-content/public/{site}/{key} | Localised page content |
+| POST | /api/analytics/visit | Page-view beacon from a public site |
+| POST | /api/contact · /api/account-requests | Contact form and "request an account" |
+| POST | /api/visitor-chat/* | Visitor chat widget |
+| GET | /s/{code} | Short-link redirect |
+| GET | /health | Liveness probe |
+
+Everything anonymous is rate-limited (see the policies in `Program.cs`). The editorial and admin
+sides of localisation and configuration are listed in [docs/LOCALIZATION.md](docs/LOCALIZATION.md);
+the security posture and the reasoning behind it are in [docs/REVIEW.md](docs/REVIEW.md).

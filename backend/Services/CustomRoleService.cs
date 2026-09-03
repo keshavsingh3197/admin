@@ -11,13 +11,15 @@ public sealed class CustomRoleService
     private readonly IMongoCollection<User> _users;
     private readonly IMongoCollection<Group> _groups;
     private readonly PermissionMasterService _permissions;
+    private readonly PermissionCacheSignal _cacheSignal;
 
-    public CustomRoleService(MongoDbService db, PermissionMasterService permissions)
+    public CustomRoleService(MongoDbService db, PermissionMasterService permissions, PermissionCacheSignal cacheSignal)
     {
         _roles = db.GetCollection<CustomRole>("custom_roles");
         _users = db.GetCollection<User>("users");
         _groups = db.GetCollection<Group>("groups");
         _permissions = permissions;
+        _cacheSignal = cacheSignal;
     }
 
     public async Task EnsureIndexesAsync(CancellationToken ct = default)
@@ -128,6 +130,7 @@ public sealed class CustomRoleService
             IsSystem = false,
         };
         await _roles.InsertOneAsync(entity, cancellationToken: ct);
+        _cacheSignal.Invalidate();
         return Map(entity);
     }
 
@@ -151,6 +154,7 @@ public sealed class CustomRoleService
 
         var updated = await _roles.FindOneAndUpdateAsync(x => x.Id == id, update,
             new FindOneAndUpdateOptions<CustomRole> { ReturnDocument = ReturnDocument.After }, ct);
+        _cacheSignal.Invalidate();
         return updated is null ? null : Map(updated);
     }
 
@@ -168,6 +172,7 @@ public sealed class CustomRoleService
         await _groups.UpdateManyAsync(x => x.RoleKeys.Contains(existing.Key),
             Builders<Group>.Update.Pull(x => x.RoleKeys, existing.Key).Set(x => x.UpdatedAt, DateTime.UtcNow),
             cancellationToken: ct);
+        _cacheSignal.Invalidate();
     }
 
     public static List<WebsiteGrant> NormalizeWebsiteGrants(IEnumerable<WebsiteGrantDto>? grants)

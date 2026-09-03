@@ -13,6 +13,7 @@ const MIGRATIONS = [
   '002_seed-app-config',
   '003_localization',
   '004_portfolio-structured-content',
+  '005_normalize-usernames',
 ];
 
 print(`Applying ${MIGRATIONS.length} migration(s)…`);

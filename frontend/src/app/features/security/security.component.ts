@@ -129,9 +129,20 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
         } @else {
           @if (twoFactorDevices().length >= twoFactorMaxDevices()) {
             <p class="muted">You’ve reached the limit of {{ twoFactorMaxDevices() }} authenticator devices. Remove one to add another.</p>
+          } @else if (twoFactorEnabledView()) {
+            <!-- Adding a device to an account that already has 2FA reveals the account's existing
+                 authenticator key, so it costs the password — the same bar as removing one. -->
+            <div class="pk-confirm">
+              <input class="input" type="password" name="add2fa" autocomplete="current-password"
+                     placeholder="Confirm your password" [ngModelOptions]="{ standalone: true }"
+                     [(ngModel)]="enrollPassword" [disabled]="twoFaLoading()" />
+              <button class="btn-primary" type="button" [disabled]="twoFaLoading() || !enrollPassword" (click)="startEnroll()">
+                {{ twoFaLoading() ? 'Starting…' : 'Add authenticator device' }}
+              </button>
+            </div>
           } @else {
             <button class="btn-primary" type="button" [disabled]="twoFaLoading()" (click)="startEnroll()">
-              {{ twoFaLoading() ? 'Starting…' : (twoFactorEnabledView() ? 'Add authenticator device' : 'Set up authenticator') }}
+              {{ twoFaLoading() ? 'Starting…' : 'Set up authenticator' }}
             </button>
           }
         }
@@ -335,6 +346,8 @@ export class SecurityComponent implements OnInit {
   readonly twoFactorRemovingId = signal<string | null>(null);
   readonly twoFactorDetailsId = signal<string | null>(null);
   twoFactorRemovePassword = '';
+  /** Only used when 2FA is already enabled; a first-time setup needs no password. */
+  enrollPassword = '';
 
   changePassword(): void {
     if (this.newPassword !== this.confirmPassword || this.newPassword.length < 12) return;
@@ -356,12 +369,15 @@ export class SecurityComponent implements OnInit {
   }
 
   startEnroll(): void {
+    // Required once 2FA is on; the server rejects the call without it.
+    if (this.twoFactorEnabledView() && !this.enrollPassword) return;
     this.twoFaLoading.set(true);
     this.twoFaMessage.set(null);
-    this.auth.twoFactorDeviceEnrollStart().subscribe({
+    this.auth.twoFactorDeviceEnrollStart(this.enrollPassword || undefined).subscribe({
       next: data => {
         this.twoFaLoading.set(false);
         this.enroll.set(data);
+        this.enrollPassword = '';
         this.enrollCode = '';
         this.enrollDeviceName = '';
         this.enrollDeviceType = 'Authenticator App';
@@ -398,6 +414,7 @@ export class SecurityComponent implements OnInit {
 
   cancelEnroll(): void {
     this.enroll.set(null);
+    this.enrollPassword = '';
     this.enrollCode = '';
     this.enrollDeviceName = '';
     this.enrollDeviceType = 'Authenticator App';

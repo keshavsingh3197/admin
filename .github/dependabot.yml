@@ -1,0 +1,41 @@
+# Dependency updates for the two ecosystems this repo actually builds from.
+# Grouped so a routine patch bump is one reviewable PR rather than a dozen.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: "/backend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The private KeshavSingh.* packages are released deliberately, in dependency order
+      # (see docs/PACKAGE_RELEASES.md) — never by an automated bump.
+      aspnet:
+        patterns:
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.Extensions.*"
+          - "Microsoft.IdentityModel.*"
+      mongo:
+        patterns:
+          - "MongoDB.*"
+    ignore:
+      - dependency-name: "KeshavSingh.*"
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      angular:
+        patterns:
+          - "@angular/*"
+          - "@angular-devkit/*"
+    ignore:
+      # Same reasoning as NuGet: these ship from the sibling repos on their own cadence.
+      - dependency-name: "@keshavsingh3197/*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

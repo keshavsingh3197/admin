@@ -8,6 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Reference the app itself so the tests exercise the real implementations. Previously this
+         project re-declared private copies of the logic it "tested", which meant the tests passed
+         no matter what the app did. -->
+    <ProjectReference Include="../../backend/Admin.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.0.0">

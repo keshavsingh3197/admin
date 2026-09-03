@@ -65,14 +65,32 @@ public sealed class TwoFactorDeviceService
         return new TwoFactorDeviceCapabilitiesDto(MaxDevices(), (int)count, user.TwoFactorEnabled);
     }
 
+    /// <summary>
+    /// Begins adding an authenticator device.
+    ///
+    /// <para>Unlike a first-time enrollment, adding a SECOND device has to reveal the account's
+    /// existing TOTP secret — that is what makes both devices produce the same codes. Revealing it
+    /// on the strength of an access token alone would mean a stolen token yields a permanent,
+    /// silent second factor: the attacker can generate codes forever and the victim's own
+    /// authenticator keeps working, so nothing ever looks wrong. So once 2FA is enabled this costs
+    /// the password, exactly as removing a device already does.</para>
+    /// </summary>
     public async Task<StartTwoFactorDeviceEnrollmentResponse> StartEnrollmentAsync(
         string userId,
+        string? password = null,
         CancellationToken ct = default)
     {
         var user = await RequireActiveUserAsync(userId, ct);
         var registered = await _devices.CountDocumentsAsync(x => x.UserId == userId, cancellationToken: ct);
         if (registered >= MaxDevices())
             throw new AuthException($"You can have at most {MaxDevices()} authenticator devices.", 400);
+
+        if (user.TwoFactorEnabled && !string.IsNullOrWhiteSpace(user.TotpSecretEncrypted)
+            && (string.IsNullOrEmpty(password) || !_passwords.Verify(password, user.PasswordHash)))
+        {
+            throw new AuthException(
+                "Confirm your password to add another authenticator to an account that already has two-factor enabled.", 403);
+        }
 
         string secret;
         if (string.IsNullOrWhiteSpace(user.TotpSecretEncrypted))
@@ -110,7 +128,9 @@ public sealed class TwoFactorDeviceService
             throw new AuthException($"You can have at most {MaxDevices()} authenticator devices.", 400);
 
         var secret = _protector.Decrypt(user.TotpSecretEncrypted);
-        if (!_totp.VerifyCode(secret, request.Code?.Trim() ?? string.Empty))
+        // Honour the replay guard here too, and burn the confirming code: a code spent proving a
+        // device works must not then also be usable to open a session.
+        if (!_totp.TryVerifyCode(secret, request.Code?.Trim() ?? string.Empty, user.LastTotpStep, out var totpStep))
             throw new AuthException("The code did not match. Check your authenticator and try again.", 400);
 
         var device = new TwoFactorDevice
@@ -123,6 +143,11 @@ public sealed class TwoFactorDeviceService
         };
 
         await _devices.InsertOneAsync(device, cancellationToken: ct);
+
+        await _users.UpdateOneAsync(
+            x => x.Id == userId,
+            Builders<User>.Update.Set(x => x.LastTotpStep, totpStep).Set(x => x.UpdatedAt, DateTime.UtcNow),
+            cancellationToken: ct);
 
         IReadOnlyList<string>? backupCodes = null;
         if (!user.TwoFactorEnabled)

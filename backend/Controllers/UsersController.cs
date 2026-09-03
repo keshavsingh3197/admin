@@ -34,8 +34,9 @@ public sealed class UsersController : ControllerBase
     private readonly GroupService _groups;
     private readonly CustomRoleService _customRoles;
     private readonly IObjectStore _store;
+    private readonly PermissionCacheSignal _cacheSignal;
 
-    public UsersController(MongoDbService db, PasswordHasher passwords, GroupService groups, CustomRoleService customRoles, IObjectStore store)
+    public UsersController(MongoDbService db, PasswordHasher passwords, GroupService groups, CustomRoleService customRoles, IObjectStore store, PermissionCacheSignal cacheSignal)
     {
         _users = db.GetCollection<User>("users");
         _tokens = db.GetCollection<RefreshToken>("refresh_tokens");
@@ -43,6 +44,7 @@ public sealed class UsersController : ControllerBase
         _groups = groups;
         _customRoles = customRoles;
         _store = store;
+        _cacheSignal = cacheSignal;
     }
 
     /// <summary>The caller's own profile — available to any authenticated user.</summary>
@@ -84,7 +86,8 @@ public sealed class UsersController : ControllerBase
 
         if (request.Username is not null)
         {
-            var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim();
+            // Lower-cased on write so the unique index and the login lookup agree.
+            var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim().ToLowerInvariant();
             if (username is not null &&
                 await _users.Find(u => u.Username == username && u.Id != userId && !u.IsDeleted).AnyAsync())
                 return Conflict(new { error = "That username is already taken." });
@@ -192,7 +195,8 @@ public sealed class UsersController : ControllerBase
     public async Task<ActionResult<UserListItem>> Create(CreateUserRequest request)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim();
+        // Lower-cased on write so the unique index and the login lookup agree.
+        var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim().ToLowerInvariant();
         var roles = NormalizeRoles(request.Roles);
         if (roles is null) return BadRequest(new { error = "One or more roles are invalid." });
         var customRoleKeys = (request.CustomRoleKeys ?? new()).Where(k => !string.IsNullOrWhiteSpace(k))
@@ -233,7 +237,8 @@ public sealed class UsersController : ControllerBase
 
         if (request.Username is not null)
         {
-            var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim();
+            // Lower-cased on write so the unique index and the login lookup agree.
+            var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim().ToLowerInvariant();
             if (username is not null &&
                 await _users.Find(u => u.Username == username && u.Id != id && !u.IsDeleted).AnyAsync())
                 return Conflict(new { error = "That username is already taken." });
@@ -269,6 +274,11 @@ public sealed class UsersController : ControllerBase
         var user = await _users.FindOneAndUpdateAsync<User>(u => u.Id == id, update,
             new FindOneAndUpdateOptions<User> { ReturnDocument = ReturnDocument.After });
         if (user is null) return NotFound();
+
+        // Roles, custom roles and active state all feed the cached access set — a revocation has to
+        // land now, not whenever the entry happens to expire.
+        _cacheSignal.Invalidate();
+
         var groupIds = (await _groups.ListForUserAsync(id)).Select(g => g.Id).ToList();
         return Ok(Map(user, groupIds));
     }

@@ -6,7 +6,36 @@ when it ships; don't delete history.
 
 ## To do
 
-(empty — everything below shipped. Add new items above this line as they come up.)
+- **Publish the four bumped packages, in dependency order, before the next admin deploy** —
+  `KeshavSingh.Security` 0.6.0 → `KeshavSingh.Auth` 0.10.0 → `KeshavSingh.Core` 0.6.0 →
+  `KeshavSingh.Mongo.NoSql` 0.4.0. Local builds use sibling `ProjectReference`s so everything
+  compiles today; an isolated Render/CI checkout restores from the registry and will fail until
+  these are published. `Admin.Api.csproj` already points at the new versions.
+- **Run `db/migrations/005_normalize-usernames.mongodb.js`** against each environment before the
+  deploy that carries the username-normalisation change.
+- **A real `IEmailSender` / `ISmsSender`.** Both are still wired to the `Logging*` stubs
+  (`Program.cs`), so the email and SMS two-factor fallbacks silently deliver nothing in production.
+  Either wire a provider or hide those options in the UI, so a locked-out user is not offered a
+  channel that cannot deliver. (WhatsApp is real; email and SMS are not.)
+- **Split the largest frontend components.** `localization.component.ts` (60 KB),
+  `finance-manage.component.ts` (46 KB), `messages.component.ts` (38 KB) and
+  `call.service.ts` (37 KB) each carry template, styles and logic in one file, and have no tests.
+  Deliberately left alone in the security pass: they are the highest-regression-risk files in the
+  repo and this WSL environment cannot run `npm`, so the change could not be verified.
+- **Frontend lint + specs.** There is no `lint` script and one spec for ~17,000 lines. Adding
+  `ng lint` needs `ng add @angular-eslint/schematics` first — an npm operation.
+- **Consider RS256 + JWKS for the SSO signing key.** `SSO.md` already names the tradeoff: the shared
+  HS256 secret means every resource server can *mint* tokens, not just validate them. `DataProtector`
+  now versions its ciphertext for rotation; the JWT key has no equivalent.
+
+## Done (this review pass)
+
+- **Security review and remediation across `admin` + four shared packages** — see
+  [docs/REVIEW.md](REVIEW.md) for the findings, the reasoning, and what changed. Headline items:
+  2FA could be rebound or its secret read with a stolen access token (H1/H1b); failed second factors
+  never counted toward lockout and TOTP codes replayed (H2); production CORS trusted `localhost` and
+  `AllowedOrigins` was dead config (H3); `refresh_tokens` had no index despite being read on every
+  page load family-wide (H4). Test count went from 2 (neither testing production code) to 207.
 
 ## Done
 

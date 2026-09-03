@@ -406,7 +406,7 @@ public sealed class PackageInventoryService
         return Array.Empty<string>();
     }
 
-    private static PackageInventoryVersionSummary SummarizePublishedVersions(IReadOnlyList<string> publishedVersions)
+    internal static PackageInventoryVersionSummary SummarizePublishedVersions(IReadOnlyList<string> publishedVersions)
     {
         var distinct = publishedVersions
             .Where(v => !string.IsNullOrWhiteSpace(v))
@@ -426,7 +426,7 @@ public sealed class PackageInventoryService
         return new PackageInventoryVersionSummary(stable, latestTag, tags);
     }
 
-    private static bool VersionMatches(string constraint, string version) =>
+    internal static bool VersionMatches(string constraint, string version) =>
         constraint.Trim().TrimStart('^', '~', '=', 'v').Equals(version.Trim().TrimStart('v'), StringComparison.OrdinalIgnoreCase);
 
     private sealed record Producer(string Ecosystem, string Name, string Version, string Repository);

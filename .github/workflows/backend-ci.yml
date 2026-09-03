@@ -4,11 +4,17 @@ on:
   push:
     branches:
       - master
+    # tests/** matters as much as backend/**: without it a change that only touches the test
+    # project runs no workflow at all, and neither does a change to the CI file itself.
     paths:
       - 'backend/**'
+      - 'tests/**'
+      - '.github/workflows/backend-ci.yml'
   pull_request:
     paths:
       - 'backend/**'
+      - 'tests/**'
+      - '.github/workflows/backend-ci.yml'
   workflow_dispatch:
 
 jobs:
@@ -25,10 +31,6 @@ jobs:
     # intentionally not configured.
     env:
       PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN || github.token }}
-    defaults:
-      run:
-        working-directory: backend
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,10 +41,15 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore backend/Admin.Api.csproj
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build backend/Admin.Api.csproj --no-restore --configuration Release
+
+      # The reason this job exists. Building alone never caught a behavioural regression, and the
+      # test project sits outside backend/, so it needs its own restore/build.
+      - name: Test
+        run: dotnet test tests/Admin.Api.Tests/Admin.Api.Tests.csproj --configuration Release
 
       - name: Publish
-        run: dotnet publish --no-build --configuration Release --output ../out
+        run: dotnet publish backend/Admin.Api.csproj --no-build --configuration Release --output ./out
