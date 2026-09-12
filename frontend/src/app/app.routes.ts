@@ -172,6 +172,12 @@ export const routes: Routes = [
       import('./features/groups/groups.component').then((m) => m.GroupsComponent),
   },
   {
+    path: 'family-devices',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/family-devices/family-devices.component').then((m) => m.FamilyDevicesComponent),
+  },
+  {
     path: 'search',
     canActivate: [authGuard],
     loadComponent: () =>

@@ -93,6 +93,7 @@ builder.Services.AddSingleton<PermissionsService>();
 builder.Services.AddSingleton<IPageAccessEvaluator>(sp => sp.GetRequiredService<PermissionsService>());
 builder.Services.AddSingleton<SearchService>();
 builder.Services.AddSingleton<FamilyHubService>();
+builder.Services.AddSingleton<FamilyDeviceService>();
 builder.Services.AddScoped<ApplicationMetricsService>();
 // The database console (KeshavSingh.Mongo.NoSql): an Admin-only query editor over this app's own Mongo.
 // Writes are opt-in and single-document only; the package guard refuses server-side JavaScript, $out /

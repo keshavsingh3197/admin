@@ -1,0 +1,311 @@
+<div class="family-devices-page">
+  <!-- Header Bar -->
+  <div class="page-header">
+    <div class="header-titles">
+      <h2>Family Devices & Live Tracking</h2>
+      <p class="subtitle">Monitor connected mobile devices, track real-time locations, view lost recovery history & security logs.</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" (click)="refreshAll()" [disabled]="loading()">
+        <span>⟳</span> Refresh
+      </button>
+      <button class="btn btn-primary" (click)="generateQr()">
+        <span>📷</span> Generate Pairing QR
+      </button>
+    </div>
+  </div>
+
+  <!-- Notifications -->
+  @if (successMessage()) {
+    <div class="alert alert-success">{{ successMessage() }}</div>
+  }
+  @if (error()) {
+    <div class="alert alert-danger">{{ error() }}</div>
+  }
+
+  <!-- Stats Strip -->
+  <div class="stats-strip">
+    <div class="stat-card">
+      <div class="stat-label">Total Devices</div>
+      <div class="stat-value">{{ totalDevicesCount() }}</div>
+      <div class="stat-sub">FamSphere Clients</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Online Now</div>
+      <div class="stat-value online-text">{{ onlineDevicesCount() }}</div>
+      <div class="stat-sub">Active in last 15 min</div>
+    </div>
+    <div class="stat-card" [class.alert-border]="lostDevicesCount() > 0">
+      <div class="stat-label">Lost Devices</div>
+      <div class="stat-value" [class.danger-text]="lostDevicesCount() > 0">{{ lostDevicesCount() }}</div>
+      <div class="stat-sub">{{ lostDevicesCount() > 0 ? 'Urgent Recovery Mode' : 'All devices secure' }}</div>
+    </div>
+  </div>
+
+  <!-- Navigation Tabs -->
+  <div class="tabs-bar">
+    <button class="tab-btn" [class.active]="activeTab() === 'fleet'" (click)="activeTab.set('fleet')">
+      📱 Device Fleet ({{ totalDevicesCount() }})
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'history'" (click)="activeTab.set('history')">
+      🗺️ Location Breadcrumbs
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'logs'" (click)="activeTab.set('logs')">
+      🛡️ Security Audit Logs ({{ auditLogs().length }})
+    </button>
+    @if (generatedQr()) {
+      <button class="tab-btn" [class.active]="activeTab() === 'qr'" (click)="activeTab.set('qr')">
+        📷 QR Pairing Session
+      </button>
+    }
+  </div>
+
+  <!-- Tab 1: Device Fleet -->
+  @if (activeTab() === 'fleet') {
+    <div class="fleet-grid">
+      @if (devices().length === 0 && !loading()) {
+        <div class="empty-state">
+          <div class="empty-icon">📱</div>
+          <h3>No Family Devices Enrolled Yet</h3>
+          <p>Install FamSphere on mobile and log in to register your device automatically, or generate a pairing QR code.</p>
+          <button class="btn btn-primary" (click)="generateQr()">Generate Pairing QR</button>
+        </div>
+      }
+
+      @for (dev of devices(); track dev.deviceId) {
+        <div class="device-card" [class.lost-card]="dev.isLost">
+          @if (dev.isLost) {
+            <div class="lost-badge">⚠️ LOST MODE ACTIVE</div>
+          }
+          <div class="card-top">
+            <div class="device-avatar">
+              {{ dev.osName === 'iOS' ? '🍏' : '🤖' }}
+            </div>
+            <div class="device-meta">
+              <div class="device-name-row">
+                <h3 class="device-name">{{ dev.deviceName || dev.model }}</h3>
+                <span class="status-dot" [class.online]="isRecentlyActive(dev.lastActiveAt)"></span>
+              </div>
+              <p class="device-spec">{{ dev.brand }} {{ dev.model }} · {{ dev.osName }} {{ dev.osVersion }}</p>
+            </div>
+          </div>
+
+          <!-- Battery & Activity Details -->
+          <div class="device-details">
+            <div class="detail-item">
+              <span class="detail-label">Battery</span>
+              <div class="battery-meter">
+                <span class="battery-icon">
+                  {{ dev.isCharging ? '⚡' : (dev.batteryLevel <= 20 ? '🪫' : '🔋') }}
+                </span>
+                <span class="battery-pct">{{ dev.batteryLevel }}%</span>
+              </div>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">Last Active</span>
+              <span class="detail-val">{{ dev.lastActiveAt | date:'short' }}</span>
+            </div>
+
+            <div class="detail-item full-width">
+              <span class="detail-label">Last Known Location</span>
+              @if (dev.lastLocation; as loc) {
+                <div class="location-snapshot">
+                  <span class="loc-coords">📍 {{ loc.latitude | number:'1.4-4' }}, {{ loc.longitude | number:'1.4-4' }}</span>
+                  @if (loc.address) {
+                    <span class="loc-addr">{{ loc.address }}</span>
+                  }
+                  <a [href]="getGoogleMapsUrl(loc.latitude, loc.longitude)" target="_blank" rel="noopener noreferrer" class="map-link">
+                    Open Map ↗
+                  </a>
+                </div>
+              } @else {
+                <span class="text-muted">No GPS coordinates reported yet</span>
+              }
+            </div>
+
+            @if (dev.isLost && dev.lostMessage) {
+              <div class="detail-item full-width lost-msg-box">
+                <span class="lost-msg-label">Lost Note:</span>
+                <p class="lost-msg-content">{{ dev.lostMessage }}</p>
+              </div>
+            }
+          </div>
+
+          <!-- Card Actions -->
+          <div class="card-footer">
+            <button class="btn btn-sm btn-outline" (click)="selectDevice(dev); activeTab.set('history')">
+              History
+            </button>
+            <button class="btn btn-sm" [class.btn-danger]="!dev.isLost" [class.btn-success]="dev.isLost" (click)="openLostModal(dev)">
+              {{ dev.isLost ? '✓ Mark Found' : '⚠️ Mark Lost' }}
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Tab 2: Location Breadcrumb History -->
+  @if (activeTab() === 'history') {
+    <div class="history-view">
+      <div class="history-selector-bar">
+        <label>Select Device:</label>
+        <select [ngModel]="selectedDevice()?.deviceId" (ngModelChange)="selectDevice($event)">
+          @for (d of devices(); track d.deviceId) {
+            <option [value]="d.deviceId">{{ d.deviceName }} ({{ d.brand }} {{ d.model }})</option>
+          }
+        </select>
+        <button class="btn btn-sm btn-secondary" (click)="selectedDevice() && loadHistory(selectedDevice()!.deviceId)">
+          Refresh History
+        </button>
+      </div>
+
+      @if (selectedDevice(); as dev) {
+        <div class="history-content">
+          <!-- Latest GPS Card -->
+          @if (dev.lastLocation; as latest) {
+            <div class="latest-loc-banner">
+              <div class="banner-title">Current / Last Known Position</div>
+              <div class="coords-row">
+                <span class="coord-tag">Lat: {{ latest.latitude | number:'1.6-6' }}</span>
+                <span class="coord-tag">Lng: {{ latest.longitude | number:'1.6-6' }}</span>
+                @if (latest.accuracy) {
+                  <span class="coord-tag">Accuracy: ±{{ latest.accuracy | number:'1.0-1' }}m</span>
+                }
+                @if (latest.speed) {
+                  <span class="coord-tag">Speed: {{ latest.speed | number:'1.1-1' }} m/s</span>
+                }
+              </div>
+              <div class="map-actions-row">
+                <a [href]="getGoogleMapsUrl(latest.latitude, latest.longitude)" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary">
+                  Open Google Maps
+                </a>
+                <a [href]="getOpenStreetMapUrl(latest.latitude, latest.longitude)" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">
+                  Open OpenStreetMap
+                </a>
+              </div>
+            </div>
+          }
+
+          <!-- Breadcrumb Timeline List -->
+          <h3>Location Movement Breadcrumbs (Last 48 Hours)</h3>
+          @if (locationHistory().length === 0) {
+            <p class="text-muted">No location records captured in the selected window.</p>
+          } @else {
+            <div class="timeline">
+              @for (point of locationHistory(); track point.id) {
+                <div class="timeline-item" [class.timeline-lost]="point.isLostPing">
+                  <div class="timeline-time">{{ point.recordedAt | date:'medium' }}</div>
+                  <div class="timeline-dot"></div>
+                  <div class="timeline-card">
+                    <div class="timeline-coords">
+                      📍 <strong>{{ point.latitude | number:'1.5-5' }}, {{ point.longitude | number:'1.5-5' }}</strong>
+                      @if (point.batteryLevel !== null && point.batteryLevel !== undefined) {
+                        <span class="battery-pill">🔋 {{ point.batteryLevel }}%</span>
+                      }
+                      @if (point.isLostPing) {
+                        <span class="badge-lost-ping">Lost Mode Ping</span>
+                      }
+                    </div>
+                    @if (point.address) {
+                      <div class="timeline-address">{{ point.address }}</div>
+                    }
+                    <a [href]="getGoogleMapsUrl(point.latitude, point.longitude)" target="_blank" rel="noopener noreferrer" class="timeline-link">
+                      View on Map ↗
+                    </a>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Tab 3: Security & Activity Logs -->
+  @if (activeTab() === 'logs') {
+    <div class="logs-container">
+      <table class="logs-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Event</th>
+            <th>Severity</th>
+            <th>Device</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (log of auditLogs(); track log.id) {
+            <tr [class.row-danger]="log.severity === 'Critical'" [class.row-warn]="log.severity === 'Warning'">
+              <td class="log-time">{{ log.timestamp | date:'short' }}</td>
+              <td><span class="log-type">{{ log.eventType }}</span></td>
+              <td><span class="severity-pill" [attr.data-severity]="log.severity">{{ log.severity }}</span></td>
+              <td class="log-device">{{ log.deviceId || 'System' }}</td>
+              <td class="log-details">{{ log.details }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  <!-- Tab 4: QR Pairing Code Session -->
+  @if (activeTab() === 'qr' && generatedQr(); as qr) {
+    <div class="qr-display-card">
+      <div class="qr-header">
+        <h3>Family Pairing QR Code</h3>
+        <p>Scan this QR code with the FamSphere mobile camera to quickly pair and sync this device.</p>
+      </div>
+
+      <div class="qr-visual-box">
+        <!-- Text Fallback & Session Code -->
+        <div class="qr-code-code">{{ qr.sessionCode }}</div>
+        <div class="qr-payload-meta">
+          <span>Type: <strong>{{ qr.payloadType }}</strong></span> ·
+          <span>Expires: <strong>{{ qr.expiresAt | date:'shortTime' }}</strong></span>
+        </div>
+      </div>
+
+      <div class="qr-instructions">
+        <p>Open <strong>FamSphere</strong> on mobile -> Tap the <strong>📷 QR Scanner</strong> icon in the top navigation bar -> Point camera at this code to automatically authenticate and register device tracking.</p>
+      </div>
+
+      <button class="btn btn-secondary" (click)="activeTab.set('fleet')">Back to Fleet</button>
+    </div>
+  }
+
+  <!-- Lost Mode Modal -->
+  @if (lostModalOpen() && targetDeviceForLost(); as dev) {
+    <div class="modal-backdrop" (click)="closeLostModal()">
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>{{ dev.isLost ? 'Deactivate Lost Mode' : 'Activate Lost Mode' }}</h3>
+          <button class="close-btn" (click)="closeLostModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          @if (!dev.isLost) {
+            <p class="modal-warning">
+              ⚠️ Marking <strong>{{ dev.deviceName }}</strong> as lost will alert all family members, display emergency recovery details on the phone's lock screen, and elevate GPS reporting frequency.
+            </p>
+            <div class="form-group">
+              <label>Emergency Message shown on Phone:</label>
+              <textarea [(ngModel)]="lostMessageInput" rows="3" class="form-control"></textarea>
+            </div>
+          } @else {
+            <p>Are you sure you want to mark <strong>{{ dev.deviceName }}</strong> as recovered? This will restore standard background polling.</p>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeLostModal()">Cancel</button>
+          <button class="btn" [class.btn-danger]="!dev.isLost" [class.btn-success]="dev.isLost" (click)="confirmLostMode(!dev.isLost)">
+            {{ dev.isLost ? 'Confirm Found' : 'Confirm Lost Mode' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>
+

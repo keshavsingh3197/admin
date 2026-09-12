@@ -79,6 +79,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: '/users', adminOnly: true, labelKey: 'admin.nav.users', icon: '👤', permissionKey: 'page.users', keywords: ['accounts', 'members'] },
       { path: '/account-requests', adminOnly: true, labelKey: 'admin.nav.accountRequests', icon: '🙋', keywords: ['signup', 'pending', 'approve'] },
       { path: '/groups', adminOnly: true, labelKey: 'admin.nav.groups', icon: '👪', permissionKey: 'page.groups', keywords: ['teams', 'family'] },
+      { path: '/family-devices', labelKey: 'admin.nav.familyDevices', icon: '📱', keywords: ['family', 'mobile', 'devices', 'gps', 'location', 'tracking', 'lost', 'qr'] },
       { path: '/roles', adminOnly: true, labelKey: 'admin.nav.roles', icon: '🎫', permissionKey: 'page.roles', keywords: ['permissions', 'rbac', 'access'] },
     ],
   },
