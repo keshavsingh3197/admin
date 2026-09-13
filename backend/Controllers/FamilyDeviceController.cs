@@ -119,5 +119,34 @@ public sealed class FamilyDeviceController : ControllerBase
         }
         return Ok(result);
     }
+
+    /// <summary>
+    /// Self-service data and account wipe: permanently deletes user devices, location breadcrumbs,
+    /// and logs a final audit event (Google Play Store Data Safety & Deletion requirement).
+    /// </summary>
+    [HttpDelete("device/user-data")]
+    public async Task<IActionResult> DeleteUserData()
+    {
+        var userId = User.GetUserId();
+        await _deviceService.DeleteAllUserDataAsync(userId);
+        return Ok(new { message = "All family tracking data and registered devices have been permanently deleted." });
+    }
+
+    /// <summary>
+    /// Public Data Deletion Request (Google Play compliance): allows users to submit a deletion request
+    /// via a public web URL without needing to reinstall the app.
+    /// </summary>
+    [HttpPost("data-deletion-request")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SubmitDataDeletionRequest([FromBody] DataDeletionPublicRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new { error = "Email address is required." });
+        }
+
+        await _deviceService.QueueDataDeletionAsync(request.Email.Trim().ToLowerInvariant(), request.Reason);
+        return Ok(new { message = "Your data deletion request has been received and will be processed within 24 hours." });
+    }
 }
 

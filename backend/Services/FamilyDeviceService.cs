@@ -355,5 +355,49 @@ public sealed class FamilyDeviceService
             _logger.LogWarning(ex, "Failed to persist security audit log.");
         }
     }
+
+    /// <summary>
+    /// Permanently wipes all devices, location history, and QR sessions belonging to a user (Google Play data deletion compliance).
+    /// </summary>
+    public async Task DeleteAllUserDataAsync(string userId)
+    {
+        var (familyId, _) = await _familyHub.ResolveFamilyScopeAsync(userId);
+        var devices = await _devices.Find(d => d.FamilyId == familyId).ToListAsync();
+        var deviceIds = devices.Select(d => d.DeviceId).ToList();
+
+        if (deviceIds.Count > 0)
+        {
+            await _locations.DeleteManyAsync(l => deviceIds.Contains(l.DeviceId));
+            await _devices.DeleteManyAsync(d => deviceIds.Contains(d.DeviceId));
+        }
+
+        await _qrSessions.DeleteManyAsync(q => q.FamilyId == familyId);
+
+        await LogSecurityEventAsync(
+            familyId: familyId,
+            userId: userId,
+            deviceId: null,
+            eventType: "UserDataDeleted",
+            severity: "Warning",
+            details: $"User {userId} permanently deleted all family tracking data, location history, and {deviceIds.Count} devices.");
+
+        _logger.LogInformation("Wiped all family tracking data for user {UserId}", userId);
+    }
+
+    /// <summary>
+    /// Logs a public web-initiated deletion request (Google Play data deletion URL compliance).
+    /// </summary>
+    public async Task QueueDataDeletionAsync(string email, string? reason)
+    {
+        await LogSecurityEventAsync(
+            familyId: "PUBLIC_REQUEST",
+            userId: email,
+            deviceId: null,
+            eventType: "PublicDeletionRequested",
+            severity: "Warning",
+            details: $"Public data deletion requested for email: {email}. Reason: {reason ?? "Self-service web request"}.");
+
+        _logger.LogInformation("Public data deletion requested for {Email}", email);
+    }
 }
 
