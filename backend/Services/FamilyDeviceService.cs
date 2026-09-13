@@ -461,7 +461,7 @@ public sealed class FamilyDeviceService
             existing.IsActive = true;
             existing.UpdatedAt = DateTime.UtcNow;
             await _famUsers.ReplaceOneAsync(u => u.Id == existing.Id, existing);
-            return new MobileUserDto(existing.Id, existing.Email, existing.Username, existing.DisplayName, existing.Roles, existing.IsActive, existing.CreatedAt);
+            return new MobileUserDto(existing.Id, existing.Email, existing.Username, existing.DisplayName, existing.PhoneNumber, existing.Roles, existing.IsActive, existing.CreatedAt);
         }
 
         var newUser = new FamUser
@@ -477,7 +477,7 @@ public sealed class FamilyDeviceService
         };
 
         await _famUsers.InsertOneAsync(newUser);
-        return new MobileUserDto(newUser.Id, newUser.Email, newUser.Username, newUser.DisplayName, newUser.Roles, newUser.IsActive, newUser.CreatedAt);
+        return new MobileUserDto(newUser.Id, newUser.Email, newUser.Username, newUser.DisplayName, newUser.PhoneNumber, newUser.Roles, newUser.IsActive, newUser.CreatedAt);
     }
 
     /// <summary>
@@ -494,6 +494,7 @@ public sealed class FamilyDeviceService
             u.Email,
             u.Username,
             u.DisplayName,
+            u.PhoneNumber,
             u.Roles,
             u.IsActive,
             u.CreatedAt)).ToList();
@@ -513,11 +514,16 @@ public sealed class FamilyDeviceService
     /// </summary>
     public async Task<MobileLoginResponse> AuthenticateMobileUserAsync(MobileLoginRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
-            return new MobileLoginResponse(false, "Email and password are required.", null);
+        if (string.IsNullOrWhiteSpace(request.Identifier) || string.IsNullOrWhiteSpace(request.Password))
+            return new MobileLoginResponse(false, "Email/username and password are required.", null);
 
-        var normalized = request.Email.Trim().ToLowerInvariant();
-        var user = await _famUsers.Find(u => u.Email == normalized || u.Username == normalized).FirstOrDefaultAsync();
+        var normalized = request.Identifier.Trim().ToLowerInvariant();
+        var user = await _famUsers.Find(u =>
+            u.Email == normalized ||
+            u.Username == normalized ||
+            u.PhoneNumber == normalized
+        ).FirstOrDefaultAsync();
+
         if (user is null || !user.IsActive)
             return new MobileLoginResponse(false, "Invalid credentials or account is deactivated.", null);
 
@@ -529,7 +535,7 @@ public sealed class FamilyDeviceService
             new JwtSubject(user.Id, user.Email, user.DisplayName, user.Roles),
             accessTokenMinutes: 60 * 24 * 30);
 
-        var dto = new MobileUserDto(user.Id, user.Email, user.Username, user.DisplayName, user.Roles, user.IsActive, user.CreatedAt);
+        var dto = new MobileUserDto(user.Id, user.Email, user.Username, user.DisplayName, user.PhoneNumber, user.Roles, user.IsActive, user.CreatedAt);
         var tokens = new MobileAuthTokens(token, expiresAt, dto);
         return new MobileLoginResponse(true, null, tokens);
     }
