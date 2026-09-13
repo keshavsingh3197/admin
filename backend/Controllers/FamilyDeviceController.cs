@@ -1,14 +1,16 @@
 using Admin.Api.Models;
 using Admin.Api.Services;
 using KeshavSingh.Auth;
+using KeshavSingh.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
 
 namespace Admin.Api.Controllers;
 
 /// <summary>
 /// Controller for mobile device fleet management, live GPS tracking, lost device recovery,
-/// QR pairing sessions, and security audit logs in the FamSphere ecosystem.
+/// QR pairing sessions, mobile reviewer account provisioning, and security audit logs in the FamSphere ecosystem.
 /// </summary>
 [ApiController]
 [Route("api/family")]
@@ -16,11 +18,24 @@ namespace Admin.Api.Controllers;
 public sealed class FamilyDeviceController : ControllerBase
 {
     private readonly FamilyDeviceService _deviceService;
+    private readonly IMongoCollection<User> _users;
+    private readonly IMongoCollection<RefreshToken> _tokens;
+    private readonly PasswordHasher _passwords;
+    private readonly AdminAuditService _audit;
     private readonly ILogger<FamilyDeviceController> _logger;
 
-    public FamilyDeviceController(FamilyDeviceService deviceService, ILogger<FamilyDeviceController> logger)
+    public FamilyDeviceController(
+        FamilyDeviceService deviceService,
+        MongoDbService mongo,
+        PasswordHasher passwords,
+        AdminAuditService audit,
+        ILogger<FamilyDeviceController> logger)
     {
         _deviceService = deviceService;
+        _users = mongo.Database.GetCollection<User>("users");
+        _tokens = mongo.Database.GetCollection<RefreshToken>("refresh_tokens");
+        _passwords = passwords;
+        _audit = audit;
         _logger = logger;
     }
 
@@ -147,6 +162,105 @@ public sealed class FamilyDeviceController : ControllerBase
 
         await _deviceService.QueueDataDeletionAsync(request.Email.Trim().ToLowerInvariant(), request.Reason);
         return Ok(new { message = "Your data deletion request has been received and will be processed within 24 hours." });
+    }
+
+    /// <summary>
+    /// Admin: Lists all accounts that have the MobileUser role (e.g. Google Play Reviewer or mobile fleet accounts).
+    /// </summary>
+    [HttpGet("admin/mobile-users")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<IReadOnlyList<MobileUserDto>>> ListMobileUsers()
+    {
+        var users = await _users.Find(u => !u.IsDeleted && u.Roles.Contains("MobileUser"))
+            .SortByDescending(u => u.CreatedAt)
+            .ToListAsync();
+
+        var dtos = users.Select(u => new MobileUserDto(
+            u.Id,
+            u.Email,
+            u.Username,
+            u.DisplayName,
+            u.Roles,
+            u.IsActive,
+            u.CreatedAt)).ToList();
+
+        return Ok(dtos);
+    }
+
+    /// <summary>
+    /// Admin: Provisions a dedicated MobileUser account directly in the database without hardcoding credentials in git.
+    /// Reviewer accounts start active with MustChangePassword = false and TwoFactorEnabled = false.
+    /// </summary>
+    [HttpPost("admin/provision-mobile-user")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<MobileUserDto>> ProvisionMobileUser([FromBody] ProvisionMobileUserRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            return BadRequest(new { error = "Email is required." });
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+            return BadRequest(new { error = "Password must be at least 8 characters." });
+
+        var email = request.Email.Trim().ToLowerInvariant();
+        var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim().ToLowerInvariant();
+
+        if (await _users.Find(u => u.Email == email && !u.IsDeleted).AnyAsync())
+            return Conflict(new { error = "A user with that email already exists." });
+        if (username is not null && await _users.Find(u => u.Username == username && !u.IsDeleted).AnyAsync())
+            return Conflict(new { error = "That username is already taken." });
+
+        var user = new User
+        {
+            Email = email,
+            Username = username,
+            DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? "Mobile User" : request.DisplayName.Trim(),
+            PasswordHash = _passwords.Hash(request.Password),
+            Roles = new List<string> { "MobileUser" },
+            CustomRoleKeys = new List<string>(), // Zero admin portal grants
+            MustChangePassword = false, // Critical: Mobile testers/reviewers must not be blocked by password reset
+            TwoFactorEnabled = false,   // Critical: Direct sign in without 2FA challenge
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+        await _users.InsertOneAsync(user);
+        await _audit.RecordAsync(AdminAuditEvents.UserCreated, email, "Provisioned MobileUser account with mobile-only access.");
+
+        var dto = new MobileUserDto(
+            user.Id,
+            user.Email,
+            user.Username,
+            user.DisplayName,
+            user.Roles,
+            user.IsActive,
+            user.CreatedAt);
+
+        return Ok(dto);
+    }
+
+    /// <summary>
+    /// Admin: Deletes a MobileUser account and revokes active sessions.
+    /// </summary>
+    [HttpDelete("admin/mobile-users/{userId}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> DeleteMobileUser(string userId)
+    {
+        var user = await _users.Find(u => u.Id == userId && !u.IsDeleted).FirstOrDefaultAsync();
+        if (user is null) return NotFound();
+
+        if (!user.Roles.Contains("MobileUser"))
+            return BadRequest(new { error = "Only accounts with the MobileUser role can be deleted from here." });
+
+        await _users.UpdateOneAsync(u => u.Id == userId, Builders<User>.Update
+            .Set(u => u.IsDeleted, true)
+            .Set(u => u.IsActive, false)
+            .Set(u => u.UpdatedAt, DateTime.UtcNow));
+
+        await _tokens.UpdateManyAsync(r => r.UserId == userId && r.RevokedAt == null,
+            Builders<RefreshToken>.Update.Set(r => r.RevokedAt, DateTime.UtcNow));
+
+        await _audit.RecordAsync(AdminAuditEvents.UserDeleted, userId, $"Deleted MobileUser {user.Email}.");
+        return NoContent();
     }
 }
 

@@ -9,7 +9,9 @@ import {
   FamQrSession,
   FamLostModeRequest,
   FamCreateQrRequest,
-  FamQrVerifyResult
+  FamQrVerifyResult,
+  MobileUserAccount,
+  ProvisionMobileUserRequest
 } from '../models/family-device.models';
 
 @Injectable({ providedIn: 'root' })
@@ -35,6 +37,18 @@ export class FamilyDeviceService {
 
   createQrSession(req: FamCreateQrRequest): Observable<FamQrSession> {
     return this.http.post<FamQrSession>(`${this.baseUrl}/qr/create`, req);
+  }
+
+  getMobileUsers(): Observable<MobileUserAccount[]> {
+    return this.http.get<MobileUserAccount[]>(`${this.baseUrl}/admin/mobile-users`);
+  }
+
+  provisionMobileUser(req: ProvisionMobileUserRequest): Observable<MobileUserAccount> {
+    return this.http.post<MobileUserAccount>(`${this.baseUrl}/admin/provision-mobile-user`, req);
+  }
+
+  deleteMobileUser(userId: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/admin/mobile-users/${encodeURIComponent(userId)}`);
   }
 }
 

@@ -33,6 +33,7 @@ public static class PermissionCatalog
         new("page.finance", "Pages", "Finance", "Access household finance tracking."),
         new("page.inbox", "Pages", "Inbox", "Access team chat, visitor chat, and the contact form."),
         new("page.shortLinks", "Pages", "Short Links", "Access the short link manager."),
+        new("page.familyDevices", "Pages", "Family Devices", "Access mobile fleet, GPS tracking, and lost device management."),
         new("action.users.manage", "Actions", "Manage users", "Create, edit, deactivate, delete users."),
         new("action.roles.manage", "Actions", "Manage roles", "Create, edit, delete custom roles."),
         new("action.groups.manage", "Actions", "Manage groups", "Create, edit, delete groups and membership."),

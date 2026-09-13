@@ -163,6 +163,10 @@ public sealed class PublicSiteSeeds : ILocalizationSeedSource
             "यह साइट उपयोग समझने के लिए कुकीज़ का प्रयोग करती है।"),
         ("portfolio", "cookies.accept", "Accept", "स्वीकार करें"),
         ("portfolio", "cookies.decline", "Decline", "अस्वीकार करें"),
+
+        // ---- Admin: navigation & mobile ----
+        ("admin", "nav.familyDevices", "Family Devices", "पारिवारिक उपकरण"),
+        ("admin", "nav.group.mobile", "Mobile Apps & Fleet", "मोबाइल ऐप्स और उपकरण"),
     });
 
     public IEnumerable<ConfigEntrySeed> ConfigEntries() => new[]

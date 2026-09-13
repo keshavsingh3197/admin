@@ -164,7 +164,7 @@ export class CommandPaletteComponent {
       .map(({ link, score }): PaletteItem => ({
         kind: 'page',
         icon: link.icon,
-        label: this.i18n.t(link.labelKey),
+        label: this.linkLabel(link),
         detail: link.path,
         route: link.path,
         score,
@@ -254,6 +254,11 @@ export class CommandPaletteComponent {
     this.closed.emit();
   }
 
+  private linkLabel(link: NavLink): string {
+    const text = this.i18n.t(link.labelKey);
+    return (text === link.labelKey && link.fallback) ? link.fallback : text;
+  }
+
   /**
    * Ranks a page against the query. An empty query lists everything (the palette doubles as a menu),
    * a prefix match beats a substring match, and a keyword match ranks below both — so typing "us"
@@ -261,7 +266,7 @@ export class CommandPaletteComponent {
    */
   private rank(link: NavLink, q: string): number {
     if (!q) return 1;
-    const label = this.i18n.t(link.labelKey).toLowerCase();
+    const label = this.linkLabel(link).toLowerCase();
     if (label.startsWith(q)) return 100;
     if (label.includes(q)) return 70;
     if (link.path.toLowerCase().includes(q)) return 50;

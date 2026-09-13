@@ -53,6 +53,9 @@
     <button class="tab-btn" [class.active]="activeTab() === 'logs'" (click)="activeTab.set('logs')">
       🛡️ Security Audit Logs ({{ auditLogs().length }})
     </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'accounts'" (click)="activeTab.set('accounts')">
+      👥 Mobile App Accounts ({{ mobileUsers().length }})
+    </button>
     @if (generatedQr()) {
       <button class="tab-btn" [class.active]="activeTab() === 'qr'" (click)="activeTab.set('qr')">
         📷 QR Pairing Session
@@ -274,6 +277,123 @@
       </div>
 
       <button class="btn btn-secondary" (click)="activeTab.set('fleet')">Back to Fleet</button>
+    </div>
+  }
+
+  <!-- Tab 5: Mobile App Accounts -->
+  @if (activeTab() === 'accounts') {
+    <div class="accounts-section">
+      <!-- Security Notice Card -->
+      <div class="security-card">
+        <div class="security-card-header">
+          <span class="security-shield">🛡️</span>
+          <div>
+            <h3>Mobile-Only Security Isolation</h3>
+            <p class="security-desc">
+              Accounts provisioned here are saved directly in MongoDB with role <strong>MobileUser</strong>. They are strictly blocked from logging into the Admin web console or any web SSO services, ensuring Google Play Reviewers and test accounts only receive access to mobile app features without exposing web infrastructure.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Provisioning Card -->
+      <div class="provision-card">
+        <div class="provision-card-header">
+          <h4>➕ Provision Mobile / Reviewer Account</h4>
+          <p class="provision-sub">Credentials are stored directly in MongoDB (PBKDF2 hashed) and never committed to source code or git.</p>
+        </div>
+
+        <form (ngSubmit)="provisionUser()" class="provision-form">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Email Address <span class="required">*</span></label>
+              <input type="email" class="form-control" [(ngModel)]="newEmail" name="newEmail"
+                     placeholder="e.g. play-review@famsphere.internal" required [disabled]="provisioningUser()">
+            </div>
+            <div class="form-group flex-1">
+              <label>Username (Optional)</label>
+              <input type="text" class="form-control" [(ngModel)]="newUsername" name="newUsername"
+                     placeholder="e.g. reviewer2026" [disabled]="provisioningUser()">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Display Name</label>
+              <input type="text" class="form-control" [(ngModel)]="newDisplayName" name="newDisplayName"
+                     placeholder="e.g. Google Play Reviewer" [disabled]="provisioningUser()">
+            </div>
+            <div class="form-group flex-1">
+              <label>Password <span class="required">*</span> (min 8 chars)</label>
+              <input type="password" class="form-control" [(ngModel)]="newPassword" name="newPassword"
+                     placeholder="Secure password" required minlength="8" [disabled]="provisioningUser()">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" [disabled]="provisioningUser() || !newEmail || !newPassword">
+              {{ provisioningUser() ? 'Provisioning in DB…' : 'Create Mobile Account' }}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Active Mobile Accounts Table -->
+      <div class="accounts-table-card">
+        <div class="table-card-header">
+          <h4>Active Mobile Accounts ({{ mobileUsers().length }})</h4>
+          <button class="btn btn-secondary btn-sm" (click)="loadMobileUsers()" [disabled]="mobileUsersLoading()">
+            ⟳ Refresh
+          </button>
+        </div>
+
+        @if (mobileUsersLoading()) {
+          <div class="table-loading">Loading accounts from database…</div>
+        } @else if (mobileUsers().length === 0) {
+          <div class="empty-state">
+            <p>No dedicated mobile accounts currently provisioned.</p>
+            <p class="empty-hint">Use the form above to provision an unexposed test or reviewer account.</p>
+          </div>
+        } @else {
+          <div class="logs-container">
+            <table class="logs-table">
+              <thead>
+                <tr>
+                  <th>Display Name</th>
+                  <th>Email & Username</th>
+                  <th>Role & Access Level</th>
+                  <th>Created Date</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (u of mobileUsers(); track u.id) {
+                  <tr>
+                    <td>
+                      <strong>{{ u.displayName }}</strong>
+                    </td>
+                    <td>
+                      <div>{{ u.email }}</div>
+                      @if (u.username) {
+                        <small class="text-muted">&#64;{{ u.username }}</small>
+                      }
+                    </td>
+                    <td>
+                      <span class="role-badge mobile-only">📱 MobileUser (Mobile Only)</span>
+                    </td>
+                    <td>{{ u.createdAt | date:'mediumDate' }}</td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-danger btn-sm" (click)="deleteUser(u)">
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
     </div>
   }
 

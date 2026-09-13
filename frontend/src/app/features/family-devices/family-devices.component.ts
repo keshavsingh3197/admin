@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FamilyDeviceService } from '../../core/services/family-device.service';
-import { FamDevice, FamLocation, FamAuditLog, FamQrSession } from '../../core/models/family-device.models';
+import { FamDevice, FamLocation, FamAuditLog, FamQrSession, MobileUserAccount } from '../../core/models/family-device.models';
 
 @Component({
   selector: 'app-family-devices',
@@ -17,10 +17,19 @@ export class FamilyDevicesComponent implements OnInit {
   readonly selectedDevice = signal<FamDevice | null>(null);
   readonly locationHistory = signal<FamLocation[]>([]);
   readonly auditLogs = signal<FamAuditLog[]>([]);
-  readonly activeTab = signal<'fleet' | 'history' | 'logs' | 'qr'>('fleet');
+  readonly activeTab = signal<'fleet' | 'history' | 'logs' | 'qr' | 'accounts'>('fleet');
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
+
+  // Mobile account provisioning state (database-backed, zero hardcoded credentials)
+  readonly mobileUsers = signal<MobileUserAccount[]>([]);
+  readonly mobileUsersLoading = signal(false);
+  newEmail = '';
+  newUsername = '';
+  newDisplayName = 'Google Play Reviewer';
+  newPassword = '';
+  readonly provisioningUser = signal(false);
 
   // Lost mode modal state
   readonly lostModalOpen = signal(false);
@@ -65,6 +74,8 @@ export class FamilyDevicesComponent implements OnInit {
       next: logs => this.auditLogs.set(logs),
       error: () => {}
     });
+
+    this.loadMobileUsers();
   }
 
   selectDevice(dev: FamDevice): void {
@@ -143,6 +154,61 @@ export class FamilyDevicesComponent implements OnInit {
   isRecentlyActive(lastActiveAt: string): boolean {
     const diffMs = Date.now() - new Date(lastActiveAt).getTime();
     return diffMs < 15 * 60 * 1000;
+  }
+
+  loadMobileUsers(): void {
+    this.mobileUsersLoading.set(true);
+    this.deviceService.getMobileUsers().subscribe({
+      next: users => {
+        this.mobileUsers.set(users);
+        this.mobileUsersLoading.set(false);
+      },
+      error: err => {
+        this.mobileUsersLoading.set(false);
+      }
+    });
+  }
+
+  provisionUser(): void {
+    if (!this.newEmail || !this.newPassword) return;
+    this.provisioningUser.set(true);
+    this.error.set(null);
+    this.deviceService.provisionMobileUser({
+      email: this.newEmail.trim(),
+      username: this.newUsername.trim() || undefined,
+      displayName: this.newDisplayName.trim() || 'Mobile User',
+      password: this.newPassword
+    }).subscribe({
+      next: user => {
+        this.mobileUsers.update(list => [user, ...list]);
+        this.provisioningUser.set(false);
+        this.successMessage.set(`Mobile user ${user.email} provisioned in database with mobile-only privileges.`);
+        this.newEmail = '';
+        this.newUsername = '';
+        this.newPassword = '';
+        setTimeout(() => this.successMessage.set(null), 5000);
+      },
+      error: err => {
+        this.error.set('Failed to provision mobile user: ' + (err.error?.error || err.message));
+        this.provisioningUser.set(false);
+      }
+    });
+  }
+
+  deleteUser(user: MobileUserAccount): void {
+    if (!confirm(`Are you sure you want to delete mobile account "${user.email}"? This will revoke mobile app access immediately.`)) {
+      return;
+    }
+    this.deviceService.deleteMobileUser(user.id).subscribe({
+      next: () => {
+        this.mobileUsers.update(list => list.filter(u => u.id !== user.id));
+        this.successMessage.set(`Account ${user.email} deleted and sessions revoked.`);
+        setTimeout(() => this.successMessage.set(null), 4000);
+      },
+      error: err => {
+        this.error.set('Failed to delete mobile user: ' + (err.error?.error || err.message));
+      }
+    });
   }
 }
 

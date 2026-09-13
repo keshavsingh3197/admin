@@ -63,7 +63,26 @@ public sealed class AdminSeeder
                 "the collisions. Until then usernames are not enforced unique.");
         }
 
-        if (!await _users.Find(FilterDefinition<User>.Empty).AnyAsync())
+        // Scrub exposed legacy test account from database if it exists
+        try
+        {
+            var scrubResult = await _users.DeleteManyAsync(u =>
+                u.Email == "google-play-review@famsphere.internal" ||
+                u.Username == "playreviewer");
+            if (scrubResult.DeletedCount > 0)
+            {
+                _logger.LogWarning("Scrubbed {Count} exposed legacy test account(s) from database.", scrubResult.DeletedCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not scrub legacy reviewer accounts.");
+        }
+
+        if (await _users.Find(FilterDefinition<User>.Empty).AnyAsync())
+            return; // Already seeded.
+
+        if (string.IsNullOrWhiteSpace(_seed.AdminEmail) || string.IsNullOrWhiteSpace(_seed.AdminPassword))
         {
             if (string.IsNullOrWhiteSpace(_seed.AdminEmail) || string.IsNullOrWhiteSpace(_seed.AdminPassword))
             {

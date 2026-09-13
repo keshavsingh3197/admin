@@ -13,6 +13,8 @@ export interface NavLink {
    * English text lives in the catalogue (namespace `admin`), not here.
    */
   labelKey: string;
+  /** English fallback label when the translation dictionary is loading or key is absent. */
+  fallback?: string;
   /**
    * Fallback glyph only: the live one comes from the config registry (`ui.icon.*`) when an admin has
    * configured it.
@@ -79,8 +81,14 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: '/users', adminOnly: true, labelKey: 'admin.nav.users', icon: '👤', permissionKey: 'page.users', keywords: ['accounts', 'members'] },
       { path: '/account-requests', adminOnly: true, labelKey: 'admin.nav.accountRequests', icon: '🙋', keywords: ['signup', 'pending', 'approve'] },
       { path: '/groups', adminOnly: true, labelKey: 'admin.nav.groups', icon: '👪', permissionKey: 'page.groups', keywords: ['teams', 'family'] },
-      { path: '/family-devices', labelKey: 'admin.nav.familyDevices', icon: '📱', keywords: ['family', 'mobile', 'devices', 'gps', 'location', 'tracking', 'lost', 'qr'] },
       { path: '/roles', adminOnly: true, labelKey: 'admin.nav.roles', icon: '🎫', permissionKey: 'page.roles', keywords: ['permissions', 'rbac', 'access'] },
+    ],
+  },
+  {
+    labelKey: 'admin.nav.group.mobile',
+    fallback: 'Mobile Apps & Fleet',
+    links: [
+      { path: '/family-devices', labelKey: 'admin.nav.familyDevices', fallback: 'Family Devices', icon: '📱', permissionKey: 'page.familyDevices', keywords: ['family', 'mobile', 'devices', 'gps', 'location', 'tracking', 'lost', 'qr', 'reviewer', 'android'] },
     ],
   },
   {

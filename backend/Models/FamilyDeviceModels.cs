@@ -263,3 +263,20 @@ public sealed record DataDeletionPublicRequest(
     string? Reason
 );
 
+public sealed record MobileUserDto(
+    string Id,
+    string Email,
+    string? Username,
+    string DisplayName,
+    IReadOnlyList<string> Roles,
+    bool IsActive,
+    DateTime CreatedAt
+);
+
+public sealed record ProvisionMobileUserRequest(
+    string Email,
+    string? Username,
+    string DisplayName,
+    string Password
+);
+
