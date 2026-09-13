@@ -570,23 +570,23 @@
       <form class="version-form" (ngSubmit)="saveAppVersionConfig()">
         <div class="form-row">
           <div class="form-group flex-1">
-            <label>Latest App Version Name</label>
+            <label>Latest App Version Name <span class="required">*</span></label>
             <input type="text" [(ngModel)]="versionLatest" name="versionLatest" class="form-control" placeholder="1.0.0" required />
           </div>
           <div class="form-group flex-1">
-            <label>Latest Version Code (Android)</label>
+            <label>Latest Version Code (Android) <span class="required">*</span></label>
             <input type="number" [(ngModel)]="versionCode" name="versionCode" class="form-control" placeholder="1" required />
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group flex-1">
-            <label>Minimum Supported Version Code</label>
+            <label>Minimum Supported Version Code <span class="required">*</span></label>
             <input type="number" [(ngModel)]="minSupportedVersionCode" name="minSupportedVersionCode" class="form-control" placeholder="1" required />
             <small class="text-muted">Devices running older versions than this will be blocked until updated.</small>
           </div>
           <div class="form-group flex-1">
-            <label>Google Play Store / Market URI</label>
+            <label>Google Play Store / Market URI <span class="required">*</span></label>
             <input type="text" [(ngModel)]="playStoreUrl" name="playStoreUrl" class="form-control" placeholder="market://details?id=in.keshavsingh.famsphere" required />
           </div>
         </div>

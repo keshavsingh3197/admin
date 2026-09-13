@@ -340,7 +340,14 @@ export class FamilyDevicesComponent implements OnInit {
         setTimeout(() => this.successMessage.set(null), 4000);
       },
       error: err => {
-        this.error.set('Failed to save version config: ' + (err.error?.message || err.message));
+        let errMsg = err.error?.message || err.message;
+        if (err.error?.errors) {
+          const validationErrors = Object.values(err.error.errors).flat().join(' ');
+          if (validationErrors) {
+            errMsg = validationErrors;
+          }
+        }
+        this.error.set('Failed to save version config: ' + errMsg);
         this.savingVersion.set(false);
       }
     });
