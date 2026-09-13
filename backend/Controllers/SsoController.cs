@@ -75,6 +75,13 @@ public sealed class SsoController : ControllerBase
                 SessionConfirmationTicket: result.SessionConfirmationTicket,
                 ConflictingSessions: result.ConflictingSessions));
 
+        if (result.Tokens != null && IsRestrictedMobileUser(result.Tokens.User.Roles))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new {
+                error = "Access denied. Mobile accounts can only sign into the mobile application and cannot access web portals."
+            });
+        }
+
         return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
     }
 
@@ -144,6 +151,13 @@ public sealed class SsoController : ControllerBase
             await _twoFactorDevices.MarkUsedAsync(result.Tokens!.User.Id);
         }
 
+        if (result.Tokens != null && IsRestrictedMobileUser(result.Tokens.User.Roles))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new {
+                error = "Access denied. Mobile accounts can only sign into the mobile application and cannot access web portals."
+            });
+        }
+
         return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
     }
 
@@ -155,6 +169,12 @@ public sealed class SsoController : ControllerBase
     public async Task<ActionResult<SsoSessionResponse>> ConfirmSession(SessionConfirmRequest request)
     {
         var result = await _auth.ConfirmSessionAsync(request, DeviceLabel());
+        if (result.Tokens != null && IsRestrictedMobileUser(result.Tokens.User.Roles))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new {
+                error = "Access denied. Mobile accounts can only sign into the mobile application and cannot access web portals."
+            });
+        }
         return Ok(IssueSession(result.Tokens!));
     }
 
@@ -203,7 +223,15 @@ public sealed class SsoController : ControllerBase
 
         try
         {
-            return Ok(IssueSession(await _auth.RefreshAsync(refreshToken)));
+            var refreshed = await _auth.RefreshAsync(refreshToken);
+            if (IsRestrictedMobileUser(refreshed.User.Roles))
+            {
+                Response.Cookies.Delete(_cookie.CookieName, _cookie.BuildDeleteOptions());
+                return StatusCode(StatusCodes.Status403Forbidden, new {
+                    error = "Access denied. Mobile accounts cannot access the admin web portal."
+                });
+            }
+            return Ok(IssueSession(refreshed));
         }
         catch (AuthException)
         {
@@ -241,6 +269,19 @@ public sealed class SsoController : ControllerBase
         var expires = DateTimeOffset.UtcNow.AddDays(_settings.RefreshTokenDays);
         Response.Cookies.Append(_cookie.CookieName, tokens.RefreshToken, _cookie.BuildWriteOptions(expires));
         return new SsoSessionResponse(tokens.AccessToken, tokens.AccessTokenExpiresAt, tokens.User);
+    }
+
+    /// <summary>
+    /// Checks whether an account is provisioned for mobile-only access (e.g. mobile app reviewer/fleet)
+    /// and should be completely blocked from accessing the web management portal and SSO family.
+    /// </summary>
+    private static bool IsRestrictedMobileUser(IReadOnlyList<string>? roles)
+    {
+        if (roles is null || roles.Count == 0) return false;
+        var hasMobileUser = roles.Contains("MobileUser", StringComparer.OrdinalIgnoreCase);
+        var hasAdminOrEditor = roles.Contains(Roles.Admin, StringComparer.OrdinalIgnoreCase) ||
+                               roles.Contains(Roles.Editor, StringComparer.OrdinalIgnoreCase);
+        return hasMobileUser && !hasAdminOrEditor;
     }
 
 }

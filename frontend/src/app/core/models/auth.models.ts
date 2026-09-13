@@ -1,6 +1,4 @@
-// Auth types for the admin identity-provider UI. These mirror the /api/sso/* DTOs.
-
-export type Role = 'Admin' | 'Editor' | 'Viewer';
+export type Role = 'Admin' | 'Editor' | 'Viewer' | 'MobileUser';
 
 export interface UserProfile {
   id: string;

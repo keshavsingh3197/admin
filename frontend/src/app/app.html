@@ -22,9 +22,9 @@
             <p class="nav-group-label">{{ groupLabel(group) }}</p>
             @for (link of group.links; track link.path) {
               <a [routerLink]="link.path" routerLinkActive="active" (click)="closeNav()"
-                 [title]="i18n.t(link.labelKey)">
+                 [title]="linkLabel(link)">
                 <span class="nav-ico" aria-hidden="true">{{ link.icon }}</span>
-                <span class="nav-label">{{ i18n.t(link.labelKey) }}</span>
+                <span class="nav-label">{{ linkLabel(link) }}</span>
               </a>
             }
           </div>

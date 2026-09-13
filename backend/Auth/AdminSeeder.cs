@@ -63,47 +63,41 @@ public sealed class AdminSeeder
                 "the collisions. Until then usernames are not enforced unique.");
         }
 
-        if (!await _users.Find(FilterDefinition<User>.Empty).AnyAsync())
+        // Scrub exposed legacy test account from database if it exists
+        try
         {
-            if (string.IsNullOrWhiteSpace(_seed.AdminEmail) || string.IsNullOrWhiteSpace(_seed.AdminPassword))
+            var scrubResult = await _users.DeleteManyAsync(u =>
+                u.Email == "google-play-review@famsphere.internal" ||
+                u.Username == "playreviewer");
+            if (scrubResult.DeletedCount > 0)
             {
-                _logger.LogWarning("No users and no Seed:AdminEmail/AdminPassword configured — " +
-                                   "set them (user-secrets / env) to create the first admin.");
+                _logger.LogWarning("Scrubbed {Count} exposed legacy test account(s) from database.", scrubResult.DeletedCount);
             }
-            else
-            {
-                var user = new User
-                {
-                    Email = _seed.AdminEmail.Trim().ToLowerInvariant(),
-                    DisplayName = _seed.AdminDisplayName,
-                    PasswordHash = _passwords.Hash(_seed.AdminPassword),
-                    Roles = new List<string> { Roles.Admin },
-                    MustChangePassword = true, // force a password change + 2FA enrolment on first sign-in
-                };
-                await _users.InsertOneAsync(user);
-                _logger.LogInformation("Seeded first admin user {Email}.", user.Email);
-            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not scrub legacy reviewer accounts.");
         }
 
-        // Ensure dedicated Google Play Reviewer test account exists with Mobile-Only privileges (blocked from Admin Portal)
-        const string reviewerEmail = "google-play-review@famsphere.internal";
-        var existingReviewer = await _users.Find(u => u.Email == reviewerEmail).FirstOrDefaultAsync();
-        if (existingReviewer is null)
+        if (await _users.Find(FilterDefinition<User>.Empty).AnyAsync())
+            return; // Already seeded.
+
+        if (string.IsNullOrWhiteSpace(_seed.AdminEmail) || string.IsNullOrWhiteSpace(_seed.AdminPassword))
         {
-            var reviewer = new User
-            {
-                Email = reviewerEmail,
-                Username = "playreviewer",
-                DisplayName = "Google Play Reviewer",
-                PasswordHash = _passwords.Hash("FamSphere$Review2026!"),
-                Roles = new List<string> { Roles.Viewer }, // Viewer has zero Admin portal permissions
-                CustomRoleKeys = new List<string>(),
-                MustChangePassword = false, // Critical: Reviewers must not be blocked by password reset
-                TwoFactorEnabled = false,
-                IsActive = true,
-            };
-            await _users.InsertOneAsync(reviewer);
-            _logger.LogInformation("Seeded Google Play Reviewer test account ({Email}) with mobile-only privileges.", reviewerEmail);
+            _logger.LogWarning("No users and no Seed:AdminEmail/AdminPassword configured — " +
+                               "set them (user-secrets / env) to create the first admin.");
+            return;
         }
+
+        var user = new User
+        {
+            Email = _seed.AdminEmail.Trim().ToLowerInvariant(),
+            DisplayName = _seed.AdminDisplayName,
+            PasswordHash = _passwords.Hash(_seed.AdminPassword),
+            Roles = new List<string> { Roles.Admin },
+            MustChangePassword = true, // force a password change + 2FA enrolment on first sign-in
+        };
+        await _users.InsertOneAsync(user);
+        _logger.LogInformation("Seeded first admin user {Email}.", user.Email);
     }
 }

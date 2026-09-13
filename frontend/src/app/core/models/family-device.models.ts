@@ -87,3 +87,20 @@ export interface FamQrVerifyResult {
   payloadData?: string;
 }
 
+export interface MobileUserAccount {
+  id: string;
+  email: string;
+  username?: string;
+  displayName: string;
+  roles: string[];
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface ProvisionMobileUserRequest {
+  email: string;
+  username?: string;
+  displayName: string;
+  password: string;
+}
+

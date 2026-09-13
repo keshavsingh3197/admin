@@ -16,10 +16,29 @@ export const authGuard: CanActivateFn = (_route: ActivatedRouteSnapshot, state: 
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  if (auth.isAuthenticated()) return of(true);
+  const isRestrictedMobile = () => {
+    const u = auth.user();
+    if (!u) return false;
+    const r = u.roles || [];
+    return r.includes('MobileUser') && !r.includes('Admin') && !r.includes('Editor');
+  };
+
+  if (auth.isAuthenticated()) {
+    if (isRestrictedMobile()) {
+      auth.forceClear();
+      return of(router.createUrlTree(['/login'], { queryParams: { error: 'mobile_only' } }));
+    }
+    return of(true);
+  }
 
   return auth.session().pipe(
-    map(() => true),
+    map(() => {
+      if (isRestrictedMobile()) {
+        auth.forceClear();
+        return router.createUrlTree(['/login'], { queryParams: { error: 'mobile_only' } });
+      }
+      return true;
+    }),
     catchError(() => {
       auth.forceClear();
       return of(router.createUrlTree(['/login'], { queryParams: { return: state.url } }));

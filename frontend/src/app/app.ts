@@ -198,10 +198,19 @@ export class App {
     return text === group.labelKey ? group.fallback : text;
   }
 
+  /**
+   * A link title/label, falling back to the compiled-in English fallback if the translation
+   * has not yet loaded or is missing in the current bundle.
+   */
+  linkLabel(link: NavLink): string {
+    const text = this.i18n.t(link.labelKey);
+    return (text === link.labelKey && link.fallback) ? link.fallback : text;
+  }
+
   /** A human label for a denied `page.*` key, for the access-denied banner — falls back to the raw key. */
   private labelForPermission(permissionKey: string): string {
     const link = NAV_GROUPS.flatMap(g => g.links).find(l => l.permissionKey === permissionKey);
-    return link ? this.i18n.t(link.labelKey) : permissionKey;
+    return link ? this.linkLabel(link) : permissionKey;
   }
 
   dismissAccessDenied(): void {

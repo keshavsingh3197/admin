@@ -202,6 +202,13 @@ export class LoginComponent implements OnInit {
     const params = this.route.snapshot.queryParamMap;
     const twoFactorToken = params.get('twoFactorToken');
     const socialError = params.get('socialError');
+    const errorParam = params.get('error');
+
+    if (errorParam === 'mobile_only') {
+      this.errorMessage.set('Access denied: This account is provisioned for mobile application access only and cannot access the web management portal.');
+      this.checking.set(false);
+      return;
+    }
 
     // Returning from the GitHub social-login redirect: either straight into the (always-mandatory)
     // 2FA step, or a plain-language reason it didn't go through. Either way, skip the silent SSO
@@ -228,7 +235,17 @@ export class LoginComponent implements OnInit {
     // Already signed in on another *.keshavsingh.in app? Resume silently and bounce straight
     // to ?return= — no second prompt. A 401 just means "not signed in": show the form.
     this.auth.session().subscribe({
-      next: () => this.finish(),
+      next: () => {
+        const u = this.auth.user();
+        const r = u?.roles || [];
+        if (r.includes('MobileUser') && !r.includes('Admin') && !r.includes('Editor')) {
+          this.auth.forceClear();
+          this.errorMessage.set('Access denied: Mobile accounts cannot access the admin web portal.');
+          this.checking.set(false);
+          return;
+        }
+        this.finish();
+      },
       error: () => this.checking.set(false),
     });
   }
@@ -417,6 +434,14 @@ export class LoginComponent implements OnInit {
   }
 
   finish(): void {
+    const u = this.auth.user();
+    const r = u?.roles || [];
+    if (r.includes('MobileUser') && !r.includes('Admin') && !r.includes('Editor')) {
+      this.auth.forceClear();
+      this.errorMessage.set('Access denied: Mobile accounts cannot access the admin web portal.');
+      return;
+    }
+
     const returnUrl = this.route.snapshot.queryParamMap.get('return');
     if (returnUrl) {
       // Internal path — stay in this SPA. Reject protocol-relative ("//host") values.

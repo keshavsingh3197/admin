@@ -58,4 +58,11 @@ public class PermissionCatalogTests
             Assert.False(string.IsNullOrWhiteSpace(item.Category), $"{item.Key} has no category");
         }
     }
+
+    [Fact]
+    public void Page_family_devices_is_registered_in_catalog()
+    {
+        Assert.Contains("page.familyDevices", PermissionCatalog.AdminPermissionKeys);
+        Assert.True(PermissionCatalog.IsValidForWebsite(PermissionCatalog.AdminWebsiteKey, "page.familyDevices"));
+    }
 }
