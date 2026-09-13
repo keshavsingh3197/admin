@@ -313,6 +313,17 @@
         </div>
 
         <form (ngSubmit)="provisionUser()" class="provision-form">
+          <div class="form-group mb-4">
+            <label>Map Existing Admin User (Optional)</label>
+            <select class="form-control" (change)="onSelectAdminUser($event)" [disabled]="provisioningUser()">
+              <option value="">-- Select an Admin User to map --</option>
+              <option *ngFor="let u of adminUsers()" [value]="u.id">
+                {{ u.displayName || u.email }} ({{ u.email }})
+              </option>
+            </select>
+            <small class="text-muted">Selecting a user will auto-fill the fields below. A new password must be set for their mobile-only access.</small>
+          </div>
+
           <div class="form-row">
             <div class="form-group flex-1">
               <label>Email Address <span class="required">*</span></label>

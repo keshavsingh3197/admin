@@ -13,6 +13,8 @@ import {
   FamChatMessage,
   FamAppVersionConfig
 } from '../../core/models/family-device.models';
+import { UsersService } from '../../core/services/users.service';
+import { UserListItem } from '../../core/models/user.models';
 
 @Component({
   selector: 'app-family-devices',
@@ -22,6 +24,9 @@ import {
 })
 export class FamilyDevicesComponent implements OnInit {
   private readonly deviceService = inject(FamilyDeviceService);
+  private readonly usersService = inject(UsersService);
+
+  readonly adminUsers = signal<UserListItem[]>([]);
 
   readonly devices = signal<FamDevice[]>([]);
   readonly selectedDevice = signal<FamDevice | null>(null);
@@ -90,6 +95,7 @@ export class FamilyDevicesComponent implements OnInit {
 
   ngOnInit(): void {
     this.refreshAll();
+    this.usersService.list().subscribe(users => this.adminUsers.set(users));
   }
 
   refreshAll(): void {
@@ -207,6 +213,17 @@ export class FamilyDevicesComponent implements OnInit {
         this.mobileUsersLoading.set(false);
       }
     });
+  }
+
+  onSelectAdminUser(event: Event): void {
+    const userId = (event.target as HTMLSelectElement).value;
+    if (!userId) return;
+    const user = this.adminUsers().find(u => u.id === userId);
+    if (user) {
+      this.newEmail = user.email || '';
+      this.newUsername = user.username || '';
+      this.newDisplayName = user.displayName || user.firstName + ' ' + user.lastName || 'Mobile User';
+    }
   }
 
   provisionUser(): void {
