@@ -222,7 +222,7 @@ export class FamilyDevicesComponent implements OnInit {
     if (user) {
       this.newEmail = user.email || '';
       this.newUsername = user.username || '';
-      this.newDisplayName = user.displayName || user.firstName + ' ' + user.lastName || 'Mobile User';
+      this.newDisplayName = user.displayName || user.username || 'Mobile User';
     }
   }
 
