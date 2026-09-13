@@ -1,0 +1,69 @@
+<div class="page-container">
+  <div class="card">
+    <div class="header">
+      <div class="logo-badge">🛡️</div>
+      <h1>FamSphere Account & Data Deletion</h1>
+      <p class="subtitle">Request complete erasure of your account, device telemetry, and location records.</p>
+    </div>
+
+    <div class="policy-box">
+      <h3>Google Play Data Safety & User Rights</h3>
+      <p>
+        In accordance with Google Play's User Data policy and privacy regulations, FamSphere users have the right to request permanent deletion of their account and all associated personal and telemetry data without needing to reinstall the app.
+      </p>
+      <ul>
+        <li><strong>Account Profile:</strong> User ID, Display Name, Email, and credentials.</li>
+        <li><strong>Device Fleet Telemetry:</strong> Hardware brand, model, OS, battery logs, and registered device records.</li>
+        <li><strong>Location Breadcrumbs:</strong> All historical GPS coordinates, timestamps, and reverse-geocoded addresses.</li>
+        <li><strong>Pairing Sessions:</strong> All QR codes and family pairing links.</li>
+      </ul>
+      <p class="retention-note">
+        <em>Note: Once processed, this deletion is irreversible. If you still have the FamSphere mobile app installed, you can also delete your data instantly in-app under <strong>Settings &gt; Account &amp; Identity &gt; Delete Account &amp; Data</strong>.</em>
+      </p>
+    </div>
+
+    <div *ngIf="successMessage" class="alert alert-success">
+      ✅ {{ successMessage }}
+    </div>
+
+    <div *ngIf="errorMessage" class="alert alert-danger">
+      ⚠️ {{ errorMessage }}
+    </div>
+
+    <form (ngSubmit)="onSubmit()" *ngIf="!successMessage">
+      <div class="form-group">
+        <label for="email">Account Email Address *</label>
+        <input
+          id="email"
+          type="email"
+          [(ngModel)]="email"
+          name="email"
+          placeholder="your.email@example.com"
+          required
+          class="form-control"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="reason">Reason for Deletion (Optional)</label>
+        <textarea
+          id="reason"
+          [(ngModel)]="reason"
+          name="reason"
+          rows="3"
+          placeholder="Let us know why you're leaving (optional)..."
+          class="form-control"
+        ></textarea>
+      </div>
+
+      <button type="submit" [disabled]="isSubmitting || !email" class="submit-btn">
+        <span *ngIf="!isSubmitting">Submit Deletion Request</span>
+        <span *ngIf="isSubmitting">Processing Request...</span>
+      </button>
+    </form>
+
+    <div class="footer-note">
+      <p>Questions? Contact our Data Protection Officer at <a href="mailto:privacy@keshavsingh.in">privacy@keshavsingh.in</a>.</p>
+    </div>
+  </div>
+</div>

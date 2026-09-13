@@ -17,6 +17,14 @@ export const routes: Routes = [
       ),
   },
   {
+    // Public by design: Google Play Data Deletion Request compliance
+    path: 'data-deletion',
+    loadComponent: () =>
+      import('./features/data-deletion/data-deletion.component').then(
+        (m) => m.DataDeletionComponent
+      ),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     loadComponent: () =>

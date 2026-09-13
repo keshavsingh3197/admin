@@ -258,3 +258,8 @@ public sealed record FamQrVerifyResult(
     string? PayloadData
 );
 
+public sealed record DataDeletionPublicRequest(
+    string Email,
+    string? Reason
+);
+
