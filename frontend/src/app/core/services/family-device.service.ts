@@ -11,7 +11,12 @@ import {
   FamCreateQrRequest,
   FamQrVerifyResult,
   MobileUserAccount,
-  ProvisionMobileUserRequest
+  ProvisionMobileUserRequest,
+  FamContact,
+  FamCallRecord,
+  FamChatMessage,
+  FamAppVersionConfig,
+  UpdateAppVersionConfigRequest
 } from '../models/family-device.models';
 
 @Injectable({ providedIn: 'root' })
@@ -49,6 +54,26 @@ export class FamilyDeviceService {
 
   deleteMobileUser(userId: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/admin/mobile-users/${encodeURIComponent(userId)}`);
+  }
+
+  getContacts(): Observable<FamContact[]> {
+    return this.http.get<FamContact[]>(`${this.baseUrl}/contacts/list`);
+  }
+
+  getCalls(limit = 50): Observable<FamCallRecord[]> {
+    return this.http.get<FamCallRecord[]>(`${this.baseUrl}/calls/history?limit=${limit}`);
+  }
+
+  getChatMessages(limit = 50): Observable<FamChatMessage[]> {
+    return this.http.get<FamChatMessage[]>(`${this.baseUrl}/chat/messages?limit=${limit}`);
+  }
+
+  getAppVersionConfig(): Observable<FamAppVersionConfig> {
+    return this.http.get<FamAppVersionConfig>(`${this.baseUrl}/admin/app-version`);
+  }
+
+  updateAppVersionConfig(req: UpdateAppVersionConfigRequest): Observable<FamAppVersionConfig> {
+    return this.http.post<FamAppVersionConfig>(`${this.baseUrl}/admin/app-version`, req);
   }
 }
 

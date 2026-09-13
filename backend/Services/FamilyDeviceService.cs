@@ -1,11 +1,12 @@
 using Admin.Api.Models;
+using KeshavSingh.Security;
 using MongoDB.Driver;
 
 namespace Admin.Api.Services;
 
 /// <summary>
 /// Service managing family mobile devices, real-time GPS tracking, lost mode controls,
-/// QR pairing sessions, and security audit logs in a dedicated MongoDB database (FamSphereDb).
+/// QR pairing sessions, mobile users, contacts sync, calls, chat, and app versioning in a dedicated MongoDB database (FamSphereDb).
 /// </summary>
 public sealed class FamilyDeviceService
 {
@@ -14,15 +15,24 @@ public sealed class FamilyDeviceService
     private readonly IMongoCollection<FamLocation> _locations;
     private readonly IMongoCollection<FamAuditLog> _auditLogs;
     private readonly IMongoCollection<FamQrSession> _qrSessions;
+    private readonly IMongoCollection<FamUser> _famUsers;
+    private readonly IMongoCollection<FamContact> _contacts;
+    private readonly IMongoCollection<FamCallRecord> _calls;
+    private readonly IMongoCollection<FamChatMessage> _messages;
+    private readonly IMongoCollection<FamAppVersionConfig> _appConfig;
     private readonly FamilyHubService _familyHub;
+    private readonly PasswordHasher _passwords;
+    private readonly JwtService _jwt;
     private readonly ILogger<FamilyDeviceService> _logger;
 
     public FamilyDeviceService(
         MongoDbService mongo,
         FamilyHubService familyHub,
+        PasswordHasher passwords,
+        JwtService jwt,
         ILogger<FamilyDeviceService> logger)
     {
-        // Use dedicated MongoDB database "FamSphereDb" as requested
+        // Dedicated MongoDB database "FamSphereDb" for all mobile application data
         _famDb = mongo.Database.Client.GetDatabase("FamSphereDb");
 
         // Generic prefixed collections: Fam_*
@@ -30,8 +40,15 @@ public sealed class FamilyDeviceService
         _locations = _famDb.GetCollection<FamLocation>("Fam_Locations");
         _auditLogs = _famDb.GetCollection<FamAuditLog>("Fam_AuditLogs");
         _qrSessions = _famDb.GetCollection<FamQrSession>("Fam_QrSessions");
+        _famUsers = _famDb.GetCollection<FamUser>("Fam_Users");
+        _contacts = _famDb.GetCollection<FamContact>("Fam_Contacts");
+        _calls = _famDb.GetCollection<FamCallRecord>("Fam_Calls");
+        _messages = _famDb.GetCollection<FamChatMessage>("Fam_Messages");
+        _appConfig = _famDb.GetCollection<FamAppVersionConfig>("Fam_AppConfig");
 
         _familyHub = familyHub;
+        _passwords = passwords;
+        _jwt = jwt;
         _logger = logger;
 
         // Ensure background indices
@@ -57,6 +74,29 @@ public sealed class FamilyDeviceService
                 Builders<FamQrSession>.IndexKeys.Ascending(q => q.SessionCode),
                 new CreateIndexOptions { Unique = true });
             await _qrSessions.Indexes.CreateOneAsync(qrIndex);
+
+            var userEmailIndex = new CreateIndexModel<FamUser>(
+                Builders<FamUser>.IndexKeys.Ascending(u => u.Email),
+                new CreateIndexOptions { Unique = true });
+            await _famUsers.Indexes.CreateOneAsync(userEmailIndex);
+
+            var contactIndex = new CreateIndexModel<FamContact>(
+                Builders<FamContact>.IndexKeys
+                    .Ascending(c => c.FamilyId)
+                    .Ascending(c => c.Name));
+            await _contacts.Indexes.CreateOneAsync(contactIndex);
+
+            var callIndex = new CreateIndexModel<FamCallRecord>(
+                Builders<FamCallRecord>.IndexKeys
+                    .Ascending(c => c.FamilyId)
+                    .Descending(c => c.Timestamp));
+            await _calls.Indexes.CreateOneAsync(callIndex);
+
+            var msgIndex = new CreateIndexModel<FamChatMessage>(
+                Builders<FamChatMessage>.IndexKeys
+                    .Ascending(m => m.FamilyId)
+                    .Descending(m => m.Timestamp));
+            await _messages.Indexes.CreateOneAsync(msgIndex);
         }
         catch (Exception ex)
         {
@@ -398,6 +438,253 @@ public sealed class FamilyDeviceService
             details: $"Public data deletion requested for email: {email}. Reason: {reason ?? "Self-service web request"}.");
 
         _logger.LogInformation("Public data deletion requested for {Email}", email);
+    }
+
+    // ==========================================
+    // Mobile User Management (FamSphereDb.Fam_Users)
+    // ==========================================
+
+    /// <summary>
+    /// Provisions a dedicated MobileUser directly in FamSphereDb.Fam_Users.
+    /// If user already exists, updates password and reactivates, avoiding E11000 duplicate key error.
+    /// </summary>
+    public async Task<MobileUserDto> ProvisionMobileUserAsync(ProvisionMobileUserRequest request)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim().ToLowerInvariant();
+
+        var existing = await _famUsers.Find(u => u.Email == email || (username != null && u.Username == username)).FirstOrDefaultAsync();
+        if (existing is not null)
+        {
+            existing.DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? existing.DisplayName : request.DisplayName.Trim();
+            existing.PasswordHash = _passwords.Hash(request.Password);
+            existing.IsActive = true;
+            existing.UpdatedAt = DateTime.UtcNow;
+            await _famUsers.ReplaceOneAsync(u => u.Id == existing.Id, existing);
+            return new MobileUserDto(existing.Id, existing.Email, existing.Username, existing.DisplayName, existing.Roles, existing.IsActive, existing.CreatedAt);
+        }
+
+        var newUser = new FamUser
+        {
+            Email = email,
+            Username = username,
+            DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? "Mobile User" : request.DisplayName.Trim(),
+            PasswordHash = _passwords.Hash(request.Password),
+            Roles = new List<string> { "MobileUser" },
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+        await _famUsers.InsertOneAsync(newUser);
+        return new MobileUserDto(newUser.Id, newUser.Email, newUser.Username, newUser.DisplayName, newUser.Roles, newUser.IsActive, newUser.CreatedAt);
+    }
+
+    /// <summary>
+    /// Lists all active mobile accounts from FamSphereDb.Fam_Users.
+    /// </summary>
+    public async Task<IReadOnlyList<MobileUserDto>> ListMobileUsersAsync()
+    {
+        var users = await _famUsers.Find(FilterDefinition<FamUser>.Empty)
+            .SortByDescending(u => u.CreatedAt)
+            .ToListAsync();
+
+        return users.Select(u => new MobileUserDto(
+            u.Id,
+            u.Email,
+            u.Username,
+            u.DisplayName,
+            u.Roles,
+            u.IsActive,
+            u.CreatedAt)).ToList();
+    }
+
+    /// <summary>
+    /// Deletes a mobile account completely from FamSphereDb.Fam_Users.
+    /// </summary>
+    public async Task<bool> DeleteMobileUserAsync(string userId)
+    {
+        var result = await _famUsers.DeleteOneAsync(u => u.Id == userId);
+        return result.DeletedCount > 0;
+    }
+
+    /// <summary>
+    /// Authenticates a mobile application user against FamSphereDb.Fam_Users and returns a 30-day JWT.
+    /// </summary>
+    public async Task<MobileLoginResponse> AuthenticateMobileUserAsync(MobileLoginRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            return new MobileLoginResponse(false, "Email and password are required.", null);
+
+        var normalized = request.Email.Trim().ToLowerInvariant();
+        var user = await _famUsers.Find(u => u.Email == normalized || u.Username == normalized).FirstOrDefaultAsync();
+        if (user is null || !user.IsActive)
+            return new MobileLoginResponse(false, "Invalid credentials or account is deactivated.", null);
+
+        if (!_passwords.Verify(request.Password, user.PasswordHash))
+            return new MobileLoginResponse(false, "Invalid credentials.", null);
+
+        // Mint a 30-day JWT bearer token for the mobile device
+        var (token, expiresAt) = _jwt.CreateAccessToken(
+            new JwtSubject(user.Id, user.Email, user.DisplayName, user.Roles),
+            accessTokenMinutes: 60 * 24 * 30);
+
+        var dto = new MobileUserDto(user.Id, user.Email, user.Username, user.DisplayName, user.Roles, user.IsActive, user.CreatedAt);
+        var tokens = new MobileAuthTokens(token, expiresAt, dto);
+        return new MobileLoginResponse(true, null, tokens);
+    }
+
+    // ==========================================
+    // Contacts Sync & Management (Fam_Contacts)
+    // ==========================================
+
+    public async Task<IReadOnlyList<FamContact>> SyncContactsAsync(string userId, SyncContactsRequest req)
+    {
+        var (familyId, _) = await _familyHub.ResolveFamilyScopeAsync(userId);
+        var contacts = req.Contacts.Select(c => new FamContact
+        {
+            UserId = userId,
+            FamilyId = familyId,
+            Name = c.Name,
+            PhoneNumbers = c.PhoneNumbers ?? new(),
+            Emails = c.Emails ?? new(),
+            Company = c.Company,
+            SyncedAt = DateTime.UtcNow
+        }).ToList();
+
+        // Refresh user's contacts
+        await _contacts.DeleteManyAsync(c => c.UserId == userId);
+        if (contacts.Count > 0)
+        {
+            await _contacts.InsertManyAsync(contacts);
+        }
+
+        return contacts;
+    }
+
+    public async Task<IReadOnlyList<FamContact>> ListContactsAsync(string userId)
+    {
+        var (familyId, _) = await _familyHub.ResolveFamilyScopeAsync(userId);
+        return await _contacts.Find(c => c.FamilyId == familyId)
+            .SortBy(c => c.Name)
+            .ToListAsync();
+    }
+
+    // ==========================================
+    // Audio / Video Call Logging (Fam_Calls)
+    // ==========================================
+
+    public async Task<FamCallRecord> LogCallAsync(string userId, LogCallRequest req)
+    {
+        var (familyId, _) = await _familyHub.ResolveFamilyScopeAsync(userId);
+        var call = new FamCallRecord
+        {
+            UserId = userId,
+            FamilyId = familyId,
+            DeviceId = req.DeviceId,
+            CallType = req.CallType,
+            TargetNameOrPhone = req.TargetNameOrPhone,
+            DurationSeconds = req.DurationSeconds,
+            Status = req.Status,
+            Timestamp = DateTime.UtcNow
+        };
+        await _calls.InsertOneAsync(call);
+        return call;
+    }
+
+    public async Task<IReadOnlyList<FamCallRecord>> ListCallsAsync(string userId, int limit = 50)
+    {
+        var (familyId, _) = await _familyHub.ResolveFamilyScopeAsync(userId);
+        return await _calls.Find(c => c.FamilyId == familyId)
+            .SortByDescending(c => c.Timestamp)
+            .Limit(limit)
+            .ToListAsync();
+    }
+
+    // ==========================================
+    // Family Chat / Messaging (Fam_Messages)
+    // ==========================================
+
+    public async Task<FamChatMessage> SendMessageAsync(string userId, SendChatMessageRequest req, string senderName)
+    {
+        var (familyId, _) = await _familyHub.ResolveFamilyScopeAsync(userId);
+        var msg = new FamChatMessage
+        {
+            UserId = userId,
+            FamilyId = familyId,
+            SenderName = senderName,
+            MessageText = req.MessageText,
+            MessageType = req.MessageType ?? "Text",
+            Timestamp = DateTime.UtcNow
+        };
+        await _messages.InsertOneAsync(msg);
+        return msg;
+    }
+
+    public async Task<IReadOnlyList<FamChatMessage>> GetMessagesAsync(string userId, int limit = 100)
+    {
+        var (familyId, _) = await _familyHub.ResolveFamilyScopeAsync(userId);
+        return await _messages.Find(m => m.FamilyId == familyId)
+            .SortByDescending(m => m.Timestamp)
+            .Limit(limit)
+            .ToListAsync();
+    }
+
+    // ==========================================
+    // App Versioning & In-App Google Play Updates
+    // ==========================================
+
+    public async Task<AppVersionCheckResponse> CheckAppVersionAsync(int clientVersionCode)
+    {
+        var config = await _appConfig.Find(c => c.Id == "famsphere_app_version").FirstOrDefaultAsync();
+        if (config is null)
+        {
+            config = new FamAppVersionConfig();
+            await _appConfig.InsertOneAsync(config);
+        }
+
+        var updateAvailable = config.LatestVersionCode > clientVersionCode;
+        var isMandatory = updateAvailable && (clientVersionCode < config.MinSupportedVersionCode || config.IsMandatory);
+        var marketUrl = "market://details?id=in.keshavsingh.famsphere";
+
+        return new AppVersionCheckResponse(
+            config.LatestVersionName,
+            config.LatestVersionCode,
+            config.MinSupportedVersionCode,
+            updateAvailable,
+            isMandatory,
+            config.ReleaseNotes,
+            config.PlayStoreUrl,
+            marketUrl);
+    }
+
+    public async Task<FamAppVersionConfig> GetAppVersionConfigAsync()
+    {
+        var config = await _appConfig.Find(c => c.Id == "famsphere_app_version").FirstOrDefaultAsync();
+        if (config is null)
+        {
+            config = new FamAppVersionConfig();
+            await _appConfig.InsertOneAsync(config);
+        }
+        return config;
+    }
+
+    public async Task<FamAppVersionConfig> UpdateAppVersionConfigAsync(UpdateAppVersionConfigRequest req)
+    {
+        var config = new FamAppVersionConfig
+        {
+            Id = "famsphere_app_version",
+            LatestVersionName = req.LatestVersionName,
+            LatestVersionCode = req.LatestVersionCode,
+            MinSupportedVersionCode = req.MinSupportedVersionCode,
+            IsMandatory = req.IsMandatory,
+            ReleaseNotes = req.ReleaseNotes,
+            PlayStoreUrl = req.PlayStoreUrl,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await _appConfig.ReplaceOneAsync(c => c.Id == config.Id, config, new ReplaceOptions { IsUpsert = true });
+        return config;
     }
 }
 

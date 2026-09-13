@@ -2,7 +2,17 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FamilyDeviceService } from '../../core/services/family-device.service';
-import { FamDevice, FamLocation, FamAuditLog, FamQrSession, MobileUserAccount } from '../../core/models/family-device.models';
+import {
+  FamDevice,
+  FamLocation,
+  FamAuditLog,
+  FamQrSession,
+  MobileUserAccount,
+  FamContact,
+  FamCallRecord,
+  FamChatMessage,
+  FamAppVersionConfig
+} from '../../core/models/family-device.models';
 
 @Component({
   selector: 'app-family-devices',
@@ -17,7 +27,7 @@ export class FamilyDevicesComponent implements OnInit {
   readonly selectedDevice = signal<FamDevice | null>(null);
   readonly locationHistory = signal<FamLocation[]>([]);
   readonly auditLogs = signal<FamAuditLog[]>([]);
-  readonly activeTab = signal<'fleet' | 'history' | 'logs' | 'qr' | 'accounts'>('fleet');
+  readonly activeTab = signal<'fleet' | 'history' | 'logs' | 'qr' | 'accounts' | 'contacts' | 'comms' | 'version'>('fleet');
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
@@ -30,6 +40,36 @@ export class FamilyDevicesComponent implements OnInit {
   newDisplayName = 'Google Play Reviewer';
   newPassword = '';
   readonly provisioningUser = signal(false);
+
+  // Contacts Management (Fam_Contacts)
+  readonly contacts = signal<FamContact[]>([]);
+  readonly contactsLoading = signal(false);
+  readonly contactsSearch = signal('');
+  readonly filteredContacts = computed(() => {
+    const q = this.contactsSearch().toLowerCase().trim();
+    if (!q) return this.contacts();
+    return this.contacts().filter(c =>
+      (c.name && c.name.toLowerCase().includes(q)) ||
+      (c.phoneNumber && c.phoneNumber.includes(q)) ||
+      (c.email && c.email.toLowerCase().includes(q))
+    );
+  });
+
+  // Calls & Chat Management (Fam_Calls, Fam_Messages)
+  readonly calls = signal<FamCallRecord[]>([]);
+  readonly messages = signal<FamChatMessage[]>([]);
+  readonly commsLoading = signal(false);
+
+  // App Version & Update Management (Fam_AppConfig)
+  readonly appVersionConfig = signal<FamAppVersionConfig | null>(null);
+  readonly appVersionLoading = signal(false);
+  readonly savingVersion = signal(false);
+  versionLatest = '1.0.0';
+  versionCode = 1;
+  minSupportedVersionCode = 1;
+  isUpdateMandatory = false;
+  releaseNotes = 'Bug fixes and performance improvements.';
+  playStoreUrl = 'market://details?id=in.keshavsingh.famsphere';
 
   // Lost mode modal state
   readonly lostModalOpen = signal(false);
@@ -207,6 +247,84 @@ export class FamilyDevicesComponent implements OnInit {
       },
       error: err => {
         this.error.set('Failed to delete mobile user: ' + (err.error?.error || err.message));
+      }
+    });
+  }
+
+  setTab(tab: 'fleet' | 'history' | 'logs' | 'qr' | 'accounts' | 'contacts' | 'comms' | 'version'): void {
+    this.activeTab.set(tab);
+    if (tab === 'contacts' && this.contacts().length === 0) {
+      this.loadContacts();
+    } else if (tab === 'comms' && this.calls().length === 0 && this.messages().length === 0) {
+      this.loadComms();
+    } else if (tab === 'version') {
+      this.loadAppVersionConfig();
+    }
+  }
+
+  loadContacts(): void {
+    this.contactsLoading.set(true);
+    this.deviceService.getContacts().subscribe({
+      next: list => {
+        this.contacts.set(list);
+        this.contactsLoading.set(false);
+      },
+      error: () => this.contactsLoading.set(false)
+    });
+  }
+
+  loadComms(): void {
+    this.commsLoading.set(true);
+    this.deviceService.getCalls(50).subscribe({
+      next: list => this.calls.set(list),
+      error: () => {}
+    });
+    this.deviceService.getChatMessages(50).subscribe({
+      next: list => {
+        this.messages.set(list);
+        this.commsLoading.set(false);
+      },
+      error: () => this.commsLoading.set(false)
+    });
+  }
+
+  loadAppVersionConfig(): void {
+    this.appVersionLoading.set(true);
+    this.deviceService.getAppVersionConfig().subscribe({
+      next: cfg => {
+        this.appVersionConfig.set(cfg);
+        this.versionLatest = cfg.latestVersion;
+        this.versionCode = cfg.latestVersionCode;
+        this.minSupportedVersionCode = cfg.minSupportedVersionCode;
+        this.isUpdateMandatory = cfg.isUpdateMandatory;
+        this.releaseNotes = cfg.releaseNotes;
+        this.playStoreUrl = cfg.playStoreUrl;
+        this.appVersionLoading.set(false);
+      },
+      error: () => this.appVersionLoading.set(false)
+    });
+  }
+
+  saveAppVersionConfig(): void {
+    this.savingVersion.set(true);
+    this.error.set(null);
+    this.deviceService.updateAppVersionConfig({
+      latestVersion: this.versionLatest,
+      latestVersionCode: Number(this.versionCode),
+      minSupportedVersionCode: Number(this.minSupportedVersionCode),
+      isUpdateMandatory: this.isUpdateMandatory,
+      releaseNotes: this.releaseNotes,
+      playStoreUrl: this.playStoreUrl
+    }).subscribe({
+      next: cfg => {
+        this.appVersionConfig.set(cfg);
+        this.savingVersion.set(false);
+        this.successMessage.set('App update policy and Google Play version published successfully.');
+        setTimeout(() => this.successMessage.set(null), 4000);
+      },
+      error: err => {
+        this.error.set('Failed to save version config: ' + (err.error?.message || err.message));
+        this.savingVersion.set(false);
       }
     });
   }

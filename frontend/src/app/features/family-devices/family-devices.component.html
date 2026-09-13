@@ -44,20 +44,29 @@
 
   <!-- Navigation Tabs -->
   <div class="tabs-bar">
-    <button class="tab-btn" [class.active]="activeTab() === 'fleet'" (click)="activeTab.set('fleet')">
+    <button class="tab-btn" [class.active]="activeTab() === 'fleet'" (click)="setTab('fleet')">
       📱 Device Fleet ({{ totalDevicesCount() }})
     </button>
-    <button class="tab-btn" [class.active]="activeTab() === 'history'" (click)="activeTab.set('history')">
+    <button class="tab-btn" [class.active]="activeTab() === 'history'" (click)="setTab('history')">
       🗺️ Location Breadcrumbs
     </button>
-    <button class="tab-btn" [class.active]="activeTab() === 'logs'" (click)="activeTab.set('logs')">
+    <button class="tab-btn" [class.active]="activeTab() === 'logs'" (click)="setTab('logs')">
       🛡️ Security Audit Logs ({{ auditLogs().length }})
     </button>
-    <button class="tab-btn" [class.active]="activeTab() === 'accounts'" (click)="activeTab.set('accounts')">
+    <button class="tab-btn" [class.active]="activeTab() === 'accounts'" (click)="setTab('accounts')">
       👥 Mobile App Accounts ({{ mobileUsers().length }})
     </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'contacts'" (click)="setTab('contacts')">
+      📇 Family Contacts ({{ contacts().length }})
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'comms'" (click)="setTab('comms')">
+      📞 Calls & Chat ({{ calls().length }})
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'version'" (click)="setTab('version')">
+      🚀 App Updates & Release
+    </button>
     @if (generatedQr()) {
-      <button class="tab-btn" [class.active]="activeTab() === 'qr'" (click)="activeTab.set('qr')">
+      <button class="tab-btn" [class.active]="activeTab() === 'qr'" (click)="setTab('qr')">
         📷 QR Pairing Session
       </button>
     }
@@ -394,6 +403,201 @@
           </div>
         }
       </div>
+    </div>
+  }
+
+  <!-- Tab 5: Family Contacts -->
+  @if (activeTab() === 'contacts') {
+    <div class="accounts-section">
+      <div class="accounts-table-card">
+        <div class="table-card-header">
+          <div>
+            <h4>Family Contacts Cloud Sync</h4>
+            <p class="subtitle">Contacts synced from connected family phones and reviewer devices.</p>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search contacts..."
+              [ngModel]="contactsSearch()"
+              (ngModelChange)="contactsSearch.set($event)"
+            />
+            <button class="btn btn-secondary btn-sm" (click)="loadContacts()" [disabled]="contactsLoading()">
+              ⟳ Refresh
+            </button>
+          </div>
+        </div>
+
+        @if (contactsLoading()) {
+          <div class="table-loading">Loading contacts from FamSphere database…</div>
+        } @else if (filteredContacts().length === 0) {
+          <div class="empty-state">
+            <p>No contacts found.</p>
+            <p class="empty-hint">Open FamSphere on mobile and tap "Sync Contacts" to push phone contacts to the family cloud.</p>
+          </div>
+        } @else {
+          <div class="logs-container">
+            <table class="logs-table">
+              <thead>
+                <tr>
+                  <th>Contact Name</th>
+                  <th>Phone Number</th>
+                  <th>Email</th>
+                  <th>Notes</th>
+                  <th>Favorite</th>
+                  <th>Synced Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of filteredContacts(); track c.id) {
+                  <tr>
+                    <td><strong>{{ c.name }}</strong></td>
+                    <td><code>{{ c.phoneNumber }}</code></td>
+                    <td>{{ c.email || '—' }}</td>
+                    <td>{{ c.notes || '—' }}</td>
+                    <td>{{ c.isFavorite ? '⭐' : '—' }}</td>
+                    <td>{{ c.syncedAt | date:'medium' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Tab 6: Calls & Chat Logs -->
+  @if (activeTab() === 'comms') {
+    <div class="comms-split">
+      <!-- Left: Call History -->
+      <div class="comms-column">
+        <div class="table-card-header">
+          <h4>📞 Voice & Video Calls</h4>
+          <button class="btn btn-secondary btn-sm" (click)="loadComms()">⟳ Refresh</button>
+        </div>
+        @if (commsLoading()) {
+          <div class="table-loading">Loading calls…</div>
+        } @else if (calls().length === 0) {
+          <div class="empty-state">
+            <p>No call history recorded yet.</p>
+            <p class="empty-hint">In-app audio and video calls initiated on mobile will be logged here.</p>
+          </div>
+        } @else {
+          <div class="logs-container">
+            <table class="logs-table">
+              <thead>
+                <tr>
+                  <th>Participant</th>
+                  <th>Type</th>
+                  <th>Direction</th>
+                  <th>Duration</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (call of calls(); track call.id) {
+                  <tr>
+                    <td>
+                      <strong>{{ call.participantName }}</strong>
+                      <div><small class="text-muted">{{ call.participantNumber }}</small></div>
+                    </td>
+                    <td>{{ call.callType === 'Video' ? '📹 Video' : '🎙️ Audio' }}</td>
+                    <td>
+                      <span class="call-badge" [class.incoming]="call.direction === 'Incoming'" [class.outgoing]="call.direction === 'Outgoing'" [class.missed]="call.direction === 'Missed'">
+                        {{ call.direction }}
+                      </span>
+                    </td>
+                    <td>{{ call.durationSeconds }}s</td>
+                    <td>{{ call.startedAt | date:'short' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- Right: Family Chat Messages -->
+      <div class="comms-column">
+        <div class="table-card-header">
+          <h4>💬 Family Chat Messages</h4>
+        </div>
+        @if (commsLoading()) {
+          <div class="table-loading">Loading chat messages…</div>
+        } @else if (messages().length === 0) {
+          <div class="empty-state">
+            <p>No chat messages yet.</p>
+            <p class="empty-hint">Messages exchanged inside the mobile app will be displayed here in real time.</p>
+          </div>
+        } @else {
+          <div class="chat-stream">
+            @for (msg of messages(); track msg.id) {
+              <div class="chat-bubble">
+                <div class="chat-meta">
+                  <span class="chat-sender">{{ msg.senderName }}</span>
+                  <span>{{ msg.sentAt | date:'shortTime' }}</span>
+                </div>
+                <p class="chat-text">{{ msg.content }}</p>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Tab 7: App Updates & Release -->
+  @if (activeTab() === 'version') {
+    <div class="version-card">
+      <div class="version-header">
+        <h3>🚀 FamSphere Mobile Version & Google Play Updates</h3>
+        <p class="subtitle">Control in-app update prompts for Android devices. When an update is published here, the mobile app automatically notifies users with a 1-tap install link to the Google Play Store.</p>
+      </div>
+
+      <form class="version-form" (ngSubmit)="saveAppVersionConfig()">
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label>Latest App Version Name</label>
+            <input type="text" [(ngModel)]="versionLatest" name="versionLatest" class="form-control" placeholder="1.0.0" required />
+          </div>
+          <div class="form-group flex-1">
+            <label>Latest Version Code (Android)</label>
+            <input type="number" [(ngModel)]="versionCode" name="versionCode" class="form-control" placeholder="1" required />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label>Minimum Supported Version Code</label>
+            <input type="number" [(ngModel)]="minSupportedVersionCode" name="minSupportedVersionCode" class="form-control" placeholder="1" required />
+            <small class="text-muted">Devices running older versions than this will be blocked until updated.</small>
+          </div>
+          <div class="form-group flex-1">
+            <label>Google Play Store / Market URI</label>
+            <input type="text" [(ngModel)]="playStoreUrl" name="playStoreUrl" class="form-control" placeholder="market://details?id=in.keshavsingh.famsphere" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" [(ngModel)]="isUpdateMandatory" name="isUpdateMandatory" />
+            <span class="checkbox-label">Enforce Mandatory Update (Cannot be skipped on mobile)</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label>Release Notes / What's New</label>
+          <textarea [(ngModel)]="releaseNotes" name="releaseNotes" class="form-control" rows="4" placeholder="Highlight key features and bug fixes..."></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="savingVersion()">
+            {{ savingVersion() ? 'Publishing Updates…' : '🚀 Publish Version Config' }}
+          </button>
+        </div>
+      </form>
     </div>
   }
 
