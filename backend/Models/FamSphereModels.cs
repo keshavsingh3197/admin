@@ -223,3 +223,4 @@ public sealed record UpdateAppVersionConfigRequest(
     string ReleaseNotes,
     string PlayStoreUrl
 );
+
