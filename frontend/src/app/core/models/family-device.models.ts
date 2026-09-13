@@ -104,3 +104,56 @@ export interface ProvisionMobileUserRequest {
   password: string;
 }
 
+export interface FamContact {
+  id: string;
+  userId: string;
+  familyId: string;
+  name: string;
+  phoneNumber: string;
+  email?: string;
+  notes?: string;
+  isFavorite?: boolean;
+  syncedAt: string;
+}
+
+export interface FamCallRecord {
+  id: string;
+  userId: string;
+  familyId: string;
+  participantName: string;
+  participantNumber: string;
+  callType: 'Audio' | 'Video';
+  direction: 'Incoming' | 'Outgoing' | 'Missed';
+  durationSeconds: number;
+  startedAt: string;
+}
+
+export interface FamChatMessage {
+  id: string;
+  userId: string;
+  familyId: string;
+  senderName: string;
+  content: string;
+  sentAt: string;
+}
+
+export interface FamAppVersionConfig {
+  id?: string;
+  latestVersion: string;
+  latestVersionCode: number;
+  minSupportedVersionCode: number;
+  isUpdateMandatory: boolean;
+  releaseNotes: string;
+  playStoreUrl: string;
+  updatedAt: string;
+}
+
+export interface UpdateAppVersionConfigRequest {
+  latestVersion: string;
+  latestVersionCode: number;
+  minSupportedVersionCode: number;
+  isUpdateMandatory: boolean;
+  releaseNotes: string;
+  playStoreUrl: string;
+}
+

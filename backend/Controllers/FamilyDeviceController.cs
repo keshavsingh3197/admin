@@ -18,23 +18,15 @@ namespace Admin.Api.Controllers;
 public sealed class FamilyDeviceController : ControllerBase
 {
     private readonly FamilyDeviceService _deviceService;
-    private readonly IMongoCollection<User> _users;
-    private readonly IMongoCollection<RefreshToken> _tokens;
-    private readonly PasswordHasher _passwords;
     private readonly AdminAuditService _audit;
     private readonly ILogger<FamilyDeviceController> _logger;
 
     public FamilyDeviceController(
         FamilyDeviceService deviceService,
-        MongoDbService mongo,
-        PasswordHasher passwords,
         AdminAuditService audit,
         ILogger<FamilyDeviceController> logger)
     {
         _deviceService = deviceService;
-        _users = mongo.Database.GetCollection<User>("users");
-        _tokens = mongo.Database.GetCollection<RefreshToken>("refresh_tokens");
-        _passwords = passwords;
         _audit = audit;
         _logger = logger;
     }
@@ -165,31 +157,34 @@ public sealed class FamilyDeviceController : ControllerBase
     }
 
     /// <summary>
-    /// Admin: Lists all accounts that have the MobileUser role (e.g. Google Play Reviewer or mobile fleet accounts).
+    /// Authenticates a mobile application user against FamSphereDb.Fam_Users and issues a 30-day JWT bearer token.
+    /// </summary>
+    [HttpPost("auth/login")]
+    [AllowAnonymous]
+    public async Task<ActionResult<MobileLoginResponse>> AuthenticateMobile([FromBody] MobileLoginRequest request)
+    {
+        var response = await _deviceService.AuthenticateMobileUserAsync(request);
+        if (!response.Success)
+        {
+            return BadRequest(response);
+        }
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Admin: Lists all accounts that have the MobileUser role from FamSphereDb.Fam_Users.
     /// </summary>
     [HttpGet("admin/mobile-users")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<IReadOnlyList<MobileUserDto>>> ListMobileUsers()
     {
-        var users = await _users.Find(u => !u.IsDeleted && u.Roles.Contains("MobileUser"))
-            .SortByDescending(u => u.CreatedAt)
-            .ToListAsync();
-
-        var dtos = users.Select(u => new MobileUserDto(
-            u.Id,
-            u.Email,
-            u.Username,
-            u.DisplayName,
-            u.Roles,
-            u.IsActive,
-            u.CreatedAt)).ToList();
-
-        return Ok(dtos);
+        var users = await _deviceService.ListMobileUsersAsync();
+        return Ok(users);
     }
 
     /// <summary>
-    /// Admin: Provisions a dedicated MobileUser account directly in the database without hardcoding credentials in git.
-    /// Reviewer accounts start active with MustChangePassword = false and TwoFactorEnabled = false.
+    /// Admin: Provisions a dedicated MobileUser account directly in FamSphereDb.Fam_Users without hardcoding credentials in git.
+    /// Automatically resurrects/updates if the user already exists to eliminate E11000 duplicate key error.
     /// </summary>
     [HttpPost("admin/provision-mobile-user")]
     [Authorize(Roles = Roles.Admin)]
@@ -200,67 +195,112 @@ public sealed class FamilyDeviceController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
             return BadRequest(new { error = "Password must be at least 8 characters." });
 
-        var email = request.Email.Trim().ToLowerInvariant();
-        var username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username.Trim().ToLowerInvariant();
-
-        if (await _users.Find(u => u.Email == email && !u.IsDeleted).AnyAsync())
-            return Conflict(new { error = "A user with that email already exists." });
-        if (username is not null && await _users.Find(u => u.Username == username && !u.IsDeleted).AnyAsync())
-            return Conflict(new { error = "That username is already taken." });
-
-        var user = new User
-        {
-            Email = email,
-            Username = username,
-            DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? "Mobile User" : request.DisplayName.Trim(),
-            PasswordHash = _passwords.Hash(request.Password),
-            Roles = new List<string> { "MobileUser" },
-            CustomRoleKeys = new List<string>(), // Zero admin portal grants
-            MustChangePassword = false, // Critical: Mobile testers/reviewers must not be blocked by password reset
-            TwoFactorEnabled = false,   // Critical: Direct sign in without 2FA challenge
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-        };
-
-        await _users.InsertOneAsync(user);
-        await _audit.RecordAsync(AdminAuditEvents.UserCreated, email, "Provisioned MobileUser account with mobile-only access.");
-
-        var dto = new MobileUserDto(
-            user.Id,
-            user.Email,
-            user.Username,
-            user.DisplayName,
-            user.Roles,
-            user.IsActive,
-            user.CreatedAt);
-
+        var dto = await _deviceService.ProvisionMobileUserAsync(request);
+        await _audit.RecordAsync(AdminAuditEvents.UserCreated, request.Email, "Provisioned MobileUser account in FamSphereDb.");
         return Ok(dto);
     }
 
     /// <summary>
-    /// Admin: Deletes a MobileUser account and revokes active sessions.
+    /// Admin: Deletes a MobileUser account completely from FamSphereDb.Fam_Users.
     /// </summary>
     [HttpDelete("admin/mobile-users/{userId}")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> DeleteMobileUser(string userId)
     {
-        var user = await _users.Find(u => u.Id == userId && !u.IsDeleted).FirstOrDefaultAsync();
-        if (user is null) return NotFound();
+        var success = await _deviceService.DeleteMobileUserAsync(userId);
+        if (!success) return NotFound(new { error = "Mobile user not found." });
 
-        if (!user.Roles.Contains("MobileUser"))
-            return BadRequest(new { error = "Only accounts with the MobileUser role can be deleted from here." });
-
-        await _users.UpdateOneAsync(u => u.Id == userId, Builders<User>.Update
-            .Set(u => u.IsDeleted, true)
-            .Set(u => u.IsActive, false)
-            .Set(u => u.UpdatedAt, DateTime.UtcNow));
-
-        await _tokens.UpdateManyAsync(r => r.UserId == userId && r.RevokedAt == null,
-            Builders<RefreshToken>.Update.Set(r => r.RevokedAt, DateTime.UtcNow));
-
-        await _audit.RecordAsync(AdminAuditEvents.UserDeleted, userId, $"Deleted MobileUser {user.Email}.");
+        await _audit.RecordAsync(AdminAuditEvents.UserDeleted, userId, "Deleted MobileUser from FamSphereDb.");
         return NoContent();
+    }
+
+    // ==========================================
+    // Contacts Sync & Management
+    // ==========================================
+
+    [HttpPost("contacts/sync")]
+    public async Task<ActionResult<IReadOnlyList<FamContact>>> SyncContacts([FromBody] SyncContactsRequest request)
+    {
+        var userId = User.GetUserId();
+        var contacts = await _deviceService.SyncContactsAsync(userId, request);
+        return Ok(contacts);
+    }
+
+    [HttpGet("contacts/list")]
+    public async Task<ActionResult<IReadOnlyList<FamContact>>> ListContacts()
+    {
+        var userId = User.GetUserId();
+        var contacts = await _deviceService.ListContactsAsync(userId);
+        return Ok(contacts);
+    }
+
+    // ==========================================
+    // Audio / Video Calling
+    // ==========================================
+
+    [HttpPost("calls/log")]
+    public async Task<ActionResult<FamCallRecord>> LogCall([FromBody] LogCallRequest request)
+    {
+        var userId = User.GetUserId();
+        var record = await _deviceService.LogCallAsync(userId, request);
+        return Ok(record);
+    }
+
+    [HttpGet("calls/history")]
+    public async Task<ActionResult<IReadOnlyList<FamCallRecord>>> ListCalls([FromQuery] int limit = 50)
+    {
+        var userId = User.GetUserId();
+        var calls = await _deviceService.ListCallsAsync(userId, limit);
+        return Ok(calls);
+    }
+
+    // ==========================================
+    // Family Chat / Messaging
+    // ==========================================
+
+    [HttpPost("chat/send")]
+    public async Task<ActionResult<FamChatMessage>> SendChatMessage([FromBody] SendChatMessageRequest request)
+    {
+        var userId = User.GetUserId();
+        var senderName = User.Identity?.Name ?? "Family Member";
+        var msg = await _deviceService.SendMessageAsync(userId, request, senderName);
+        return Ok(msg);
+    }
+
+    [HttpGet("chat/messages")]
+    public async Task<ActionResult<IReadOnlyList<FamChatMessage>>> GetChatMessages([FromQuery] int limit = 100)
+    {
+        var userId = User.GetUserId();
+        var messages = await _deviceService.GetMessagesAsync(userId, limit);
+        return Ok(messages);
+    }
+
+    // ==========================================
+    // In-App Version Check & Admin Configuration
+    // ==========================================
+
+    [HttpGet("app/version-check")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AppVersionCheckResponse>> CheckAppVersion([FromQuery] int versionCode = 0)
+    {
+        var result = await _deviceService.CheckAppVersionAsync(versionCode);
+        return Ok(result);
+    }
+
+    [HttpGet("admin/app-version")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<FamAppVersionConfig>> GetAppVersionConfig()
+    {
+        var config = await _deviceService.GetAppVersionConfigAsync();
+        return Ok(config);
+    }
+
+    [HttpPost("admin/app-version")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<FamAppVersionConfig>> UpdateAppVersionConfig([FromBody] UpdateAppVersionConfigRequest request)
+    {
+        var config = await _deviceService.UpdateAppVersionConfigAsync(request);
+        return Ok(config);
     }
 }
 
