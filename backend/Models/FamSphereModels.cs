@@ -167,7 +167,8 @@ public sealed class FamAppVersionConfig
 // ---- DTOs for Mobile API Communication ----
 
 public sealed record MobileLoginRequest(
-    string Identifier,  // email, username, or phone number
+    string? Identifier,  // email, username, or phone number (new field name)
+    string? Email,       // legacy field name (backward compat)
     string Password
 );
 

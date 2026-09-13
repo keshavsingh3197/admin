@@ -514,10 +514,11 @@ public sealed class FamilyDeviceService
     /// </summary>
     public async Task<MobileLoginResponse> AuthenticateMobileUserAsync(MobileLoginRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Identifier) || string.IsNullOrWhiteSpace(request.Password))
+        if (string.IsNullOrWhiteSpace(request.Identifier) && string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             return new MobileLoginResponse(false, "Email/username and password are required.", null);
 
-        var normalized = request.Identifier.Trim().ToLowerInvariant();
+        // Support both 'Identifier' (new) and 'Email' (legacy) field names
+        var normalized = (request.Identifier ?? request.Email ?? "").Trim().ToLowerInvariant();
         var user = await _famUsers.Find(u =>
             u.Email == normalized ||
             u.Username == normalized ||
