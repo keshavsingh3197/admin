@@ -1,0 +1,429 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KeshavSingh.Auth</name>
+    </assembly>
+    <members>
+        <member name="T:KeshavSingh.Auth.Abstractions.IAuthUserStore">
+            <summary>
+            The account store the engine reads and writes. Implemented per app against its own
+            database — this is the seam that keeps the engine independent of any data layer or
+            driver version.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IAuthUserStore.FindByLoginAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Finds an active-or-inactive, non-deleted account by login. Match the email
+            case-insensitively (emails are stored lower-cased) OR the username exactly.
+            Return null if none. Do not throw for "not found".
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IAuthUserStore.FindByIdAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Finds a non-deleted account by id, or null.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IAuthUserStore.SaveAsync(KeshavSingh.Auth.Abstractions.AuthUser,System.Threading.CancellationToken)">
+            <summary>
+            Persists the engine-mutable fields of <paramref name="user"/> (password hash,
+            2FA state, OTP slot, lockout counters, last-login). Must not alter the account's
+            identity fields or non-auth data.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.IRefreshTokenStore">
+            <summary>Server-side refresh-token storage with revocation.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IRefreshTokenStore.RevokeAsync(KeshavSingh.Auth.Abstractions.RefreshTokenRecord,System.Threading.CancellationToken)">
+            <summary>Revokes the given record (sets its RevokedAt).</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IRefreshTokenStore.RevokeByHashAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Revokes every currently-active token matching the hash.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IRefreshTokenStore.RevokeAllForUserAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Revokes every currently-active token for the user (full logout).</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IRefreshTokenStore.ListActiveAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Lists every currently-active session for this user on this one site/app, newest
+            first. Used to build the session-conflict prompt on a new login.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IRefreshTokenStore.ListAllActiveForUserAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Lists every currently-active session for this user across EVERY site/app, newest
+            first. Used for the self-service "Sessions" screen (see one place them all, revoke any).</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IRefreshTokenStore.RevokeManyAsync(System.Collections.Generic.IEnumerable{System.String},System.Threading.CancellationToken)">
+            <summary>Revokes the specific sessions (by id) the user chose to remove in the conflict prompt.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.IAuthAuditSink">
+            <summary>
+            Records security events with request context. Excludes passwords, tokens, and other
+            personal data. Signature intentionally matches a typical app audit logger so it can
+            implement this directly.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.IAuthSettings">
+            <summary>The small slice of app settings the auth engine needs (read-only).</summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.Abstractions.IAuthSettings.EnforceSingleSessionPerUser">
+            <summary>When true, a new login for a (user, app) pair that already has another active
+            session prompts for confirmation instead of silently coexisting or silently kicking it.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.IEmailSender">
+            <summary>Delivers the email-fallback OTP. TOTP 2FA needs no implementation of this.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.ISmsSender">
+            <summary>Delivers the SMS-fallback OTP. TOTP 2FA needs no implementation of this.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.IWhatsAppSender">
+            <summary>Delivers the WhatsApp-fallback OTP. TOTP 2FA needs no implementation of this.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.IPageAccessEvaluator">
+            <summary>
+            The seam for <c>RequirePagePermissionAttribute</c> (see the root <c>KeshavSingh.Auth</c> namespace):
+            each app implements this against its own fine-grained page/permission model (custom roles, group
+            grants, whatever "Admin bypasses everything" rule it has) and registers it in DI. If an app applies
+            the attribute but never registers an implementation, the attribute fails CLOSED (403), not open —
+            consistent with this package's default-deny stance everywhere else.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Abstractions.IPageAccessEvaluator.HasAccessAsync(System.Security.Claims.ClaimsPrincipal,System.String,System.Threading.CancellationToken)">
+            <summary>True if <paramref name="user"/> may use the page/action behind <paramref name="permissionKey"/>.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.AuthUser">
+            <summary>
+            Storage-neutral view of an account the auth engine operates on. Apps map their own
+            persisted user document onto this and back (see <see cref="T:KeshavSingh.Auth.Abstractions.IAuthUserStore"/>). Every
+            field the engine mutates is settable; the store persists them on <c>SaveAsync</c>.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.Abstractions.AuthUser.PasswordHash">
+            <summary>PBKDF2 hash string (format iterations.salt.hash). Never the raw password.</summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.Abstractions.AuthUser.TotpSecretEncrypted">
+            <summary>Base32 TOTP secret, AES-256-GCM encrypted at rest. Null until enrolled.</summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.Abstractions.AuthUser.PendingTotpSecretEncrypted">
+            <summary>
+            A secret from an enrollment that has been started but not yet confirmed, encrypted the same
+            way. Kept separate from <see cref="P:KeshavSingh.Auth.Abstractions.AuthUser.TotpSecretEncrypted"/> on purpose: writing a new secret
+            straight over the live one would break a working authenticator the moment someone merely
+            opened the enrollment screen, and would let anyone holding an access token rebind the second
+            factor. Promoted to the live secret only by a successful confirm.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.Abstractions.AuthUser.LastTotpStep">
+            <summary>
+            The RFC 6238 time step of the last TOTP code accepted for this account. A code at or before
+            this step is refused, which is what makes an intercepted code single-use rather than valid
+            for the rest of its drift window.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.Abstractions.AuthUser.BackupCodeHashes">
+            <summary>Hashed single-use recovery codes. Removed as each is used.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.RefreshTokenRecord">
+            <summary>
+            Storage-neutral refresh-token record. Only a hash of the opaque token is ever kept,
+            so a database leak cannot be replayed. Revocation is server-side (logout / rotation).
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.Abstractions.RefreshTokenRecord.AppKey">
+            <summary>Which site this session belongs to ("admin", "content-blog", "ghar-ledger", ...).
+            Empty for sessions minted before this field existed. Single-session-per-user enforcement
+            and the session-conflict list are scoped by this, not just by user, so signing into one
+            site never silently signs you out of another.</summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.Abstractions.RefreshTokenRecord.DeviceLabel">
+            <summary>Best-effort "Chrome on Windows"-style label from the User-Agent at login time, shown
+            in the session-conflict picker so a user can tell which session is which. Display-only.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Abstractions.AuthEvents">
+            <summary>Canonical security-event names the engine records via <see cref="T:KeshavSingh.Auth.Abstractions.IAuthAuditSink"/>.</summary>
+        </member>
+        <member name="F:KeshavSingh.Auth.Abstractions.AuthEvents.RefreshTokenReused">
+            <summary>An already-rotated refresh token was presented — the signature of a replayed
+            stolen token. The whole token family is revoked when this fires.</summary>
+        </member>
+        <member name="F:KeshavSingh.Auth.Abstractions.AuthEvents.TwoFactorReenrollBlocked">
+            <summary>Someone tried to replace the authenticator on an account that already has 2FA
+            without confirming the password.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.AuthController">
+            <summary>
+            The shared authentication surface (<c>/api/auth/*</c>). Discovered by consuming apps
+            via <c>AddControllers().AddApplicationPart(typeof(AuthController).Assembly)</c>. The
+            rate-limited endpoints expect the app to define an "auth" rate-limiter policy.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.Login(KeshavSingh.Auth.Dtos.LoginRequest)">
+            <summary>Step 1: verify email + password. May return a two-factor challenge or, if another
+            session is already active for this app, a session-conflict prompt.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.VerifyTwoFactor(KeshavSingh.Auth.Dtos.TwoFactorVerifyRequest)">
+            <summary>Step 2: verify a TOTP, email, or backup code. May return a session-conflict prompt.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.ConfirmSession(KeshavSingh.Auth.Dtos.SessionConfirmRequest)">
+            <summary>Answers a session-conflict prompt (which other sessions on the same app to remove,
+            if any) and finishes the login that triggered it.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.SendEmailOtp(KeshavSingh.Auth.Dtos.SendEmailOtpRequest)">
+            <summary>Sends the email-fallback OTP for a pending two-factor session.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.SendSmsOtp(KeshavSingh.Auth.Dtos.SendSmsOtpRequest)">
+            <summary>Sends the SMS-fallback OTP for a pending two-factor session.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.SendWhatsAppOtp(KeshavSingh.Auth.Dtos.SendWhatsAppOtpRequest)">
+            <summary>Sends the WhatsApp-fallback OTP for a pending two-factor session.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.Refresh(KeshavSingh.Auth.Dtos.RefreshRequest)">
+            <summary>Exchanges a valid refresh token for a fresh token pair (rotation).</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.Logout(KeshavSingh.Auth.Dtos.LogoutRequest)">
+            <summary>Server-side session invalidation.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.StartEnrollment(KeshavSingh.Auth.Dtos.EnrollStartRequest)">
+            <summary>Starts authenticator enrollment. Re-enrolling on an account that already has 2FA
+            requires the password — see <see cref="M:KeshavSingh.Auth.AuthEngine.StartEnrollmentAsync(System.String,System.String)"/>.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthController.ChangePassword(KeshavSingh.Auth.Dtos.ChangePasswordRequest)">
+            <summary>
+            Self-service password change; clears the "must change" flag. Revokes every other session and
+            returns a fresh token pair so the caller's own session survives the revocation.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.AuthEngine">
+            <summary>
+            The application-agnostic authentication engine: password login with lockout,
+            TOTP/email/SMS two-factor, authenticator enrollment, refresh-token rotation, logout,
+            and password change. All persistence goes through the injected stores, so the engine
+            has no dependency on any database or driver. Crypto comes from KeshavSingh.Security.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthEngine.AuthenticateSocialAsync(System.String,System.String)">
+            <summary>
+            Social sign-in (e.g. GitHub), verified-identity-first: the caller has ALREADY confirmed
+            <paramref name="verifiedEmail"/> with the provider (OAuth + that provider's own verified-email
+            API) before calling this — this method itself does no provider talk, just policy:
+             - Link-only, never creates an account: an unmatched email is a hard failure, not a signup.
+             - Two-factor is MANDATORY here regardless of <see cref="T:KeshavSingh.Auth.Abstractions.IAuthSettings"/> toggles (those govern
+               the email/SMS/WhatsApp FALLBACK channels for password login, not whether 2FA applies at all).
+               An account with no TOTP enrolled is refused outright — enroll it via password login first.
+             - Every accepted sign-in still goes through the SAME 2FA step-token challenge password login
+               uses, so <c>VerifyTwoFactorAsync</c> (and every existing 2FA UI/endpoint) needs no changes.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthEngine.VerifyTotpAsync(KeshavSingh.Auth.Abstractions.AuthUser,System.String)">
+            <summary>
+            Verifies a TOTP code and burns the time step it matched, so the same code cannot be used
+            twice inside its drift window (RFC 6238 §5.2). The email/SMS OTP and backup-code paths were
+            already single-use; this closes the last one.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthEngine.StartEnrollmentAsync(System.String,System.String)">
+            <summary>
+            Begins authenticator enrollment. The new secret is written to
+            <see cref="P:KeshavSingh.Auth.Abstractions.AuthUser.PendingTotpSecretEncrypted"/>, never over a live one, so abandoning
+            enrollment cannot break an authenticator that already works.
+            </summary>
+            <param name="userId">The signed-in account starting enrollment.</param>
+            <param name="password">
+            Required only when 2FA is ALREADY enabled — re-enrolling replaces the second factor and
+            mints new backup codes, so it must cost as much as <see cref="M:KeshavSingh.Auth.AuthEngine.DisableTwoFactorAsync(System.String,System.String)"/>.
+            Without this, a stolen access token alone is enough to rebind 2FA to an attacker's
+            authenticator and walk away with a fresh set of recovery codes.
+            </param>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthEngine.ConfirmEnrollmentAsync(System.String,System.String)">
+            <summary>Confirms enrollment: promotes the pending secret to the live one and issues backup codes.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthEngine.ChangePasswordAsync(System.String,System.String,System.String)">
+            <summary>
+            Self-service password change. Every existing session is revoked: someone changing their
+            password because they think it leaked expects that to end the attacker's access, and
+            leaving refresh tokens alive for the rest of their (multi-day) lifetime silently doesn't.
+            The caller gets a fresh token pair back so the session they are sitting in survives.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthEngine.CompleteOrChallengeSessionAsync(KeshavSingh.Auth.Abstractions.AuthUser,System.String,System.String)">
+            <summary>
+            Called right after a password or 2FA step succeeds. If single-session enforcement is on and
+            another active session already exists for this exact (user, app) pair, returns a conflict
+            response instead of issuing tokens — the caller must show <see cref="T:KeshavSingh.Auth.Dtos.SessionConflictInfo"/>s
+            to the user and call <see cref="M:KeshavSingh.Auth.AuthEngine.ConfirmSessionAsync(KeshavSingh.Auth.Dtos.SessionConfirmRequest,System.String)"/> to proceed. Sessions on OTHER apps are
+            never touched or even looked at here.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthEngine.ConfirmSessionAsync(KeshavSingh.Auth.Dtos.SessionConfirmRequest,System.String)">
+            <summary>
+            Finishes a login that was blocked by <see cref="M:KeshavSingh.Auth.AuthEngine.CompleteOrChallengeSessionAsync(KeshavSingh.Auth.Abstractions.AuthUser,System.String,System.String)"/>: revokes
+            every existing session for the same user and app, then issues the replacement session.
+            The server owns this invariant; clients cannot retain selected same-app sessions.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.AuthException">
+            <summary>
+            Thrown for expected auth failures; the exception middleware surfaces it as a safe
+            400/401/423 response with a friendly message and no internal detail.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.AuthExceptionMiddleware">
+            <summary>
+            Converts exceptions to safe JSON responses. Expected auth errors map to their status
+            codes with a friendly message; everything else fails closed as a generic 500 with no
+            stack trace, path, or internal detail leaked to the caller.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.AuthSettingsOptions">
+            <summary>
+            Bindable options (config section "Auth") for the engine's settings slice, shared by every
+            consuming app. Defaults are sensible for a personal admin using TOTP as the primary second
+            factor.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.ConfigAuthSettings">
+            <summary>
+            Adapts <see cref="T:KeshavSingh.Auth.AuthSettingsOptions"/> to the engine's <see cref="T:KeshavSingh.Auth.Abstractions.IAuthSettings"/> for apps
+            that only need config-bound settings. Apps whose settings are edited at runtime (e.g. backed by
+            a database) should instead implement <see cref="T:KeshavSingh.Auth.Abstractions.IAuthSettings"/> directly and seed it from
+            <see cref="T:KeshavSingh.Auth.AuthSettingsOptions"/> on first run.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.ClaimsPrincipalExtensions.GetUserId(System.Security.Claims.ClaimsPrincipal)">
+            <summary>The authenticated user's id from the "sub" claim (inbound mapping is disabled).</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.AuthServiceCollectionExtensions">
+            <summary>
+            Wiring helpers for consuming apps. The app must still register its own
+            implementations of the seven abstractions (IAuthUserStore, IRefreshTokenStore,
+            IAuthAuditSink, IAuthSettings, IEmailSender, ISmsSender, IWhatsAppSender) plus the
+            KeshavSingh.Security primitives (PasswordHasher, TotpService, DataProtector, JwtService)
+            and a JwtOptions configuration, and define an "auth" rate-limiter policy for the login
+            endpoints.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthServiceCollectionExtensions.AddKeshavAuthEngine(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>Registers the auth engine and the HttpContext accessor it/audit sinks need.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthServiceCollectionExtensions.AddKeshavAuthControllers(Microsoft.Extensions.DependencyInjection.IMvcBuilder)">
+            <summary>Makes the shared <c>/api/auth</c> controller discoverable by the app's MVC pipeline.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.AuthServiceCollectionExtensions.UseKeshavAuthExceptionHandling(Microsoft.AspNetCore.Builder.IApplicationBuilder)">
+            <summary>Adds the safe exception-to-JSON handler. Place early in the pipeline.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.DeviceLabelHelper">
+            <summary>
+            Turns a raw User-Agent header into a short, human-readable label ("Chrome on Windows") for the
+            session-conflict picker. Best-effort and display-only — never used for any security decision.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Dtos.LoginResponse">
+            <summary>Returned after the password step. When TwoFactorRequired, no access token is issued yet.
+            When RequiresSessionConfirmation, no access token is issued yet either — the caller must show
+            <see cref="P:KeshavSingh.Auth.Dtos.LoginResponse.ConflictingSessions"/> to the user and POST a <see cref="T:KeshavSingh.Auth.Dtos.SessionConfirmRequest"/>.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Dtos.LoginResponse.#ctor(System.Boolean,System.String,System.Boolean,System.Boolean,System.Boolean,KeshavSingh.Auth.Dtos.AuthTokens,System.Boolean,System.String,System.Collections.Generic.IReadOnlyList{KeshavSingh.Auth.Dtos.SessionConflictInfo})">
+            <summary>Returned after the password step. When TwoFactorRequired, no access token is issued yet.
+            When RequiresSessionConfirmation, no access token is issued yet either — the caller must show
+            <see cref="P:KeshavSingh.Auth.Dtos.LoginResponse.ConflictingSessions"/> to the user and POST a <see cref="T:KeshavSingh.Auth.Dtos.SessionConfirmRequest"/>.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Dtos.SessionConflictInfo">
+            <summary>One other active session on the same site, offered for removal in the conflict prompt.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Dtos.SessionConflictInfo.#ctor(System.String,System.String,System.DateTime)">
+            <summary>One other active session on the same site, offered for removal in the conflict prompt.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Dtos.SessionConfirmRequest">
+            <summary>Confirms replacement of all existing sessions for the same user and app.
+            Revocation selection fields remain for compatibility with older clients.</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Dtos.SessionConfirmRequest.#ctor(System.String,System.Collections.Generic.IReadOnlyList{System.String},System.Boolean)">
+            <summary>Confirms replacement of all existing sessions for the same user and app.
+            Revocation selection fields remain for compatibility with older clients.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.Dtos.EnrollStartRequest">
+            <summary>
+            Starts enrollment. <paramref name="Password"/> is required only when the account already has
+            two-factor enabled — replacing a working authenticator is as sensitive as disabling one.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.Dtos.EnrollStartRequest.#ctor(System.String)">
+            <summary>
+            Starts enrollment. <paramref name="Password"/> is required only when the account already has
+            two-factor enabled — replacing a working authenticator is as sensitive as disabling one.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.RequirePagePermissionAttribute">
+             <summary>
+             Real API-level enforcement of an app's own fine-grained page/permission model — e.g. an admin
+             console's <c>page.*</c> keys, driven by which custom role/group grants a user holds. A bare
+             <c>[Authorize]</c> endpoint is reachable by any signed-in user regardless of that app's own
+             permission model; this closes that gap without hard-coding any single app's role/permission shape.
+            
+             The actual decision is delegated to an app-registered <see cref="T:KeshavSingh.Auth.Abstractions.IPageAccessEvaluator"/> (DI), so
+             this attribute has no idea what a "page" or a "grant" means for any particular app — including
+             whether some role bypasses the check entirely, which is the evaluator's call to make. No evaluator
+             registered means fail CLOSED (403), not open. Denials return 403 with a plain-language reason
+             rather than a bare status code, and never a stack trace.
+             </summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.SsoCookieOptions">
+             <summary>
+             Bindable options (config section "Sso") for the cross-subdomain single-sign-on cookie that
+             carries the rotating refresh token. The cookie is the ONLY place the refresh token lives on
+             the client — it is never returned in a response body and is <c>HttpOnly</c> so no
+             script (on any origin) can read it.
+            
+             Shared by every app in the *.keshavsingh.in family so they all issue/read an identical cookie
+             shape; keeping this in one package (instead of copy-pasted per app) is what makes the SSO
+             contract safe to reason about.
+            
+             In production the cookie is scoped to the parent domain (e.g. ".keshavsingh.in") so every
+             sibling site (admin.keshavsingh.in, git.keshavsingh.in, …) sends it and can silently obtain
+             an access token from this identity provider. In development leave <see cref="P:KeshavSingh.Auth.SsoCookieOptions.Domain"/> empty
+             and <see cref="P:KeshavSingh.Auth.SsoCookieOptions.Secure"/> false so it works over http://localhost.
+             </summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.SsoCookieOptions.CookieName">
+            <summary>Cookie name. Kept opaque; not security-sensitive.</summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.SsoCookieOptions.Domain">
+            <summary>
+            Cookie Domain. Set to the leading-dot parent domain in production (".keshavsingh.in").
+            Empty/null pins the cookie to the current host — the correct behaviour for localhost.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.SsoCookieOptions.Secure">
+            <summary>Send only over TLS. Must be true in production; false for http://localhost.</summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.SsoCookieOptions.SameSite">
+            <summary>
+            SameSite mode. "Lax" is correct here: all apps share the registrable domain, so
+            cross-subdomain requests are same-site and the cookie is sent (with CORS credentials).
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.SsoCookieOptions.BuildWriteOptions(System.DateTimeOffset)">
+            <summary>Builds the write options for the refresh cookie (adds the token's lifetime).</summary>
+        </member>
+        <member name="M:KeshavSingh.Auth.SsoCookieOptions.BuildDeleteOptions">
+            <summary>Builds the delete options; attributes must match the write options to clear it.</summary>
+        </member>
+        <member name="T:KeshavSingh.Auth.WebAuthnOptions">
+             <summary>
+             Bindable options (config section "WebAuthn") for FIDO2 passkeys. Shared across every app in the
+             *.keshavsingh.in family that offers passkey login, so the relying-party contract can't drift
+             between them.
+            
+             <para><see cref="P:KeshavSingh.Auth.WebAuthnOptions.RelyingPartyId"/> must be a registrable-domain suffix of every origin that runs
+             the passkey ceremonies. Using the parent domain ("keshavsingh.in") means a passkey works across
+             every sibling app (admin., id., …) — the same reason the SSO cookie is scoped to the parent.</para>
+            
+             <para><see cref="P:KeshavSingh.Auth.WebAuthnOptions.Origins"/> is the exact allowlist of browser origins the WebAuthn library will
+             accept in clientDataJSON. Only origins that actually run <c>navigator.credentials</c> (the login
+             and security pages) belong here — never a wildcard.</para>
+             </summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.WebAuthnOptions.ChallengeMinutes">
+            <summary>Minutes a begun registration/assertion challenge stays valid.</summary>
+        </member>
+        <member name="P:KeshavSingh.Auth.WebAuthnOptions.MaxCredentialsPerUser">
+            <summary>Maximum passkeys a single account may register.</summary>
+        </member>
+    </members>
+</doc>

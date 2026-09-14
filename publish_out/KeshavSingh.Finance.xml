@@ -1,0 +1,439 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KeshavSingh.Finance</name>
+    </assembly>
+    <members>
+        <member name="T:KeshavSingh.Finance.Advisory.AdvisorOptions">
+            <summary>
+            Tunable thresholds for the advisory rules. Sensible defaults are baked in; a consuming app
+            can override them via <c>AddKeshavFinance(o =&gt; ...)</c> or configuration binding. Percent
+            fields are whole-number percents (e.g. 15 == 15%).
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Advisory.AdvisorOptions.EquityBase">
+            <summary>Target equity % ≈ EquityBase − age, clamped to [Min, Max].</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Advisory.AdvisorOptions.RebalanceTolerancePct">
+            <summary>Only advise a rebalance when equity drifts beyond this many points from target.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Advisory.AdvisorOptions.IdleCashWarnMultiple">
+            <summary>Warn (not just inform) when idle cash exceeds this multiple of the monthly target.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Advisory.AdvisorOptions.MinSipToSurplusRatio">
+            <summary>Advise when ongoing SIP is below this fraction of the monthly surplus.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.AdvisorySeverity">
+            <summary>Severity of an advisory, ordered so higher values sort first.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.Advisory.AdvisorySeverity.Info">
+            <summary>Informational — healthy, or a low-stakes optimisation.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.Advisory.AdvisorySeverity.Warning">
+            <summary>Worth attention — a metric is drifting outside a healthy band.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.Advisory.AdvisorySeverity.Critical">
+            <summary>Needs action — a metric is in a materially risky state.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Advisory">
+            <summary>A single suggestion produced by the advisory engine.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Advisory.Advisory.Category">
+            <summary>Stable machine key for the rule/topic, e.g. "savings-rate" (safe to render).</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Advisory.Advisory.RecommendedAction">
+            <summary>Optional recommended next step.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Advisory.Advisory.MetricValue">
+            <summary>Optional headline metric behind the advisory, e.g. the savings rate percent.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.FinancialReport">
+            <summary>The engine's full output: the computed metrics plus the ranked advisories.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.IFinancialAdvisor">
+            <summary>The single entry point apps call: computes metrics and the ranked advisories.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.Advisory.IFinancialAdvisor.Analyze(KeshavSingh.Finance.HouseholdSnapshot,System.DateOnly)">
+            <summary>Analyses a household as of <paramref name="asOf"/> (pass "today" from the app).</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.FinancialAdvisor">
+            <summary>
+            Runs every registered <see cref="T:KeshavSingh.Finance.Advisory.IAdvisoryRule"/> over the computed
+            <see cref="T:KeshavSingh.Finance.HouseholdMetrics"/> and returns the advisories sorted most-severe first.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.AdvisorContext">
+            <summary>Everything a rule needs to evaluate a household. Pure input — rules never do I/O.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.IAdvisoryRule">
+            <summary>
+            A single advisory rule. Implementations are stateless and registered in DI; the
+            <see cref="T:KeshavSingh.Finance.Advisory.FinancialAdvisor"/> runs them all and merges the results.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.DebtToIncomeRule">
+            <summary>Grades total monthly debt payments against income (debt-to-income ratio).</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.HighInterestDebtRule">
+            <summary>Flags each high-interest / revolving debt that is costing the most to carry.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.GoalShortfallRule">
+            <summary>Checks whether each goal is on track given the household's spare monthly capacity.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.ConcentrationRule">
+            <summary>Flags over-concentration in a single asset class or a single holding.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.AgeBasedAllocationRule">
+            <summary>Compares equity weighting to an age-appropriate target and suggests rebalancing.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.UnderInvestmentRule">
+            <summary>Flags monthly surplus that is not being systematically invested.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.SavingsRateRule">
+            <summary>Grades the monthly savings rate (surplus / income).</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.EmergencyFundRule">
+            <summary>Checks emergency-fund cover against the household's target months.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Advisory.Rules.IdleCashRule">
+            <summary>Flags cash held well beyond the emergency-fund target as a drag on returns.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.BankCsvMapping">
+            <summary>How a bank's CSV columns map onto a transaction. Zero-based column indices.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.BankCsvMapping.AmountColumn">
+            <summary>A single signed amount column (negative = money out). Use this OR debit/credit.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.BankCsvMapping.DebitColumn">
+            <summary>Separate withdrawal column (money out). Pair with <see cref="P:KeshavSingh.Finance.BankCsvMapping.CreditColumn"/>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.BankCsvMapping.CreditColumn">
+            <summary>Separate deposit column (money in). Pair with <see cref="P:KeshavSingh.Finance.BankCsvMapping.DebitColumn"/>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.BankCsvMapping.DateFormat">
+            <summary>Optional exact date format (e.g. "dd/MM/yyyy"); common formats are tried otherwise.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.BankStatementParser">
+            <summary>
+            Pure, bank-agnostic parsing of a statement CSV into normalised transactions. No I/O — the app
+            supplies the raw text and the column mapping; the messy normalisation lives here in the package.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.BankStatementParser.TryDecimal(System.String,System.Decimal@)">
+            <summary>Parses "1,234.56", "(1,234.56)" (negative), "₹1,234", "-500 Dr" etc.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.BankStatementParser.Tokenize(System.String)">
+            <summary>Minimal RFC-4180-ish CSV tokenizer: quoted fields, "" escapes, CR/LF/CRLF rows.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.HouseholdAnalytics">
+            <summary>
+            Computes the derived financial picture of a household from a <see cref="T:KeshavSingh.Finance.HouseholdSnapshot"/>.
+            Pure and deterministic — the caller supplies the reference date so results are testable.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.HouseholdAnalytics.ResolvePlanningAge(System.Collections.Generic.IReadOnlyList{KeshavSingh.Finance.Models.FamilyMember},System.DateOnly)">
+            <summary>Oldest earning member with a birth date; falls back to the oldest member overall.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.HouseholdSnapshot">
+            <summary>
+            An immutable, point-in-time bundle of everything the analytics and advisory engine need for
+            one household. The consuming app loads each collection (scoped to the owner) and hands the
+            snapshot to <see cref="T:KeshavSingh.Finance.HouseholdAnalytics"/> / <see cref="T:KeshavSingh.Finance.Advisory.IFinancialAdvisor"/> — all
+            financial reasoning happens here in the package, never in the app.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.AllocationSlice">
+            <summary>One asset class's share of the investment portfolio.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.AllocationSlice.#ctor(KeshavSingh.Finance.Models.AssetClass,System.Decimal,System.Decimal)">
+            <summary>One asset class's share of the investment portfolio.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.MemberIncome">
+            <summary>One member's share of household income.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.MemberIncome.#ctor(System.String,System.String,System.Decimal,System.Decimal)">
+            <summary>One member's share of household income.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.GoalProgress">
+            <summary>Funding progress and the monthly saving required to hit a goal on time.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.GoalProgress.#ctor(System.String,System.String,System.Decimal,System.Decimal,System.Decimal,System.Int32,System.Decimal,KeshavSingh.Finance.Models.GoalPriority)">
+            <summary>Funding progress and the monthly saving required to hit a goal on time.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.HouseholdMetrics">
+            <summary>
+            The computed financial picture of a household. All amounts are in the household currency;
+            all percentages are whole-number percents (e.g. 15.5 == 15.5%).
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.HouseholdMetrics.PlanningAge">
+            <summary>Age used for age-based allocation guidance (oldest earning member); null if unknown.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.HouseholdMetrics.EquityPct">
+            <summary>Equity as a percent of the non-cash (risk) portfolio.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.HouseholdMetrics.EmergencyFundMonths">
+            <summary>How many months of essential outgoings the cash/near-cash covers.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.Frequency">
+            <summary>How often a recurring amount (income or expense) occurs.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.Models.Frequency.OneOff">
+            <summary>A one-off amount that does not recur — contributes nothing to a monthly figure.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.AccountType">
+            <summary>Tax treatment of an investment account — drives the tax-utilisation advisory.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.InstrumentKind">
+            <summary>
+            The specific product an investment is, for display/grouping. Independent of
+            <see cref="T:KeshavSingh.Finance.Models.AssetClass"/> (which is the allocation bucket): e.g. a debt mutual fund is
+            <c>MutualFund</c> + <see cref="F:KeshavSingh.Finance.Models.AssetClass.Debt"/>; digital gold is <c>GoldDigital</c> +
+            <see cref="F:KeshavSingh.Finance.Models.AssetClass.Gold"/>.
+            </summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.Models.InstrumentKind.ProvidentFund">
+            <summary>EPF / PPF / VPF.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.Models.InstrumentKind.GoldPhysical">
+            <summary>Jewellery, coins, bars.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.Models.InstrumentKind.GoldDigital">
+            <summary>Sovereign gold bonds, digital/ETF gold.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.Models.InstrumentKind.InsurancePolicy">
+            <summary>LIC / ULIP / endowment savings policies.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.TransactionDirection">
+            <summary>Whether a ledger transaction moved money out (Debit) or in (Credit).</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.Expense">
+            <summary>A recurring (or one-off) expense. Essential expenses drive the emergency-fund target.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Expense.IsEssential">
+            <summary>Essential (must-pay) vs discretionary. Emergency-fund cover is based on essentials.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.FamilyMember">
+            <summary>A member of the household. A record only — members are not separate logins.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.FamilyMember.Relation">
+            <summary>Free-text relation, e.g. "Self", "Spouse", "Child", "Parent".</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.FamilyMember.DateOfBirth">
+            <summary>Used for age-based asset-allocation guidance. Date only; no time component.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.FamilyMember.IsEarning">
+            <summary>Whether this member currently earns income (used for planning-age selection).</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.FinancialGoal">
+            <summary>A funding goal with a target amount and date. Drives goal-shortfall advisories.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.Household">
+            <summary>
+            A single household, owned by one user (the signed-in Admin). All other finance records
+            belong to this household via their <c>OwnerUserId</c>. There is at most one per owner.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Household.OwnerUserId">
+            <summary>The owning user's id (JWT subject). Every finance record is scoped to this.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Household.Currency">
+            <summary>ISO 4217 currency code used to interpret every amount in the household.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Household.EmergencyFundTargetMonths">
+            <summary>Months of essential outgoings the emergency fund should cover. Drives advisories.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.IncomeSource">
+            <summary>A recurring (or one-off) source of income attributed to the household or a member.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.IncomeSource.MemberId">
+            <summary>Optional owning family member; null means the household as a whole.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.IncomeSource.Amount">
+            <summary>Gross amount for one occurrence of the frequency, in the household currency.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.Investment">
+            <summary>A held investment / asset. Drives net worth, allocation and rebalancing advice.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Investment.Kind">
+            <summary>The specific product (mutual fund, PF, LIC, physical vs digital gold, …).</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Investment.InvestedAmount">
+            <summary>Total capital invested (cost basis), in the household currency.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Investment.CurrentValue">
+            <summary>Latest market value, in the household currency.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Investment.ExpectedReturnPct">
+            <summary>Optional expected annual return, percent (e.g. 12 = 12%). Entered by the user.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Investment.SipMonthly">
+            <summary>Optional ongoing monthly contribution (SIP) into this holding.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.IOwnedRecord">
+            <summary>
+            A finance record that belongs to one owner. Lets a consuming app scope every query and
+            mutation by owner generically (record-ownership / no cross-owner access) without a switch
+            per entity type.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.Liability">
+            <summary>An outstanding debt. Drives debt-to-income and high-interest-debt advisories.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Liability.Outstanding">
+            <summary>Outstanding principal, in the household currency.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Liability.InterestRatePct">
+            <summary>Annual interest rate, percent (e.g. 8.5 = 8.5%).</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Liability.EmiMonthly">
+            <summary>Optional monthly repayment (EMI), in the household currency.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.Models.Transaction">
+            <summary>
+            A single dated ledger entry — typically imported from a bank statement, or added by hand.
+            Distinct from the recurring <see cref="T:KeshavSingh.Finance.Models.IncomeSource"/>/<see cref="T:KeshavSingh.Finance.Models.Expense"/> model: these are
+            actuals. <see cref="P:KeshavSingh.Finance.Models.Transaction.Amount"/> is always a positive magnitude; <see cref="P:KeshavSingh.Finance.Models.Transaction.Direction"/> says
+            whether money left (Debit) or arrived (Credit).
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Transaction.Category">
+            <summary>Free-text category (e.g. "Groceries", "Salary"). Not an enum — imports vary.</summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.Models.Transaction.Account">
+            <summary>The account/source label this came from, e.g. "HDFC Savings".</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.MoneyMath">
+            <summary>Pure helpers for normalising amounts and computing ages/percentages.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.MoneyMath.ToMonthly(System.Decimal,KeshavSingh.Finance.Models.Frequency)">
+            <summary>Converts one occurrence of a frequency into its equivalent monthly amount.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.MoneyMath.Percent(System.Decimal,System.Decimal)">
+            <summary>Whole-number percentage <paramref name="part"/> is of <paramref name="whole"/>, 0 if whole is 0.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.MoneyMath.AgeAt(System.DateOnly,System.DateOnly)">
+            <summary>Completed years between <paramref name="dob"/> and <paramref name="asOf"/>.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.MoneyMath.MonthsUntil(System.DateOnly,System.DateOnly)">
+            <summary>Whole months from <paramref name="asOf"/> until <paramref name="target"/> (min 0).</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.ServiceCollectionExtensions.AddKeshavFinance(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.Action{KeshavSingh.Finance.Advisory.AdvisorOptions})">
+            <summary>
+            Registers the financial advisory engine — <see cref="T:KeshavSingh.Finance.Advisory.IFinancialAdvisor"/> plus every
+            built-in <see cref="T:KeshavSingh.Finance.Advisory.IAdvisoryRule"/>. Optionally tune the thresholds.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.StatementEntry">
+            <summary>What a transaction looks like to the analyser — satisfied by parsed CSV rows and stored ones.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementEntry.#ctor(System.DateOnly,System.String,System.Decimal,KeshavSingh.Finance.Models.TransactionDirection)">
+            <summary>What a transaction looks like to the analyser — satisfied by parsed CSV rows and stored ones.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.StatementEntryKind">
+            <summary>The kind of money movement a description looks like. Drives categories and suggestions.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.StatementEntryKind.LoanEmi">
+            <summary>A loan instalment (EMI).</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.StatementEntryKind.SelfTransfer">
+            <summary>Money moved between the owner's own accounts — never income or expense.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.MonthlyTotal">
+            <summary>One month of a statement, in the statement's own currency.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.MonthlyTotal.#ctor(System.Int32,System.Int32,System.Decimal,System.Decimal)">
+            <summary>One month of a statement, in the statement's own currency.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.CategoryTotal">
+            <summary>Spend grouped by what the analyser thinks the transactions were.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.CategoryTotal.#ctor(KeshavSingh.Finance.StatementEntryKind,System.Decimal,System.Int32)">
+            <summary>Spend grouped by what the analyser thinks the transactions were.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.RecurringSeries">
+            <summary>
+            A payment that keeps coming back — a salary credit, an EMI, a subscription. Detected by grouping
+            look-alike descriptions and checking the gap between them, not by matching a list of merchants.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.RecurringSeries.#ctor(System.String,KeshavSingh.Finance.StatementEntryKind,KeshavSingh.Finance.Models.TransactionDirection,System.Decimal,System.Int32,System.Int32,System.DateOnly,System.DateOnly)">
+            <summary>
+            A payment that keeps coming back — a salary credit, an EMI, a subscription. Detected by grouping
+            look-alike descriptions and checking the gap between them, not by matching a list of merchants.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Finance.RecurringSeries.IsMonthly">
+            <summary>True when the cadence looks monthly (25–35 days), which is what a salary or EMI is.</summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.StatementSuggestion">
+            <summary>
+            A record the analyser thinks should exist, ready to be created after the user says yes. Nothing is
+            written on the strength of a guess — see <c>Apply</c> on the consuming app's side.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementSuggestion.#ctor(System.String,System.String,System.Decimal,KeshavSingh.Finance.StatementEntryKind,System.Int32,System.String,System.Nullable{KeshavSingh.Finance.Models.IncomeType},System.Nullable{KeshavSingh.Finance.Models.DebtType},System.Nullable{KeshavSingh.Finance.Models.ExpenseCategory},System.Boolean)">
+            <summary>
+            A record the analyser thinks should exist, ready to be created after the user says yes. Nothing is
+            written on the strength of a guess — see <c>Apply</c> on the consuming app's side.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Finance.StatementInsights">
+             <summary>
+             Reads a bank statement and works out what it says: what comes in and goes out each month, which
+             payments recur, and which household records are therefore missing (a salary, an EMI, the rent).
+            
+             Pure and deterministic — no I/O, no clock, no persistence. The consuming app decides what to do with
+             the suggestions, and nothing is created without the user accepting it: these are heuristics over
+             free-text bank narrations, and they are wrong often enough that silently writing records would be
+             worse than useless.
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.StatementInsights.MinOccurrencesForRecurring">
+            <summary>Below this many occurrences a repeated payment is a coincidence, not a pattern.</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.StatementInsights.AmountTolerance">
+            <summary>Amounts within this fraction of each other count as "the same payment".</summary>
+        </member>
+        <member name="F:KeshavSingh.Finance.StatementInsights.NarrationNoise">
+            <summary>Digits, reference numbers and payment-rail noise that make two identical payments look different.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.Classify(System.String,KeshavSingh.Finance.Models.TransactionDirection)">
+            <summary>Best guess at what a narration is, from its text and which way the money went.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.ToExpenseCategory(KeshavSingh.Finance.StatementEntryKind)">
+            <summary>The household expense category a detected kind belongs in.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.ToDebtType(System.String)">
+            <summary>The loan type an EMI narration hints at, defaulting to Other rather than guessing wildly.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.Analyze(System.Collections.Generic.IEnumerable{KeshavSingh.Finance.StatementEntry})">
+            <summary>
+            Analyses a statement. <paramref name="entries"/> may be in any order and span any period; only
+            whole months present in the data are reported.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.FindRecurring(System.Collections.Generic.List{System.ValueTuple{KeshavSingh.Finance.StatementEntry,KeshavSingh.Finance.StatementEntryKind}})">
+            <summary>
+            Groups look-alike narrations and keeps the ones that repeat at a steady interval with a steady
+            amount. Amount similarity matters: a shop you visit monthly for different sums isn't a standing
+            commitment, an EMI is.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.Suggest(System.Collections.Generic.IReadOnlyList{KeshavSingh.Finance.RecurringSeries})">
+            <summary>Turns the recurring series into "this record is missing" prompts.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.BucketByAmount(System.Collections.Generic.List{System.ValueTuple{KeshavSingh.Finance.StatementEntry,KeshavSingh.Finance.StatementEntryKind}})">
+            <summary>Splits same-narration entries into groups whose amounts are within tolerance.</summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.NormalizeNarration(System.String)">
+            <summary>
+            Reduces a bank narration to its stable part: "UPI/DR/123456/SWIGGY/OK" → "swiggy ok". Reference
+            numbers change every time, so they have to go or nothing ever groups.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Finance.StatementInsights.Prettify(System.String)">
+            <summary>A human-readable label for a narration, for the suggestion list.</summary>
+        </member>
+    </members>
+</doc>

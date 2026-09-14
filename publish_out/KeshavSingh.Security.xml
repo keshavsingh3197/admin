@@ -1,0 +1,200 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KeshavSingh.Security</name>
+    </assembly>
+    <members>
+        <member name="T:KeshavSingh.Security.DataProtector">
+             <summary>
+             Authenticated symmetric encryption for secrets held at rest (e.g. TOTP shared
+             secrets), using AES-256-GCM. The 256-bit key comes from configuration/Key Vault
+             and is never persisted with the data.
+            
+             <para>Output layout (Base64): <c>version | keyId | nonce | tag | ciphertext</c>. The two
+             leading bytes are what makes key rotation possible: a value encrypted under an older key
+             still says which key it needs, so <see cref="P:KeshavSingh.Security.EncryptionOptions.PreviousDataKeys"/> can
+             decrypt it while every new write uses the current key. Without them a rotated
+             <c>Encryption:DataKey</c> would silently orphan every stored secret.</para>
+            
+             <para>Values written before versioning existed have no header. They are recognised by
+             length/shape and decrypted with the current key, so an existing database keeps working
+             with no migration step — re-saving any such secret rewrites it in the new format.</para>
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Security.DataProtector._currentKeyId">
+            <summary>Key id of the key new values are encrypted with.</summary>
+        </member>
+        <member name="F:KeshavSingh.Security.DataProtector._keys">
+            <summary>Every key this instance can decrypt with, by id (current + retired).</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.DataProtector.NeedsReEncryption(System.String)">
+            <summary>True when the value was written under a retired key, so a caller that is
+            re-saving the record anyway can transparently upgrade it to the current key.</summary>
+        </member>
+        <member name="T:KeshavSingh.Security.JwtService">
+            <summary>Issues signed JWT access tokens and short-lived two-factor step tokens (HS256).</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.JwtService.CreateAccessToken(KeshavSingh.Security.JwtSubject,System.Nullable{System.Int32})">
+            <summary>Full access token carrying the subject's identity and roles.</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.JwtService.CreateTwoFactorToken(KeshavSingh.Security.JwtSubject,System.Nullable{System.Int32},System.String)">
+            <summary>Short-lived token proving the password step passed, pending 2FA. <paramref name="appKey"/> is
+            carried through so the eventual session (minted after 2FA passes) still knows which site it's for.</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.JwtService.ValidateTwoFactorToken(System.String)">
+            <summary>Validates a two-factor step token and returns the user id + originating app key, or null.</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.JwtService.CreateSessionConfirmationToken(KeshavSingh.Security.JwtSubject,System.String,System.Int32)">
+            <summary>Short-lived token proving a session-conflict prompt was shown for this exact (user, app) pair,
+            so the confirm endpoint can trust which sessions to revoke without re-checking the password.</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.JwtService.ValidateSessionConfirmationToken(System.String)">
+            <summary>Validates a session-confirmation ticket and returns the user id + app key, or null.</summary>
+        </member>
+        <member name="T:KeshavSingh.Security.JwtSubject">
+            <summary>
+            The minimal identity a JWT is issued for. This is a decoupling seam: consuming
+            apps map their own user/account type onto it, so the security package never
+            depends on any app-specific model.
+            </summary>
+            <param name="Id">Stable unique identifier, written as the "sub" claim.</param>
+            <param name="Email">Written as the "email" claim.</param>
+            <param name="DisplayName">Written as the "name" claim.</param>
+            <param name="Roles">Role names, each written as a role claim.</param>
+        </member>
+        <member name="M:KeshavSingh.Security.JwtSubject.#ctor(System.String,System.String,System.String,System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            The minimal identity a JWT is issued for. This is a decoupling seam: consuming
+            apps map their own user/account type onto it, so the security package never
+            depends on any app-specific model.
+            </summary>
+            <param name="Id">Stable unique identifier, written as the "sub" claim.</param>
+            <param name="Email">Written as the "email" claim.</param>
+            <param name="DisplayName">Written as the "name" claim.</param>
+            <param name="Roles">Role names, each written as a role claim.</param>
+        </member>
+        <member name="P:KeshavSingh.Security.JwtSubject.Id">
+            <summary>Stable unique identifier, written as the "sub" claim.</summary>
+        </member>
+        <member name="P:KeshavSingh.Security.JwtSubject.Email">
+            <summary>Written as the "email" claim.</summary>
+        </member>
+        <member name="P:KeshavSingh.Security.JwtSubject.DisplayName">
+            <summary>Written as the "name" claim.</summary>
+        </member>
+        <member name="P:KeshavSingh.Security.JwtSubject.Roles">
+            <summary>Role names, each written as a role claim.</summary>
+        </member>
+        <member name="T:KeshavSingh.Security.JwtOptions">
+            <summary>
+            JWT issuing/validation settings. Defaults are intentionally generic — every
+            consuming app should set Issuer/Audience/SigningKey via its own configuration
+            (appsettings + secret provider). The SigningKey must never live in source.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Security.EncryptionOptions">
+            <summary>
+            Symmetric encryption settings for secrets at rest. DataKey is a Base64-encoded
+            32-byte (AES-256) key supplied via a secret provider (env var / Key Vault),
+            never persisted alongside the data it protects.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Security.EncryptionOptions.DataKey">
+            <summary>The key every new value is encrypted with.</summary>
+        </member>
+        <member name="P:KeshavSingh.Security.EncryptionOptions.DataKeyId">
+            <summary>
+            Identifies <see cref="P:KeshavSingh.Security.EncryptionOptions.DataKey"/> in the ciphertext header so a rotated key can still be
+            attributed. Bump it (and move the old key to <see cref="P:KeshavSingh.Security.EncryptionOptions.PreviousDataKeys"/>) when rotating.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Security.EncryptionOptions.PreviousDataKeys">
+            <summary>
+            Retired keys, kept only so values written before a rotation stay readable. Once every
+            affected record has been re-saved, a retired key can be dropped from here.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Security.RetiredDataKey">
+            <summary>A retired <see cref="P:KeshavSingh.Security.EncryptionOptions.DataKey"/> and the id it was written under.</summary>
+        </member>
+        <member name="T:KeshavSingh.Security.PasswordHasher">
+            <summary>
+            Password hashing using PBKDF2 (Rfc2898) with HMAC-SHA256. No deprecated
+            algorithms. Verification is constant-time. Hash format: "iterations.salt.hash"
+            (both segments Base64), which is self-describing so the cost can be raised later.
+            </summary>
+        </member>
+        <member name="F:KeshavSingh.Security.PasswordHasher.DummyHash">
+            <summary>
+            A hash of a fixed dummy password, for verifying against when no account matched. Doing the
+            same PBKDF2 work on the "unknown user" path is what stops response timing from revealing
+            which email addresses have accounts. Built once — it is not a secret.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Security.PasswordHasher.NeedsRehash(System.String)">
+            <summary>
+            True when <paramref name="stored"/> was produced with a weaker cost than the current
+            <see cref="F:KeshavSingh.Security.PasswordHasher.Iterations"/>, so a caller holding the plaintext (i.e. a successful sign-in) can
+            transparently upgrade it. Without this, raising the cost only ever protects new accounts.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Security.TokenHasher">
+            <summary>
+            SHA-256 hashing for high-entropy secrets (refresh tokens, backup codes, email
+            OTPs) so only hashes are stored. SHA-256 is appropriate here because these
+            values are random and high-entropy — unlike passwords, they do not need a slow
+            KDF. Also generates cryptographically random opaque tokens and numeric OTPs.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Security.TokenHasher.NewOpaqueToken">
+            <summary>A URL-safe opaque token (256-bit) for refresh tokens / 2FA step tokens.</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.TokenHasher.NewNumericOtp(System.Int32)">
+            <summary>A numeric OTP of the given length, e.g. for the email fallback.</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.TokenHasher.NewBackupCode">
+            <summary>A human-friendly backup code, e.g. "a1b2c-3d4e5".</summary>
+        </member>
+        <member name="T:KeshavSingh.Security.TotpService">
+             <summary>
+             RFC 6238 time-based one-time passwords for authenticator apps
+             (Google / Microsoft Authenticator, etc.).
+            
+             NOTE ON HMAC-SHA1: TOTP is specified over HMAC-SHA1 and authenticator apps
+             default to it — using SHA-256 here would make codes mismatch on most apps.
+             This is HMAC (a keyed MAC), not SHA-1 used as a digest or signature: the SHA-1
+             collision weaknesses do not apply to HMAC-SHA1, which remains sound. This is a
+             deliberate, documented exception to the "no SHA-1" guideline for interop only.
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Security.TotpService.GenerateSecret">
+            <summary>Generates a new Base32-encoded shared secret (160-bit).</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.TotpService.BuildOtpAuthUri(System.String,System.String,System.String)">
+            <summary>Builds the otpauth:// URI an authenticator app scans from a QR code.</summary>
+        </member>
+        <member name="M:KeshavSingh.Security.TotpService.VerifyCode(System.String,System.String)">
+            <summary>Verifies a user-supplied code against the secret, tolerating clock drift.</summary>
+            <remarks>
+            Prefer <see cref="M:KeshavSingh.Security.TotpService.TryVerifyCode(System.String,System.String,System.Nullable{System.Int64},System.Int64@)"/>: on its own this cannot reject a replay, because a TOTP
+            code stays valid for the whole drift window and nothing here remembers that one was spent.
+            RFC 6238 §5.2 requires the verifier to accept a given code only once.
+            </remarks>
+        </member>
+        <member name="M:KeshavSingh.Security.TotpService.TryVerifyCode(System.String,System.String,System.Nullable{System.Int64},System.Int64@)">
+            <summary>
+            Verifies a code and reports which time step matched, so the caller can persist it and pass
+            it back as <paramref name="lastUsedStep"/> next time. Any code whose step is at or before
+            the last one already spent is refused — that is what makes a captured code single-use
+            instead of valid for the rest of its ~90-second window.
+            </summary>
+            <param name="secretBase32">The user's Base32 shared secret.</param>
+            <param name="code">The code the user typed.</param>
+            <param name="lastUsedStep">The step of this user's last accepted code, or null if none.</param>
+            <param name="matchedStep">The step that matched; persist it on success.</param>
+        </member>
+        <member name="T:KeshavSingh.Security.Base32">
+            <summary>Minimal RFC 4648 Base32 (no padding) used for TOTP secrets.</summary>
+        </member>
+    </members>
+</doc>

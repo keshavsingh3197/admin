@@ -1,0 +1,977 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KeshavSingh.Localization</name>
+    </assembly>
+    <members>
+        <member name="T:KeshavSingh.Localization.ApplicationBuilderExtensions">
+            <summary>Startup work for the localisation subsystem: indexes, then seeding, then caches warm.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ApplicationBuilderExtensions.InitKeshavLocalizationAsync(System.IServiceProvider,System.Threading.CancellationToken)">
+             <summary>
+             Creates the indexes, applies every registered
+             <see cref="T:KeshavSingh.Localization.Seeding.ILocalizationSeedSource"/>, and leaves all three caches loaded. Call once
+             after <c>app.Build()</c> and before serving traffic.
+            
+             <para>Order is deliberate and load-bearing: the config registry first (it owns the URL/icon host
+             allowlist that locale icons and config defaults are validated against), then the locales (they
+             define the default language every other step resolves against), then the strings (seeds for an
+             unregistered locale are skipped, so the locales must exist first).</para>
+            
+             <para>Seeding is additive at every level — nothing here can overwrite an editor's change — and is
+             skipped entirely when <c>Localization:SeedOnStartup</c> is false.</para>
+             </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.ConfigRegistryService">
+             <summary>
+             The runtime config registry: a typed key/value store (collection <c>config_entries</c>) that lets
+             URLs, icons, labels, limits and feature flags be changed by an Admin without a redeploy, so no
+             app has to hard-code them.
+            
+             Three things make this safe to expose at all:
+             <list type="number">
+             <item>Every value is validated by declared type on write (<see cref="T:KeshavSingh.Localization.ConfigValueValidator"/>) —
+               URLs and icons against a host allowlist, because they are rendered into public pages.</item>
+             <item>Exposure is decided per entry by <see cref="T:KeshavSingh.Localization.Models.ConfigScope"/>, and the public projection is
+               built by filtering on it here — a caller can never ask for a wider scope.</item>
+             <item>Secret entries are AES-encrypted at rest and write-only: no endpoint returns their value,
+               only whether one is set.</item>
+             </list>
+             The whole registry is cached in memory (it is read on nearly every request) and re-read on every
+             write. <see cref="P:KeshavSingh.Localization.ConfigRegistryService.Version"/> changes with the cache so clients know when to refresh.
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.ConfigRegistryService.AllowedHostsKey">
+            <summary>Entry whose value widens the URL/icon host allowlist. Internal — never served.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.ConfigRegistryService.Version">
+            <summary>Changes whenever any entry does — the ETag / refresh signal for clients.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.GetString(System.String,System.String)">
+            <summary>Effective value: the stored value, or the default when blank. Secrets are decrypted.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.AllowedHosts">
+            <summary>
+            Hosts a configured URL/icon may point at: the built-in family plus anything an Admin added via
+            <see cref="F:KeshavSingh.Localization.ConfigRegistryService.AllowedHostsKey"/> (comma-separated). Widening this is a deliberate, audited edit.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.ProjectForClient(System.Boolean)">
+            <summary>
+            The map served to clients. <paramref name="includeAuthenticated"/> is true only for a
+            signed-in caller; secret and internal entries are excluded either way. Values are the
+            effective ones (default applied) so a client never has to know about defaults.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.ProjectTypesForClient(System.Boolean)">
+            <summary>Type metadata for the entries in <see cref="M:KeshavSingh.Localization.ConfigRegistryService.ProjectForClient(System.Boolean)"/>, so clients can parse them.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.List(System.String,System.String)">
+            <summary>Admin listing. Secret values are replaced with a set/not-set flag, never returned.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.DeleteAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Deletes a non-system entry. System entries are part of the contract and are kept.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.Export">
+            <summary>
+            Export for backup / moving between environments. Secret entries are exported as metadata with
+            no value, so an export file can never leak a credential.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.SeedSystemEntriesAsync(System.Threading.CancellationToken)">
+             <summary>
+             Registers the config keys declared by the host app's <see cref="T:KeshavSingh.Localization.Seeding.ILocalizationSeedSource"/>s, so
+             every key a client reads exists with the value the code used to hard-code. Seeding therefore
+             changes no behaviour on first run — it only makes the value editable.
+            
+             <para>Additive: an existing row's value, default and description are left alone, so a
+             deployment can never undo an admin's edit. What IS reasserted is the contract: the seeded
+             entries are re-marked <c>IsSystem</c> (editable, not deletable) and their declared type and
+             scope are re-applied, because other apps read those as a promise. A previous version's system
+             entry that no seed declares any more loses the flag and becomes deletable.</para>
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigRegistryService.ComputeVersion(System.Collections.Generic.IReadOnlyList{KeshavSingh.Localization.Models.ConfigEntry})">
+            <summary>
+            A short, stable fingerprint of the whole registry. Content-derived (not a timestamp) so an
+            edit that changes nothing doesn't invalidate every client's cache.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.ConfigValueValidator">
+             <summary>
+             Validates every runtime-configurable value at the trust boundary, by declared type. Allow-lists
+             only — an unrecognised type, scheme, host or shape is rejected rather than sanitised.
+            
+             Why this is strict: these values are edited at runtime and a good number of them are served to
+             anonymous visitors and rendered into a page (icons, logo URLs, colours, links). Without this,
+             the config registry would be a stored-XSS and open-redirect surface with an admin-sized blast
+             radius. Values are stored canonicalised so the client never has to re-parse them.
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.ConfigValueValidator.BaselineAllowedHosts">
+             <summary>
+             The floor of the URL/icon host allowlist: only <c>localhost</c>, so a developer needs no
+             configuration at all. A deployment adds its own domains via <c>Localization:AllowedHosts</c>,
+             and an Admin can widen further at runtime via <c>config.url.allowedhosts</c>.
+            
+             <para>Deliberately names no real domain: which hosts are "ours" is the consuming app's
+             business, not this package's.</para>
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigValueValidator.NormalizeHosts(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Validates and de-duplicates a configured host list, always including
+            <see cref="F:KeshavSingh.Localization.ConfigValueValidator.BaselineAllowedHosts"/>. A malformed entry is dropped rather than failing startup:
+            an allowlist that quietly loses a bad entry stays safe, whereas refusing to boot over a typo in
+            a non-security-critical list is not an improvement.
+            </summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.ConfigValueValidator.IconToken">
+            <summary>Icon-font / icon-set token, e.g. <c>home</c> or <c>mdi:home-outline</c>.</summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.ConfigValueValidator.MarkupChars">
+            <summary>Characters that must never reach a template, whichever type is being stored.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigValueValidator.Validate(System.String,System.String,System.Collections.Generic.IReadOnlySet{System.String})">
+            <summary>
+            Canonicalises and validates <paramref name="value"/> for <paramref name="valueType"/>.
+            Throws <see cref="T:System.ArgumentException"/> (mapped to 400 by the controllers) on anything invalid.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigValueValidator.ValidateString(System.String)">
+            <summary>
+            Plain text. Markup delimiters are refused outright: nothing in this registry is ever meant to
+            be rendered as HTML, so allowing them would only create a way to smuggle it in.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigValueValidator.ValidateUrl(System.String,System.Collections.Generic.IReadOnlySet{System.String})">
+            <summary>
+            An absolute https URL on an allow-listed host (http only for localhost, in development), or a
+            same-origin relative path. Query and fragment are preserved; credentials in the URL are refused.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigValueValidator.ValidateIcon(System.String,System.Collections.Generic.IReadOnlySet{System.String})">
+            <summary>
+            An icon is one of: an emoji / short glyph, an icon-set token (<c>mdi:home</c>), or an
+            allow-listed image URL. No <c>data:</c> and no inline SVG — either would let arbitrary markup
+            or script into a public page through a config field.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ConfigValueValidator.NormalizeKey(System.String,System.String)">
+            <summary>
+            Dotted config key: lower-case letters, digits, <c>.</c>, <c>-</c>, <c>_</c>. Also the Mongo
+            document id, so it is deliberately narrow.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Controllers.ConfigRegistryController">
+             <summary>
+             Admin-only management of the runtime config registry — the typed key/value store that keeps URLs,
+             icons, labels, limits and feature flags out of every app's build.
+            
+             This controller never returns a secret value: <see cref="T:KeshavSingh.Localization.Dtos.ConfigEntryView"/> carries a set/not-set
+             flag instead, and the export does the same. What each entry is allowed to expose is decided by its
+             stored scope (see <see cref="T:KeshavSingh.Localization.ConfigRegistryService"/>), not by anything a request can ask for.
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.ConfigRegistryController.Meta">
+            <summary>The allow-lists the UI needs to render its dropdowns — no magic strings in the client.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.ConfigRegistryController.Export">
+            <summary>
+            Export for backup or promoting config between environments. Secret entries are exported as
+            metadata with no value — an export file can never leak a stored credential.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.ConfigRegistryController.Import(System.Text.Json.JsonElement,System.Threading.CancellationToken)">
+            <summary>
+            Import the file produced by <see cref="M:KeshavSingh.Localization.Controllers.ConfigRegistryController.Export"/>. Values are re-validated by type, so an
+            import is exactly as constrained as editing each entry by hand.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.ConfigRegistryController.Refresh(System.Threading.CancellationToken)">
+            <summary>
+            Re-reads the registry from the database. Normal edits refresh it automatically; this covers an
+            out-of-band change (restored backup, migration script) without a restart.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Controllers.LocalizationController">
+             <summary>
+             The localisation surface. Two audiences, deliberately separated:
+            
+             <para><b>Public (anonymous)</b> — <c>GET /api/i18n/manifest</c>, <c>/locales</c> and
+             <c>/bundle/{locale}</c>. This is how every site gets its text at runtime instead of compiling it
+             in. Responses carry an ETag derived from the content, so a client that polls pays for a 304 and
+             nothing else. Only ENABLED locales and only the namespaces asked for are ever returned — the
+             admin app's strings are not reachable from a public page.</para>
+            
+             <para><b>Editorial (Editor/Admin)</b> — everything under <c>/api/i18n/admin</c>: the grid, bulk
+             save, import, export and cache refresh. Nothing here is anonymous, and no endpoint returns
+             anything an editor could not already see on the screen.</para>
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.Controllers.LocalizationController.MaxUploadBytes">
+            <summary>
+            Ceiling on an uploaded catalogue file. A real translation workbook is well under a megabyte;
+            this is here so the endpoint can't be used as general file storage.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.Manifest">
+            <summary>
+            What languages exist and what version each one's bundle is at. A client polls this (cheaply)
+            and only re-fetches a bundle whose version moved.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.PublicLocales">
+            <summary>The language picker's data: enabled locales only, and only their public fields.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.Bundle(System.String,System.String)">
+            <summary>
+            The flat <c>namespace.key → value</c> map for one locale, with the fallback chain merged in.
+            <paramref name="ns"/> is a comma-separated allow-list of bundles (e.g. <c>common,blog</c>);
+            omitting it returns every namespace, which only an internal caller should do.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.DeleteLocale(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Removes a locale and every string that belongs to it. The default locale is protected, because
+            it is the last-resort fallback for all the others.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.Entries(System.String,System.String,System.String,System.Nullable{System.Boolean},System.Nullable{System.Boolean},System.Int32,System.Int32)">
+            <summary>The raw grid: one row per stored string, filtered and paged.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.Translate(System.String,System.String,System.String,System.Boolean,System.Int32,System.Int32)">
+            <summary>
+            The side-by-side editor's rows: every key that exists in the default locale, paired with this
+            locale's value (blank when untranslated). <c>notes</c> carries the source text.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.BulkUpsert(KeshavSingh.Localization.Dtos.BulkUpsertTranslationsRequest,System.Threading.CancellationToken)">
+            <summary>Saves a page of edits in one round trip.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.DeleteKey(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Retires a key from every language at once, so no locale keeps an orphan string.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.Import(KeshavSingh.Localization.Dtos.ImportTranslationsRequest,System.Threading.CancellationToken)">
+            <summary>
+            Bulk-loads strings for one locale from a pasted JSON (flat or nested) or CSV payload. Every
+            value goes through the same validation as a hand edit, so an import cannot smuggle markup into
+            the catalogue. Spreadsheets go to <see cref="M:KeshavSingh.Localization.Controllers.LocalizationController.ImportFile(Microsoft.AspNetCore.Http.IFormFile,System.String,System.String,System.String,System.String,System.Boolean,System.Threading.CancellationToken)"/> instead.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.ImportFile(Microsoft.AspNetCore.Http.IFormFile,System.String,System.String,System.String,System.String,System.Boolean,System.Threading.CancellationToken)">
+             <summary>
+             Imports an uploaded <c>.json</c>, <c>.csv</c> or <c>.xlsx</c> file — the path a translator's
+             spreadsheet takes. The format comes from the filename unless <c>format</c> overrides it.
+            
+             <para>Capped at <see cref="F:KeshavSingh.Localization.Controllers.LocalizationController.MaxUploadBytes"/>, and only those three extensions are accepted, so
+             this is not a general file-upload surface. Nothing is written to disk: the upload is parsed in
+             memory and only validated strings reach the database.</para>
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.Export(System.String,System.String,System.String)">
+            <summary>
+            Downloads a locale's strings as <c>json</c> (flat), <c>nested</c>, <c>csv</c> or <c>xlsx</c>.
+            Returned as a file so the browser saves it directly.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Controllers.LocalizationController.Refresh(System.Threading.CancellationToken)">
+            <summary>
+            Re-reads the locales and catalogue from the database and drops the memoised bundles. Normal
+            edits do this automatically; this is the escape hatch after an out-of-band change (a restored
+            backup, a migration script) so no restart is needed.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.ConfigEntryView">
+            <summary>
+            Admin read model for a config entry. Note there is no <c>Value</c> for secret entries — only
+            <see cref="P:KeshavSingh.Localization.Dtos.ConfigEntryView.IsSet"/>. Secrets are write-only by design: an Admin can replace one but never read
+            it back, so a compromised admin session can't exfiltrate stored credentials.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.ConfigEntryView.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.Boolean,System.Boolean,System.String,System.Boolean,System.DateTime,System.String)">
+            <summary>
+            Admin read model for a config entry. Note there is no <c>Value</c> for secret entries — only
+            <see cref="P:KeshavSingh.Localization.Dtos.ConfigEntryView.IsSet"/>. Secrets are write-only by design: an Admin can replace one but never read
+            it back, so a compromised admin session can't exfiltrate stored credentials.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.UpsertConfigEntryRequest">
+            <summary>
+            Create/replace a config entry. Omitted (null) fields keep their stored value. A non-empty
+            <see cref="P:KeshavSingh.Localization.Dtos.UpsertConfigEntryRequest.Value"/> on a secret entry replaces the stored secret; blank keeps it.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.UpsertConfigEntryRequest.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.Nullable{System.Boolean},System.Nullable{System.Boolean},System.String)">
+            <summary>
+            Create/replace a config entry. Omitted (null) fields keep their stored value. A non-empty
+            <see cref="P:KeshavSingh.Localization.Dtos.UpsertConfigEntryRequest.Value"/> on a secret entry replaces the stored secret; blank keeps it.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.LocaleView">
+            <summary>Admin read model for a locale row.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.LocaleView.#ctor(System.String,System.String,System.String,System.String,System.String,System.Boolean,System.Boolean,System.String,System.Int32,System.String,System.String,System.String,System.Int32,System.DateTime)">
+            <summary>Admin read model for a locale row.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.PublicLocaleView">
+            <summary>
+            The public projection of a locale — what a visitor's language picker needs and nothing more.
+            No fallback chain, no counts, no timestamps.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.PublicLocaleView.#ctor(System.String,System.String,System.String,System.String,System.String,System.Boolean,System.String,System.String,System.String)">
+            <summary>
+            The public projection of a locale — what a visitor's language picker needs and nothing more.
+            No fallback chain, no counts, no timestamps.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.UpsertLocaleRequest">
+            <summary>Create/replace a locale. <c>Code</c> identifies the row.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.UpsertLocaleRequest.#ctor(System.String,System.String,System.String,System.String,System.String,System.Nullable{System.Boolean},System.Nullable{System.Boolean},System.String,System.Nullable{System.Int32},System.String,System.String,System.String)">
+            <summary>Create/replace a locale. <c>Code</c> identifies the row.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.TranslationView">
+            <summary>Admin read model for one translated string.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.TranslationView.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.DateTime,System.String)">
+            <summary>Admin read model for one translated string.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.TranslationPageView">
+            <summary>A page of translations plus the total, so the admin grid can page a large catalogue.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.TranslationPageView.#ctor(System.Collections.Generic.IReadOnlyList{KeshavSingh.Localization.Dtos.TranslationView},System.Int64,System.Int32,System.Int32)">
+            <summary>A page of translations plus the total, so the admin grid can page a large catalogue.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.BulkUpsertTranslationsRequest">
+            <summary>Save many strings in one round trip (what the admin grid's "Save all" posts).</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.BulkUpsertTranslationsRequest.#ctor(System.Collections.Generic.IReadOnlyList{KeshavSingh.Localization.Dtos.UpsertTranslationRequest})">
+            <summary>Save many strings in one round trip (what the admin grid's "Save all" posts).</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.TranslationBundleView">
+            <summary>
+            A resolved bundle for one locale: flat <c>namespace.key → value</c> with the fallback locale
+            merged underneath, so a client can render even a half-translated language. <see cref="P:KeshavSingh.Localization.Dtos.TranslationBundleView.Version"/>
+            changes whenever any contributing string does — it is the ETag and the refresh signal.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.TranslationBundleView.#ctor(System.String,System.String,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})">
+            <summary>
+            A resolved bundle for one locale: flat <c>namespace.key → value</c> with the fallback locale
+            merged underneath, so a client can render even a half-translated language. <see cref="P:KeshavSingh.Localization.Dtos.TranslationBundleView.Version"/>
+            changes whenever any contributing string does — it is the ETag and the refresh signal.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.LocalizationManifestView">
+            <summary>
+            What a client polls to learn whether to re-fetch: the enabled locales and each one's bundle
+            version. Cheap, anonymous, no strings.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.LocalizationManifestView.#ctor(System.String,System.Collections.Generic.IReadOnlyList{KeshavSingh.Localization.Dtos.PublicLocaleView},System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})">
+            <summary>
+            What a client polls to learn whether to re-fetch: the enabled locales and each one's bundle
+            version. Cheap, anonymous, no strings.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.LocalizationCoverageView">
+            <summary>Per-locale coverage, so gaps are visible on the admin screen rather than in production.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.LocalizationCoverageView.#ctor(System.String,System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>Per-locale coverage, so gaps are visible on the admin screen rather than in production.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Dtos.ImportTranslationsRequest">
+            <summary>
+            Import a set of strings for one locale.
+            <para><c>Format</c>: <c>json</c> (flat <c>"a.b": "v"</c> or nested objects) or <c>csv</c>
+            (<c>namespace,key,value[,notes]</c> with a header row).</para>
+            <para><c>Mode</c>: <c>merge</c> keeps keys absent from the payload; <c>replace</c> deletes every
+            key of the targeted namespaces first.</para>
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Dtos.ImportTranslationsRequest.#ctor(System.String,System.String,System.String,System.String,System.Nullable{System.Boolean},System.String)">
+            <summary>
+            Import a set of strings for one locale.
+            <para><c>Format</c>: <c>json</c> (flat <c>"a.b": "v"</c> or nested objects) or <c>csv</c>
+            (<c>namespace,key,value[,notes]</c> with a header row).</para>
+            <para><c>Mode</c>: <c>merge</c> keeps keys absent from the payload; <c>replace</c> deletes every
+            key of the targeted namespaces first.</para>
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.LocaleService">
+             <summary>
+             The registry of languages the family of sites can be served in. Kept in Mongo and cached in
+             memory, because every public request that resolves a locale reads it.
+            
+             Invariants enforced here (not in the UI): exactly one default locale, no self-referencing or
+             cyclic fallback chain, the default locale can be neither disabled nor deleted. Codes are
+             allow-list validated — they end up in URLs, cache keys and the <c>lang</c> attribute.
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.LocaleService.BootstrapDefault">
+            <summary>Used when the collection is empty (very first boot, before the seed runs).</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.LocaleService.SeedAsync(System.Threading.CancellationToken)">
+            <summary>
+            Applies the languages declared by the registered <see cref="T:KeshavSingh.Localization.Seeding.ILocalizationSeedSource"/>s, so a
+            fresh database is usable immediately. Additive only: a code that already has a row is left
+            exactly as it is, which means a deployment can never undo an admin's edit.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.LocaleService.All">
+            <summary>Every locale, including disabled ones (admin view).</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.LocaleService.Enabled">
+            <summary>Only the locales a visitor may be served.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.LocaleService.Resolve(System.String)">
+            <summary>
+            Maps whatever the caller asked for onto a locale we actually serve. Unknown, disabled or
+            missing input resolves to the default — a request never fails because of a bad language tag,
+            and a disabled locale is never served just because someone typed its code.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.LocaleService.FallbackChain(System.String)">
+            <summary>
+            The fallback chain for a locale, starting with itself and ending at the default. Cycles are
+            impossible by construction (validated on write) but the visited-set makes that safe anyway.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.LocaleService.DeleteAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Deletes a locale. The default is protected. Returns false if the code is unknown; the caller
+            is responsible for removing that locale's strings.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.LocaleService.NormalizeCode(System.String)">
+            <summary>
+            BCP-47-ish allowlist: 2–3 letters, optionally a 2-letter or 4-letter subtag. Deliberately
+            narrow — this value is interpolated into cache keys and the document id.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.LocalizationOptions">
+            <summary>
+            Deploy-time settings for the localisation + runtime-config subsystem (config section
+            <c>Localization</c>). Everything genuinely tunable lives in the database instead — this holds only
+            the values that must be known before the database can be trusted to supply anything.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.LocalizationOptions.AllowedHosts">
+             <summary>
+             Hosts that a configured URL or icon may point at, as a baseline. An Admin can widen this at
+             runtime through the <c>config.url.allowedhosts</c> entry, but never narrow it below this list.
+            
+             <para>This is deliberately NOT database-driven: it is the allowlist that makes it safe to serve
+             admin-edited URLs into anonymous pages, so it belongs with the deployment, not inside the data
+             it guards. <c>localhost</c> is always allowed so a developer needs no configuration at all.</para>
+             </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.LocalizationOptions.LocalesCollection">
+            <summary>
+            Collection names, in case a host app already uses one of these for something else. Defaults
+            match the documented schema and should normally be left alone.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.LocalizationOptions.MaxImportEntries">
+            <summary>
+            Largest number of strings one import request may carry. A guard against an accidental
+            multi-megabyte paste, not a business rule.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.LocalizationOptions.SeedOnStartup">
+            <summary>
+            Whether <see cref="T:KeshavSingh.Localization.Seeding.ILocalizationSeedSource"/> contributions are applied at startup. Turn it off
+            to freeze the catalogue at whatever the database holds (e.g. after a deliberate purge).
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Models.ConfigEntry">
+             <summary>
+             One runtime-configurable value (collection <c>config_entries</c>, <c>_id</c> = the key). This is
+             the general registry that lets a value — a URL, an icon, a feature flag, a limit, a label key —
+             be changed by an Admin at runtime instead of being hard-coded in an app's build.
+            
+             SECURITY: what leaves the server is decided here, not by the caller.
+             <list type="bullet">
+             <item><see cref="F:KeshavSingh.Localization.Models.ConfigScope.Public"/> — served anonymously at <c>GET /api/config</c>.</item>
+             <item><see cref="F:KeshavSingh.Localization.Models.ConfigScope.Authenticated"/> — served only to a signed-in user.</item>
+             <item><see cref="F:KeshavSingh.Localization.Models.ConfigScope.Internal"/> — never leaves the server; readable by admins only.</item>
+             </list>
+             <see cref="P:KeshavSingh.Localization.Models.ConfigEntry.IsSecret"/> entries are AES-encrypted at rest and their value is NEVER returned by any
+             endpoint (not even to an Admin) — only a "is it set?" flag is. Secret entries are forced to
+             <see cref="F:KeshavSingh.Localization.Models.ConfigScope.Internal"/> regardless of what the request asked for.
+             </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.Key">
+            <summary>Dotted key, lower-case, e.g. <c>ui.brand.logoUrl</c>. Also the document id.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.Group">
+            <summary>Grouping for the admin screen, e.g. <c>branding</c> / <c>urls</c> / <c>icons</c> / <c>features</c>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.ValueType">
+            <summary>See <see cref="T:KeshavSingh.Localization.Models.ConfigValueType"/>. Drives validation and client-side parsing.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.Value">
+            <summary>Canonical string form of the value (encrypted when <see cref="P:KeshavSingh.Localization.Models.ConfigEntry.IsSecret"/>).</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.DefaultValue">
+            <summary>Value to fall back to when <see cref="P:KeshavSingh.Localization.Models.ConfigEntry.Value"/> is blank. Never secret.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.Scope">
+            <summary>See <see cref="T:KeshavSingh.Localization.Models.ConfigScope"/>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.IsSecret">
+            <summary>Encrypted at rest and never served. Implies <see cref="F:KeshavSingh.Localization.Models.ConfigScope.Internal"/>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.Localized">
+            <summary>
+            When true, <see cref="P:KeshavSingh.Localization.Models.ConfigEntry.Value"/> is a translation key (<c>namespace:key</c>) rather than a
+            literal, so the same entry renders per-locale. Only meaningful for string-ish types.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.Description">
+            <summary>Human note shown on the admin screen. Never served publicly.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.ConfigEntry.IsSystem">
+            <summary>
+            Seeded entries are part of the application contract: they can be edited but not deleted, so a
+            client can rely on the key existing.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Models.ConfigValueType">
+            <summary>Allow-listed value types. Anything not in this list is rejected at the boundary.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Models.ConfigScope">
+            <summary>Allow-listed exposure scopes. Default-deny: unknown values are rejected, not ignored.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Models.Locale">
+            <summary>
+            A language the family of sites can be served in (collection <c>locales</c>, <c>_id</c> = the BCP-47
+            code, e.g. <c>en</c> / <c>hi</c>). DB-backed so a new language is added by inserting a row and
+            importing its strings — never by shipping a build. Nothing here is secret: the enabled rows are
+            served anonymously so a visitor's language picker can be rendered.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.Code">
+            <summary>BCP-47 code, lower-cased (<c>en</c>, <c>hi</c>, <c>en-gb</c>). Also the document id.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.EnglishName">
+            <summary>Name in English, for the admin screens ("Hindi").</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.NativeName">
+            <summary>Name in the language itself, for the visitor-facing picker ("हिन्दी").</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.Direction">
+            <summary>Writing direction: <c>ltr</c> or <c>rtl</c>. Drives the <c>dir</c> attribute.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.Icon">
+            <summary>
+            Icon shown next to the language in pickers. An emoji/short token, or an https URL to an image —
+            validated either way, because it ends up in the DOM of a public page.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.IsDefault">
+            <summary>Exactly one locale is the default; it is also the last-resort translation fallback.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.IsEnabled">
+            <summary>Disabled locales are invisible to the public API — content can be prepared privately.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.FallbackCode">
+            <summary>Locale whose string is used when this locale has no value for a key. Empty = the default locale.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.SortOrder">
+            <summary>Ordering in pickers (ascending, then by code).</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.Locale.DateFormat">
+            <summary>Number/date formatting hints, so those aren't hard-coded per app either.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Models.TranslationEntry">
+             <summary>
+             One translated string (collection <c>translations</c>), addressed by
+             <see cref="P:KeshavSingh.Localization.Models.TranslationEntry.Locale"/> + <see cref="P:KeshavSingh.Localization.Models.TranslationEntry.Namespace"/> + <see cref="P:KeshavSingh.Localization.Models.TranslationEntry.Key"/> — unique together.
+            
+             The namespace is the bundle a client asks for (<c>common</c>, <c>blog</c>, <c>admin</c>, …) so a
+             public site never downloads the admin's strings. Values are plain text/markdown authored by an
+             Editor; they are rendered through the framework's escaping on the client and must never be
+             injected as raw HTML.
+             </summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.TranslationEntry.Locale">
+            <summary>BCP-47 code matching a <see cref="P:KeshavSingh.Localization.Models.Locale.Code"/>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.TranslationEntry.Namespace">
+            <summary>Bundle name, e.g. <c>common</c> / <c>blog</c> / <c>admin</c>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.TranslationEntry.Key">
+            <summary>Dotted key within the namespace, e.g. <c>nav.home</c>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.TranslationEntry.Notes">
+            <summary>Editor note (context for translators). Never served publicly.</summary>
+        </member>
+        <member name="P:KeshavSingh.Localization.Models.TranslationEntry.NeedsReview">
+            <summary>
+            True when the value was machine-copied from the fallback locale during import rather than
+            actually translated — surfaced in the admin grid so gaps are visible.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Seeding.BaselineSeedSource">
+             <summary>
+             The baseline every consuming app gets: English + Hindi, the <c>common</c> wording that appears on
+             any screen (Save / Cancel / Loading / …), the <c>brand</c> labels, and the mechanical config keys
+             (icons, i18n behaviour, UI limits, the URL host allowlist).
+            
+             Deliberately excluded: anything specific to one app or site — nav labels, page copy, launcher URLs,
+             feature flags. Those belong in that app's own <see cref="T:KeshavSingh.Localization.Seeding.ILocalizationSeedSource"/>, because a
+             package that shipped them would be dictating another app's content.
+            
+             Registered by <c>AddKeshavLocalization()</c>. Opt out with
+             <c>AddKeshavLocalization(includeBaselineSeeds: false)</c> if an app wants to own every string.
+             </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Seeding.LocaleSeed">
+            <summary>
+            A language a host app ships. Applied only when no row for <see cref="P:KeshavSingh.Localization.Seeding.LocaleSeed.Code"/> exists yet, so an
+            admin's later edits are never overwritten by a deployment.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Seeding.LocaleSeed.#ctor(System.String,System.String,System.String,System.String,System.String,System.Boolean,System.Boolean,System.String,System.Int32,System.String,System.String,System.String)">
+            <summary>
+            A language a host app ships. Applied only when no row for <see cref="P:KeshavSingh.Localization.Seeding.LocaleSeed.Code"/> exists yet, so an
+            admin's later edits are never overwritten by a deployment.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Seeding.TranslationSeed">
+            <summary>One shipped string. Applied only when that locale+namespace+key has no row yet.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Seeding.TranslationSeed.#ctor(System.String,System.String,System.String,System.String)">
+            <summary>One shipped string. Applied only when that locale+namespace+key has no row yet.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Seeding.ConfigEntrySeed">
+            <summary>
+            A shipped config entry — the value the code used to hard-code, registered so it becomes editable.
+            Seeded entries are marked <c>IsSystem</c>: editable but not deletable, and their type and scope are
+            fixed, because other apps read them as a contract.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Seeding.ConfigEntrySeed.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.Boolean)">
+            <summary>
+            A shipped config entry — the value the code used to hard-code, registered so it becomes editable.
+            Seeded entries are marked <c>IsSystem</c>: editable but not deletable, and their type and scope are
+            fixed, because other apps read them as a contract.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Seeding.ILocalizationSeedSource">
+             <summary>
+             What a host app contributes to the catalogue at startup: its languages, its strings, and the config
+             keys it reads. Register as many implementations as you like — one per concern is normal (the shared
+             baseline, this app's screens, the public sites' content).
+            
+             <para>Every member has a default implementation, so an app overrides only what it actually ships.
+             Nothing here overwrites an existing row: seeding is additive, so a deployment can never undo an
+             editor's change.</para>
+             </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.Seeding.SeedBuilder">
+            <summary>
+            Helpers for expressing a bilingual catalogue without writing every key twice. A host app's seed
+            source typically declares <c>(namespace, key, english, other)</c> rows and expands them here.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Seeding.SeedBuilder.Expand(System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IEnumerable{System.ValueTuple{System.String,System.String,System.String[]}})">
+            <summary>
+            Expands <c>(ns, key, value-per-locale…)</c> rows into one <see cref="T:KeshavSingh.Localization.Seeding.TranslationSeed"/> per
+            locale. <paramref name="locales"/> and each row's value array must line up positionally —
+            mismatched rows are rejected rather than silently half-seeded.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Seeding.SeedBuilder.Bilingual(System.String,System.String,System.Collections.Generic.IEnumerable{System.ValueTuple{System.String,System.String,System.String,System.String}})">
+            <summary>Terser form of <see cref="M:KeshavSingh.Localization.Seeding.SeedBuilder.Expand(System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IEnumerable{System.ValueTuple{System.String,System.String,System.String[]}})"/> for the common two-language case.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.Seeding.SeedBuilder.Config(System.String,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.Boolean)">
+            <summary>Shorthand for a config entry, so a seed list reads as a table.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.ServiceCollectionExtensions">
+             <summary>
+             Wiring for the localisation + runtime-config subsystem. Three lines in a host app:
+            
+             <code>
+             builder.Services.AddKeshavLocalization(builder.Configuration);
+             builder.Services.AddLocalizationSeeds&lt;MyAppSeeds&gt;();
+             builder.Services.AddControllers().AddKeshavLocalizationControllers();
+             // …
+             await app.Services.InitKeshavLocalizationAsync();
+             </code>
+            
+             The app supplies its own strings and config keys through
+             <see cref="T:KeshavSingh.Localization.Seeding.ILocalizationSeedSource"/> — this package ships only the language-neutral baseline.
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ServiceCollectionExtensions.AddKeshavLocalization(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration,System.Boolean)">
+             <summary>
+             Registers the locale registry, the translation catalogue and the runtime config registry.
+            
+             <para>All three are singletons: each caches its collection in memory because they are read on
+             nearly every request, and they refresh themselves on every write.</para>
+            
+             <para>Requires <c>MongoDbService</c> (KeshavSingh.Mongo.NoSql) and <c>DataProtector</c>
+             (KeshavSingh.Security) to be registered — the first for storage, the second so secret config
+             entries are encrypted at rest.</para>
+             </summary>
+             <param name="services">The host app's service collection.</param>
+             <param name="configuration">Bound to the <c>Localization</c> section for <see cref="T:KeshavSingh.Localization.LocalizationOptions"/>.</param>
+             <param name="includeBaselineSeeds">
+             Registers <see cref="T:KeshavSingh.Localization.Seeding.BaselineSeedSource"/> (English + Hindi, the <c>common</c>/<c>brand</c>
+             wording, the mechanical config keys). Pass false only if the app wants to own every string.
+             </param>
+        </member>
+        <member name="M:KeshavSingh.Localization.ServiceCollectionExtensions.AddLocalizationSeeds``1(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Adds one of the host app's seed sources. Call it once per source — the shared baseline, this
+            app's own screens, the public sites' content — and every registered source contributes.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.ServiceCollectionExtensions.AddKeshavLocalizationControllers(Microsoft.Extensions.DependencyInjection.IMvcBuilder)">
+             <summary>
+             Mounts the package's controllers: <c>/api/i18n/**</c> (public reads + the editorial surface) and
+             <c>/api/app-config/**</c> (the Admin-only config registry). Chain it onto
+             <c>AddControllers()</c>, the same way <c>AddKeshavAuthControllers()</c> works.
+            
+             <para>Deliberately opt-in: an app that only wants to READ the catalogue server-side can register
+             the services without exposing any of these endpoints.</para>
+             </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.TranslationFormats">
+             <summary>
+             The interchange formats the catalogue can be exported to and imported from, in one place so the
+             API, the UI and the docs cannot disagree about what is supported.
+            
+             <list type="bullet">
+             <item><c>json</c> — flat keys (<c>"blog.nav.home": "Home"</c>). Import and export.</item>
+             <item><c>nested</c> — nested objects, what most i18n tooling expects. Export only as a distinct
+               name; on import nested and flat JSON are both accepted as <c>json</c>.</item>
+             <item><c>csv</c> — <c>namespace,key,value[,notes]</c> with a header row. Import and export.</item>
+             <item><c>xlsx</c> — a workbook, one sheet per namespace, with the source language alongside.
+               Import and export. The format to hand a non-technical translator.</item>
+             </list>
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.TranslationFormats.Import">
+            <summary>Nested JSON is not a separate import format — the JSON parser accepts either shape.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationFormats.FromFileName(System.String)">
+            <summary>Infers the format from an uploaded filename, so a file picker needs no format field.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationFormats.IsBinary(System.String)">
+            <summary>True when the payload is binary and must be carried as bytes, not a string.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.TranslationService">
+             <summary>
+             The translation catalogue (collection <c>translations</c>) and the bundles built from it.
+            
+             How a client uses it: fetch <c>GET /api/i18n/manifest</c> (which locales exist, and a version per
+             locale), then <c>GET /api/i18n/bundle/{locale}</c> for the flat <c>namespace.key → value</c> map.
+             Missing strings are filled in from the locale's fallback chain, so a half-translated language
+             still renders. Nothing is compiled into any app's build.
+            
+             The catalogue is held in memory and rebuilt on every write: it is read by every public page load,
+             and it is small (thousands of short strings at most). Bundles are memoised per
+             locale+namespace-set and dropped whenever the catalogue changes.
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.TranslationService.MarkupLike">
+            <summary>Anything that looks like an HTML tag or a script-bearing URL scheme.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.VersionFor(System.String)">
+            <summary>
+            The version a client compares against to decide whether to re-fetch. Derived from every locale
+            in the fallback chain, because a change to the fallback changes what this locale renders.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.GetBundle(System.String,System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>
+            Builds (or returns the memoised) bundle for <paramref name="requestedLocale"/>.
+            <paramref name="namespaces"/> narrows what is returned — a public site asks for
+            <c>common,blog</c> and never receives the admin app's strings.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.Coverage">
+            <summary>How complete each language is, measured against the default locale's key set.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.List(System.String,System.String,System.String,System.Nullable{System.Boolean},System.Nullable{System.Boolean},System.Int32,System.Int32)">
+            <summary>
+            The admin grid's query: filter by locale / namespace / free text, ordered by key, paged.
+            Served from the in-memory catalogue, so it stays responsive while editing.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ListForTranslating(System.String,System.String,System.String,System.Boolean,System.Int32,System.Int32)">
+            <summary>
+            Every key known in the default locale, paired with this locale's value (blank when untranslated).
+            This is what the side-by-side translation editor renders, and it is how gaps become visible.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.BulkUpsertAsync(KeshavSingh.Localization.Dtos.BulkUpsertTranslationsRequest,System.String,System.Threading.CancellationToken)">
+            <summary>Saves a page of edits in one call — what the translation grid's "Save" posts.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.DeleteKeyEverywhereAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Removes a key from EVERY locale — used when a key is retired, so no language is left with an
+            orphan string. Returns how many rows went.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.DeleteLocaleAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Drops every string of a locale. Called when the locale itself is deleted.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ImportAsync(KeshavSingh.Localization.Dtos.ImportTranslationsRequest,System.String,System.Threading.CancellationToken)">
+             <summary>
+             Imports a set of strings for one locale from a text payload: flat or nested JSON, or CSV
+             (<c>namespace,key,value[,notes]</c>). For a spreadsheet use
+             <see cref="M:KeshavSingh.Localization.TranslationService.ImportFileAsync(KeshavSingh.Localization.Dtos.ImportTranslationsRequest,System.String,System.Byte[],System.String,System.Threading.CancellationToken)"/> — <c>.xlsx</c> is binary and cannot travel in a JSON string.
+            
+             <c>replace</c> mode clears the affected namespaces first so a re-import is a true mirror of the
+             file; <c>merge</c> (the default) only adds and updates.
+            
+             Every value goes through the same validation as a single edit — an import is not a way to get
+             unchecked content into the catalogue.
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ImportFileAsync(KeshavSingh.Localization.Dtos.ImportTranslationsRequest,System.String,System.Byte[],System.String,System.Threading.CancellationToken)">
+            <summary>
+            Imports an uploaded file, picking the format from its name (<c>.json</c> / <c>.csv</c> /
+            <c>.xlsx</c>) so the caller does not have to declare it. This is the path a translator's
+            spreadsheet takes: the workbook's <b>Translation</b> column is read, matched by <b>Key</b> and
+            the sheet name, and its <b>Source</b> column ignored.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ApplyImportAsync(KeshavSingh.Localization.Dtos.ImportTranslationsRequest,System.Collections.Generic.List{KeshavSingh.Localization.TranslationService.ParsedEntry},System.Collections.Generic.List{System.String},System.String,System.Threading.CancellationToken)">
+            <summary>
+            The shared tail of every import: validate the target, apply <c>replace</c> if asked, then upsert
+            the parsed rows. Parsing differs per format; everything after it must not.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ExportBytes(System.String,System.String,System.String)">
+             <summary>
+             Serialises a locale's strings for download, in whichever of the supported formats is asked for
+             (see <see cref="T:KeshavSingh.Localization.TranslationFormats"/>). Returns bytes rather than text because <c>xlsx</c> is
+             binary; the caller pairs this with <see cref="M:KeshavSingh.Localization.TranslationFormats.ContentType(System.String)"/> and
+             <see cref="M:KeshavSingh.Localization.TranslationFormats.Extension(System.String)"/>.
+            
+             <para><c>xlsx</c> is one sheet per namespace, with the default language's text alongside as the
+             translator's source and the key column frozen — the shape a non-technical translator can work in
+             directly, and re-importable without editing.</para>
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.Export(System.String,System.String,System.String)">
+            <summary>
+            Text-only export, kept for callers that just want the JSON/CSV string. Throws for <c>xlsx</c>,
+            which is binary — use <see cref="M:KeshavSingh.Localization.TranslationService.ExportBytes(System.String,System.String,System.String)"/> for that.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.Rows(System.String,System.String)">
+            <summary>The rows an export covers: one locale, optionally narrowed to a single namespace.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.SourceTextLookup(System.String,System.String)">
+            <summary>
+            The default language's text for every key, so a spreadsheet export can show a translator what
+            they are translating. Includes keys the target locale has no row for yet, which is how those
+            gaps become visible (and fillable) in the file itself.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ExportNestedJson(System.Collections.Generic.IReadOnlyList{KeshavSingh.Localization.Models.TranslationEntry})">
+            <summary>
+            Nested objects keyed by namespace then by the dotted key's segments. A leaf that collides with
+            an existing branch is emitted under a "$value" child rather than silently dropped.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ParseJson(System.String,System.String,System.Collections.Generic.List{System.String})">
+            <summary>
+            Flat (<c>"blog.nav.home": "Home"</c>) or nested JSON. The first path segment is the namespace
+            unless one was supplied on the request, in which case the whole path is the key.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ParseCsv(System.String,System.String,System.Collections.Generic.List{System.String})">
+            <summary>
+            <c>namespace,key,value[,notes]</c> with a header row. RFC 4180 quoting, so values may contain
+            commas and newlines.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.SeedAsync(System.Threading.CancellationToken)">
+             <summary>
+             Applies the strings declared by the registered <see cref="T:KeshavSingh.Localization.Seeding.ILocalizationSeedSource"/>s, so a
+             fresh database renders every shipped screen in every shipped language without an import.
+            
+             Additive only: a locale+namespace+key that already has a row is left untouched, so a deployment
+             can never overwrite an editor's wording. Seeds for a locale that is not registered are skipped
+             rather than creating orphan rows.
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.NormalizeNamespace(System.String)">
+            <summary>Bundle name: same shape as a config key, and always lower-cased.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.NormalizeKey(System.String)">
+            <summary>Dotted key. Case is preserved (camelCase keys are common) but the shape is fixed.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.ValidateValue(System.String)">
+            <summary>
+            Translated text is plain text (with <c>{placeholders}</c>), never markup: clients render it
+            through their framework's escaping, and refusing tag-like content here keeps it that way even
+            if some future screen reaches for innerHTML.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationService.NormalizeNamespaceFilter(System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>Null means "every namespace"; otherwise an allow-list the caller may ask for.</summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.TranslationWorkbook">
+             <summary>
+             The <c>.xlsx</c> side of import/export — the format to hand someone who translates in a spreadsheet
+             rather than in a JSON file.
+            
+             Layout: one sheet per namespace, columns <c>Key | Source | Translation | Notes</c>, header frozen.
+             The <b>Source</b> column is the default language's text and is read-only guidance; only
+             <b>Translation</b> (and optionally <b>Notes</b>) is read back on import, matched by the
+             <b>Key</b> column and the sheet name. That means an exported file round-trips unedited, and a
+             translator can fill in blanks without understanding the key syntax.
+            
+             Columns are located by header name, not position, so a translator who inserts a comment column or
+             reorders things does not break the import.
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Localization.TranslationWorkbook.MaxSheetName">
+            <summary>Excel's hard limit on a sheet name, minus nothing — we truncate to fit.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationWorkbook.Write(System.Collections.Generic.IReadOnlyList{KeshavSingh.Localization.Models.TranslationEntry},System.String,System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})">
+            <summary>
+            Writes the workbook. <paramref name="sourceText"/> maps <c>namespace.key</c> to the default
+            language's text; keys present there but missing from <paramref name="rows"/> are emitted as
+            blank translation rows, so the gaps are visible and fillable in the file.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Localization.TranslationWorkbook.Row">
+            <summary>One parsed row: the sheet's namespace plus the key, translation and notes.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationWorkbook.Row.#ctor(System.String,System.String,System.String,System.String)">
+            <summary>One parsed row: the sheet's namespace plus the key, translation and notes.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationWorkbook.Read(System.Byte[],System.String,System.Collections.Generic.List{System.String})">
+             <summary>
+             Reads a workbook back. Sheet name is the namespace unless <paramref name="defaultNamespace"/>
+             overrides it (for a file whose sheets are named something else entirely). Rows with no key are
+             skipped; a row whose translation cell is blank is skipped too, so a partially translated file
+             does not wipe the values it left empty.
+            
+             <para>Problems are collected into <paramref name="errors"/> with the sheet and row number rather
+             than thrown, so one malformed row cannot abort an otherwise good import.</para>
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationWorkbook.MapColumns(ClosedXML.Excel.IXLRangeRow)">
+            <summary>Locates the columns by header text, so reordering or inserting columns is harmless.</summary>
+        </member>
+        <member name="M:KeshavSingh.Localization.TranslationWorkbook.SafeSheetName(ClosedXML.Excel.XLWorkbook,System.String)">
+            <summary>
+            Excel sheet names are capped at 31 characters and cannot contain <c>: \ / ? * [ ]</c> or repeat
+            within a workbook. A namespace is already lower-case and dash/underscore only, but the cap and
+            the uniqueness rule still have to be respected.
+            </summary>
+        </member>
+    </members>
+</doc>
