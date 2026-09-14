@@ -268,6 +268,7 @@ public sealed record MobileUserDto(
     string Email,
     string? Username,
     string DisplayName,
+    string? PhoneNumber,
     IReadOnlyList<string> Roles,
     bool IsActive,
     DateTime CreatedAt

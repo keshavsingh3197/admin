@@ -28,6 +28,9 @@ public sealed class FamUser
     [BsonElement("roles")]
     public List<string> Roles { get; set; } = new() { "MobileUser" };
 
+    [BsonElement("phoneNumber")]
+    public string? PhoneNumber { get; set; }
+
     [BsonElement("isActive")]
     public bool IsActive { get; set; } = true;
 
@@ -164,7 +167,8 @@ public sealed class FamAppVersionConfig
 // ---- DTOs for Mobile API Communication ----
 
 public sealed record MobileLoginRequest(
-    string Email,
+    string? Identifier,  // email, username, or phone number (new field name)
+    string? Email,       // legacy field name (backward compat)
     string Password
 );
 

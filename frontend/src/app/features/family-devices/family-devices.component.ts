@@ -95,7 +95,16 @@ export class FamilyDevicesComponent implements OnInit {
 
   ngOnInit(): void {
     this.refreshAll();
-    this.usersService.list().subscribe(users => this.adminUsers.set(users));
+    this.usersService.list().subscribe({
+      next: users => {
+        console.log('Fetched admin users:', users);
+        this.adminUsers.set(users);
+      },
+      error: err => {
+        console.error('Failed to fetch admin users:', err);
+        this.error.set('Failed to load admin users for mapping.');
+      }
+    });
   }
 
   refreshAll(): void {
@@ -222,7 +231,7 @@ export class FamilyDevicesComponent implements OnInit {
     if (user) {
       this.newEmail = user.email || '';
       this.newUsername = user.username || '';
-      this.newDisplayName = user.displayName || user.username || 'Mobile User';
+      this.newDisplayName = user.displayName || 'Mobile User';
     }
   }
 
