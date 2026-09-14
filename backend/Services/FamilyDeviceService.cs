@@ -77,11 +77,6 @@ public sealed class FamilyDeviceService
                 new CreateIndexOptions { Unique = true });
             await _qrSessions.Indexes.CreateOneAsync(qrIndex);
 
-            var userEmailIndex = new CreateIndexModel<FamUser>(
-                Builders<FamUser>.IndexKeys.Ascending(u => u.Email),
-                new CreateIndexOptions { Unique = true });
-            await _famUsers.Indexes.CreateOneAsync(userEmailIndex);
-
             var contactIndex = new CreateIndexModel<FamContact>(
                 Builders<FamContact>.IndexKeys
                     .Ascending(c => c.FamilyId)
