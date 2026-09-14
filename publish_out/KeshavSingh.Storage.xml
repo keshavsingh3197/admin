@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KeshavSingh.Storage</name>
+    </assembly>
+    <members>
+        <member name="T:KeshavSingh.Storage.DynamicObjectStore">
+            <summary>
+            The <see cref="T:KeshavSingh.Storage.IObjectStore"/> that <c>AddKeshavStorage</c> registers. It reads the current
+            settings from an <see cref="T:KeshavSingh.Storage.IStorageSettingsSource"/> on every operation, so an app can switch
+            provider or rotate S3 credentials at runtime (e.g. from an admin settings screen) without a
+            restart. The underlying local/S3 store is cached and rebuilt only when the relevant settings
+            change, so a stable configuration doesn't pay a rebuild cost per call.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Storage.IObjectStore">
+            <summary>
+            Stores opaque binary blobs addressed by a caller-chosen <c>key</c>. Deliberately
+            visibility-agnostic: it knows nothing about who may read a blob or whether it is
+            "public" — access control is the calling app's responsibility. The caller supplies a
+            random, unguessable key (never a client-supplied filename) so the store never has to
+            sanitise paths derived from user input.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Storage.IObjectStore.SaveAsync(System.String,System.IO.Stream,System.String,System.Threading.CancellationToken)">
+            <summary>Writes <paramref name="content"/> under <paramref name="key"/>, overwriting any existing blob.</summary>
+        </member>
+        <member name="M:KeshavSingh.Storage.IObjectStore.OpenAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Opens the blob for reading, or returns <c>null</c> if no blob exists for <paramref name="key"/>.</summary>
+        </member>
+        <member name="M:KeshavSingh.Storage.IObjectStore.DeleteAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Deletes the blob. A no-op (not an error) if the key does not exist.</summary>
+        </member>
+        <member name="T:KeshavSingh.Storage.LocalDiskObjectStore">
+            <summary>
+            Stores blobs as files under a single root directory. Suitable for development and for
+            hosts with durable disk. Includes a defence-in-depth traversal guard so a resolved path
+            can never escape the root even if a malformed key slips through.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Storage.LocalDiskObjectStore.#ctor(System.String)">
+            <summary>Uses an already-resolved absolute root directory.</summary>
+        </member>
+        <member name="M:KeshavSingh.Storage.LocalDiskObjectStore.#ctor(Microsoft.Extensions.Options.IOptions{KeshavSingh.Storage.StorageOptions},Microsoft.Extensions.Hosting.IHostEnvironment)">
+            <summary>Resolves the root from bound <see cref="T:KeshavSingh.Storage.StorageOptions"/> against the content root.</summary>
+        </member>
+        <member name="M:KeshavSingh.Storage.LocalDiskObjectStore.ResolveInsideRoot(System.String)">
+            <summary>Resolves the key to an absolute path and asserts it stays within the root.</summary>
+        </member>
+        <member name="T:KeshavSingh.Storage.S3ObjectStore">
+            <summary>
+            Stores blobs in an S3-compatible bucket. Tested target is Cloudflare R2 (private bucket,
+            AES-256 at rest, TLS in transit) via a custom service URL and path-style
+            addressing. Nothing is ever made public — callers stream bytes back through
+            their own authenticated endpoints, so the bucket needs no public access.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Storage.S3ObjectStore.#ctor(Amazon.S3.IAmazonS3,System.String)">
+            <summary>Test/DI seam so a fake <see cref="T:Amazon.S3.IAmazonS3"/> can be injected.</summary>
+        </member>
+        <member name="M:KeshavSingh.Storage.ServiceCollectionExtensions.AddKeshavStorage(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Binds the <c>"Storage"</c> config section and registers <see cref="T:KeshavSingh.Storage.DynamicObjectStore"/> as the
+            app's <see cref="T:KeshavSingh.Storage.IObjectStore"/>. The store resolves its backend from an
+            <see cref="T:KeshavSingh.Storage.IStorageSettingsSource"/>: the default reads static config, but an app can register
+            its own source (e.g. DB-backed, UI-editable) <em>before</em> calling this to override it, so
+            storage settings become runtime-manageable without a restart.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Storage.StorageOptions">
+            <summary>
+            Binds the <c>"Storage"</c> configuration section. <see cref="P:KeshavSingh.Storage.StorageOptions.Provider"/> selects which
+            <see cref="T:KeshavSingh.Storage.IObjectStore"/> is registered by <c>AddKeshavStorage</c>.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Storage.StorageOptions.Provider">
+            <summary><c>"Local"</c> (default) or <c>"S3"</c>. Case-insensitive.</summary>
+        </member>
+        <member name="P:KeshavSingh.Storage.StorageOptions.LocalRoot">
+            <summary>Root directory for the local-disk provider. Relative paths resolve against the content root.</summary>
+        </member>
+        <member name="T:KeshavSingh.Storage.S3StorageOptions">
+            <summary>
+            Settings for the S3-compatible provider. For Cloudflare R2, <see cref="P:KeshavSingh.Storage.S3StorageOptions.ServiceUrl"/> is
+            <c>https://&lt;account-id&gt;.r2.cloudflarestorage.com</c> and the bucket must stay private.
+            The access key and secret are secrets: supply them via Azure Key Vault or user-secrets,
+            never in a committed appsettings file.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Storage.ResolvedStorageSettings">
+            <summary>
+            Fully-resolved storage settings (S3 secret in the clear) used to build a backend. Produced by an
+            <see cref="T:KeshavSingh.Storage.IStorageSettingsSource"/> — the secret only lives here transiently, in memory.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Storage.IStorageSettingsSource">
+            <summary>
+            Supplies the current storage settings to <see cref="T:KeshavSingh.Storage.DynamicObjectStore"/>. The default
+            implementation binds static appsettings/env. An app that manages settings at runtime (e.g. in a
+            database, editable from an admin UI) registers its own implementation so a provider switch or
+            credential rotation takes effect without a restart.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Storage.OptionsStorageSettingsSource">
+            <summary>Default source: reads the bound <see cref="T:KeshavSingh.Storage.StorageOptions"/> from configuration.</summary>
+        </member>
+    </members>
+</doc>

@@ -156,20 +156,6 @@ public sealed class FamilyDeviceController : ControllerBase
         return Ok(new { message = "Your data deletion request has been received and will be processed within 24 hours." });
     }
 
-    /// <summary>
-    /// Authenticates a mobile application user against FamSphereDb.Fam_Users and issues a 30-day JWT bearer token.
-    /// </summary>
-    [HttpPost("auth/login")]
-    [AllowAnonymous]
-    public async Task<ActionResult<MobileLoginResponse>> AuthenticateMobile([FromBody] MobileLoginRequest request)
-    {
-        var response = await _deviceService.AuthenticateMobileUserAsync(request);
-        if (!response.Success)
-        {
-            return BadRequest(response);
-        }
-        return Ok(response);
-    }
 
     /// <summary>
     /// Admin: Lists all accounts that have the MobileUser role from FamSphereDb.Fam_Users.

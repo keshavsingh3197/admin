@@ -1,0 +1,230 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KeshavSingh.Mongo.NoSql</name>
+    </assembly>
+    <members>
+        <member name="T:KeshavSingh.Mongo.NoSql.Console.MongoConsoleException">
+            <summary>
+            Raised when a console request is rejected before it reaches MongoDB. The message is written to be
+            shown to the person who typed the query — it never carries server internals.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard">
+             <summary>
+             Validates everything a query console accepts before any of it becomes a MongoDB command.
+            
+             A console is, by design, someone typing queries at a database, so the guard's job is not to decide
+             who may do that (the app does, with authorisation) but to keep what they type inside "query the
+             data": no server-side JavaScript (<c>$where</c>, <c>$function</c>, <c>$accumulator</c>), no stage
+             that writes a collection out (<c>$out</c>, <c>$merge</c>), no reaching outside the database through
+             its name, and no update that isn't an explicit field operator.
+            
+             Everything here is pure — parse and inspect only — so it is fully unit testable without a server.
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.ForbiddenOperators">
+            <summary>Server-side JavaScript and any other operator that runs code rather than matching data.</summary>
+        </member>
+        <member name="F:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.AllowedStages">
+            <summary>Read-only stages. Anything not listed — notably $out and $merge — is refused.</summary>
+        </member>
+        <member name="F:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.AllowedUpdateOperators">
+            <summary>Field-level update operators. A bare document (full replacement) is refused.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.CollectionName(System.String,KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions)">
+            <summary>
+            Checks a collection name is a plain name this console may touch. Rejects the <c>system.*</c>
+            namespaces, anything with a <c>$</c> in it, and whatever the app has denied outright.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.RejectRedactedFieldReferences(MongoDB.Bson.BsonValue,KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions)">
+             <summary>
+             Refuses a pipeline that reads a secret field, whatever it calls the result.
+            
+             <para>Output-name redaction alone is not enough: <c>{"$project": {"x": "$PasswordHash"}}</c>
+             emits the hash under a name no redaction list knows about. Since a pipeline can rename
+             freely, the only reliable place to stop it is the field REFERENCE — a <c>"$Field"</c> string
+             anywhere in the pipeline — so that is what this rejects.</para>
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.FieldName(System.String,KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions)">
+            <summary>Checks a field path used by <c>distinct</c> or a sort/projection key.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.Document(System.String,System.String)">
+            <summary>
+            Parses a filter/projection/sort document. An empty string means "no document", which is how a
+            find with no filter is expressed.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.Pipeline(System.String,KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions)">
+            <summary>Parses an aggregation pipeline: a JSON array of stages, each one allowed and read-only.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.RejectUnvettedJoins(MongoDB.Bson.BsonValue,KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions)">
+            <summary>
+            Applies the collection rules to every collection a pipeline reaches sideways into.
+            <c>CollectionName</c> only ever saw the collection the query was aimed AT, so a
+            <c>$lookup</c> could read <c>users</c> — or a denied collection — from a query nominally
+            against something harmless. Recursive, because a $lookup can nest inside $facet.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.Update(System.String)">
+            <summary>
+            Parses an update. Must be made of field operators — a bare document would silently replace the
+            whole record, which is a wipe wearing an edit's clothes — and must leave <c>_id</c> alone.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.InsertDocument(System.String,KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions)">
+            <summary>Parses a document to insert: a plain document, within the size cap, no operators.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.Id(System.String)">
+            <summary>
+            Turns the <c>_id</c> the browser sent back into the value it actually is. An id that looks like an
+            ObjectId is one; anything else stays the string it was, which is how ids that are not ObjectIds
+            (app-assigned keys, GUID strings) keep working.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.Limit(System.Nullable{System.Int32},KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions)">
+            <summary>Clamps a caller's page size to the configured window.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard.RejectForbiddenOperators(MongoDB.Bson.BsonValue,System.String)">
+            <summary>
+            Walks a parsed request looking for operators that execute code. Recursive, because
+            <c>$where</c> nested three levels down inside an <c>$expr</c> runs exactly as well as one at
+            the top.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions">
+            <summary>
+            The limits a <see cref="T:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole"/> runs under. Everything is capped by default and writes
+            are off, so an app has to opt into anything that can change or cost something.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.DefaultLimit">
+            <summary>Documents returned when the caller asks for none in particular.</summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.MaxLimit">
+            <summary>Hard ceiling on documents per query, whatever the caller asks for.</summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.MaxPipelineStages">
+            <summary>Stages a pipeline may have. Long pipelines are a sign of something other than browsing.</summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.MaxExecutionMilliseconds">
+            <summary>Server-side execution budget. A query that outruns it is aborted, not queued behind.</summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.MaxDocumentBytes">
+            <summary>Ceiling on a document written through the console, in bytes.</summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.AllowWrites">
+            <summary>
+            Insert/update/delete are refused unless this is on. Reads are always allowed — the point of the
+            console — so an app that only wants to look at data leaves this off.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.DeniedCollections">
+            <summary>Collections the console will not touch at all, by exact name (case-insensitive).</summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.RedactedFields">
+            <summary>
+            Field names whose values are replaced with <see cref="F:KeshavSingh.Mongo.NoSql.Console.MongoConsoleOptions.RedactedPlaceholder"/> on the way out, at
+            any depth. Secrets have no business being read back into a browser just because an admin can
+            query the collection they live in — the field name still shows, so the shape stays visible.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.Console.MongoCollectionSummary">
+            <summary>
+            One collection in the database, as the console lists it. The count comes from the collection's
+            metadata rather than a scan — instant, and can lag reality by a few documents.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoCollectionSummary.#ctor(System.String,System.Int64)">
+            <summary>
+            One collection in the database, as the console lists it. The count comes from the collection's
+            metadata rather than a scan — instant, and can lag reality by a few documents.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.Console.MongoConsolePage">
+            <summary>
+            The documents a read returned, as relaxed extended-JSON strings. Strings rather than parsed objects
+            because a console shows documents, and BSON has types (ObjectId, dates, decimals) that only survive
+            the trip to a browser in that form.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsolePage.#ctor(System.String,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.Int32,System.Int32,System.Int32,System.Int64,System.Boolean)">
+            <summary>
+            The documents a read returned, as relaxed extended-JSON strings. Strings rather than parsed objects
+            because a console shows documents, and BSON has types (ObjectId, dates, decimals) that only survive
+            the trip to a browser in that form.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.Console.MongoConsolePage.HasMore">
+            <summary>True when the page is full, so there is probably more behind it.</summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.Console.MongoConsoleWriteResult">
+            <summary>What a write actually did. Counts only — nothing about the server behind them.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoConsoleWriteResult.#ctor(System.String,System.String,System.Int64,System.Int64,System.Int64,System.String)">
+            <summary>What a write actually did. Counts only — nothing about the server behind them.</summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole">
+             <summary>
+             A guarded "query editor" over a MongoDB database — the SQL-console equivalent for apps that keep
+             their data in Mongo. Every request goes through <see cref="T:KeshavSingh.Mongo.NoSql.Console.MongoConsoleGuard"/> first, every read is
+             bounded by a page size and a server-side time budget, every write is off unless the app turns it on,
+             and configured secret fields are redacted on the way out.
+            
+             This deliberately knows nothing about who is asking. Deciding that is the app's job: put this behind
+             an admin-only endpoint, and log what gets run.
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.ListCollectionsAsync(System.Threading.CancellationToken)">
+            <summary>The collections available, with an estimated document count for each.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.ListIndexesAsync(System.String,System.Threading.CancellationToken)">
+            <summary>The indexes on a collection — what a query can lean on before it scans everything.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.FindAsync(System.String,System.String,System.String,System.String,System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>Runs a find. Everything but the collection is optional; an empty filter matches all.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.CountAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Counts matches without pulling them back.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.AggregateAsync(System.String,System.String,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>Runs a read-only aggregation pipeline (see the guard for which stages that means).</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.DistinctAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>The distinct values of one field — how you find out what a status column actually holds.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.UpdateOneAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Updates exactly one document, addressed by its <c>_id</c>. Update-by-filter is deliberately not
+            offered: a mistyped filter that updates a whole collection is the single easiest way to lose data
+            from a console, and anything worth doing in bulk is worth writing as code.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.DeleteOneAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Deletes exactly one document by <c>_id</c>, for the same reason as above.</summary>
+        </member>
+        <member name="M:KeshavSingh.Mongo.NoSql.Console.MongoQueryConsole.Redact(System.String,MongoDB.Bson.BsonValue)">
+            <summary>
+            Replaces the value of any configured secret field, at any depth. Returns the original instance
+            untouched when there was nothing to redact, which is how the page knows whether to say so.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.MongoServiceCollectionExtensions">
+            <summary>Wiring helpers for consuming apps that need MongoDB access.</summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.MongoDbService">
+            <summary>Shared MongoDB client/database wrapper used by consuming apps.</summary>
+        </member>
+        <member name="T:KeshavSingh.Mongo.NoSql.MongoOptions">
+            <summary>Strongly-typed MongoDB settings shared by consuming apps.</summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.MongoOptions.Database">
+            <summary>Preferred database key used by new apps.</summary>
+        </member>
+        <member name="P:KeshavSingh.Mongo.NoSql.MongoOptions.DatabaseName">
+            <summary>Legacy database key used by older apps.</summary>
+        </member>
+    </members>
+</doc>
