@@ -1,0 +1,167 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KeshavSingh.Core</name>
+    </assembly>
+    <members>
+        <member name="T:KeshavSingh.Core.Models.LoginAudit">
+             <summary>
+             Security audit event. Never stores passwords, tokens, or other personal data. Backs
+             <see cref="T:KeshavSingh.Core.MongoAuditSink"/>. Event names come from
+             <see cref="T:KeshavSingh.Auth.Abstractions.AuthEvents"/> — apps should not define their own
+             duplicate event-name constants.
+            
+             <para>Authentication is not the only thing worth auditing: an app may also record its own
+             administrative actions (a role granted, a setting changed) into the same collection, so that
+             "who did what" is one timeline rather than two. <see cref="P:KeshavSingh.Core.Models.LoginAudit.Target"/> and <see cref="P:KeshavSingh.Core.Models.LoginAudit.Details"/>
+             exist for those — an auth event leaves both null.</para>
+            
+             <para><see cref="T:MongoDB.Bson.Serialization.Attributes.BsonIgnoreExtraElementsAttribute"/> because this collection is shared: an app
+             writing a richer document must not break the retention sweep or the analytics reads, which
+             deserialize every row through this type.</para>
+             </summary>
+        </member>
+        <member name="P:KeshavSingh.Core.Models.LoginAudit.Target">
+            <summary>
+            What the event acted ON, when that differs from the actor — the edited user's email, the
+            settings section, the collection a console write touched. Null for authentication events,
+            where the actor and the subject are the same account.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Core.Models.LoginAudit.Details">
+             <summary>
+             A short, human-readable summary of the change, for the audit viewer.
+            
+             <para>MUST NOT contain personal data, secrets, query filters or document bodies: this is
+             read back by anyone with the audit permission, and it is the same reason the DB console logs
+             operation-and-collection rather than what was queried. Say "3 roles granted", not which
+             records matched.</para>
+             </summary>
+        </member>
+        <member name="T:KeshavSingh.Core.Models.RefreshToken">
+            <summary>
+            A server-side refresh token record. Only a hash of the token is stored so a database leak
+            cannot be replayed. Logout/rotation revoke the record (server-side invalidation). Backs
+            <see cref="T:KeshavSingh.Core.MongoRefreshTokenStore"/>.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Core.Models.RefreshToken.AppKey">
+            <summary>Which site this session belongs to ("admin", "content-blog", "ghar-ledger", ...).
+            Empty for sessions minted before this field existed.</summary>
+        </member>
+        <member name="P:KeshavSingh.Core.Models.RefreshToken.DeviceLabel">
+            <summary>Best-effort "Chrome on Windows"-style label from the User-Agent at login time.</summary>
+        </member>
+        <member name="T:KeshavSingh.Core.MongoAuditSink">
+            <summary>
+            Records security events with request context (IP, user-agent) to a Mongo collection
+            ("audit"), excluding passwords, tokens, and other personal data. Backs the auth engine's
+            <see cref="T:KeshavSingh.Auth.Abstractions.IAuthAuditSink"/>. Shared so every app doesn't hand-roll the same adapter.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Core.MongoAuditSink.EnsureIndexesAsync(System.Threading.CancellationToken)">
+            <summary>
+            Creates the indexes the audit reads depend on (the analytics dashboards and the retention
+            sweep both filter on these). Idempotent; call it once at startup.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Core.MongoRefreshTokenStore">
+             <summary>
+             Backs the auth engine's <see cref="T:KeshavSingh.Auth.Abstractions.IRefreshTokenStore"/> with a Mongo collection
+             ("refresh_tokens"). Shared so every app doesn't hand-roll the same adapter.
+            
+             Single-session-per-user enforcement is decided and orchestrated entirely by
+             <c>AuthEngine</c> now (scoped per <see cref="P:KeshavSingh.Auth.Abstractions.RefreshTokenRecord.AppKey"/>, with an explicit
+             block-and-confirm step) — this store is a plain, policy-free CRUD adapter.
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Core.MongoRefreshTokenStore.EnsureIndexesAsync(System.Threading.CancellationToken)">
+            <summary>
+            Creates the indexes this store's queries depend on. Without them
+            <see cref="M:KeshavSingh.Core.MongoRefreshTokenStore.FindByHashAsync(System.String,System.Threading.CancellationToken)"/> is a full collection scan — and it runs on every
+            <c>POST /api/sso/session</c>, i.e. on every page load of every app in the family, against a
+            collection that grows with every login. Idempotent; call it once at startup.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Core.Roles">
+            <summary>
+            The fixed set of roles shared by every app in the keshavsingh.in family. Access is
+            default-deny: a user can do nothing unless a role explicitly grants it (enforced by
+            <c>[Authorize(Roles = ...)]</c>). Kept in one place because the identity provider
+            (admin.keshavsingh.in) issues these role names into the JWT, and every resource server
+            (e.g. the blog) authorizes against the SAME names — if they drifted, cross-app
+            authorization would silently break.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Core.SsoCorsExtensions">
+             <summary>
+             Registers the cross-subdomain SSO CORS policy shared by every app in the keshavsingh.in family.
+            
+             <para>This policy is credentialed, and the same browsers that satisfy it also hold the
+             <c>.keshavsingh.in</c> SSO cookie — so whatever it admits is, in practice, a fully trusted
+             origin. Two consequences shape the API below:</para>
+            
+             <list type="bullet">
+             <item><description><b>Prefer an explicit allowlist.</b> The wildcard-subdomain predicate trusts
+             every current AND future <c>*.keshavsingh.in</c> host, which means a subdomain whose DNS record
+             outlives the service behind it (a retired GitHub Pages or Render CNAME) can be claimed by
+             someone else and inherit that trust. Pass the origins you actually run to
+             <see cref="M:KeshavSingh.Core.SsoCorsExtensions.AddKeshavSsoCors(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.String,System.Collections.Generic.IReadOnlyCollection{System.String},System.Boolean,System.String)"/>
+             whenever you know them.</description></item>
+             <item><description><b>localhost is development-only.</b> It used to be allowed unconditionally,
+             which left <c>http://localhost:*</c> as an accepted credentialed origin in production for no
+             functional gain — local development runs the API on localhost too, which is same-origin.</description></item>
+             </list>
+             </summary>
+        </member>
+        <member name="M:KeshavSingh.Core.SsoCorsExtensions.AddKeshavSsoCors(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.String,System.Collections.Generic.IReadOnlyCollection{System.String},System.Boolean,System.String)">
+            <summary>
+            Adds the SSO CORS policy.
+            </summary>
+            <param name="services">The service collection.</param>
+            <param name="policyName">Policy name to register under.</param>
+            <param name="allowedOrigins">
+            The exact origins to trust. When non-empty this is the whole allowlist and the
+            wildcard-subdomain rule is not used at all — the safer configuration, and the one to use in
+            production. When null/empty the policy falls back to "any subdomain of
+            <paramref name="rootDomain"/> over https".
+            </param>
+            <param name="allowLocalhost">
+            Whether to additionally trust <c>localhost</c> on any port/scheme. Pass
+            <c>env.IsDevelopment()</c>; never true in production.
+            </param>
+            <param name="rootDomain">Root domain for the wildcard fallback.</param>
+        </member>
+        <member name="M:KeshavSingh.Core.SsoCorsExtensions.IsAllowedOrigin(System.String,System.Collections.Generic.IReadOnlySet{System.String},System.Boolean,System.String)">
+            <summary>
+            Decides whether one origin is trusted. Exposed so an app can unit-test its own allowlist,
+            and so the rule lives in exactly one place.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Core.SsoCorsExtensions.Normalize(System.Collections.Generic.IReadOnlyCollection{System.String})">
+            <summary>Trims, drops blanks, and reduces each entry to scheme://host[:port].</summary>
+        </member>
+        <member name="T:KeshavSingh.Core.IWhatsAppSettings">
+            <summary>The slice of app settings <see cref="T:KeshavSingh.Core.WhatsAppNotifier"/> needs (read-only).</summary>
+        </member>
+        <member name="T:KeshavSingh.Core.WhatsAppNotifier">
+            <summary>
+            Sends operational/security alerts (e.g. account lockouts) to a single admin phone number
+            via the Meta WhatsApp Cloud API. Shared so every app doesn't hand-roll the same HTTP call.
+            No-ops (logging instead) when disabled or unconfigured, so it's always safe to call.
+            </summary>
+            <remarks>
+            Freeform text only delivers within the 24h "customer service window" opened by the recipient
+            messaging the business number first; outside that window Meta requires a pre-approved message
+            template instead. For a fixed alert-to number, send that first WhatsApp message manually once
+            to open the window (or set up a template) before relying on this for time-sensitive alerts.
+            </remarks>
+        </member>
+        <member name="M:KeshavSingh.Core.WhatsAppNotifier.SendMessageToAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends a freeform WhatsApp message to an arbitrary number (e.g. a 2FA OTP to the signed-in
+            user's own phone), reusing the same access token/phone number ID. No-ops when unconfigured.
+            </summary>
+        </member>
+    </members>
+</doc>

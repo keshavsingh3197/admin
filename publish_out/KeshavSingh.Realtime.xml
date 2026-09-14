@@ -1,0 +1,868 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KeshavSingh.Realtime</name>
+    </assembly>
+    <members>
+        <member name="T:KeshavSingh.Realtime.Calls.CallController">
+            <summary>
+            Call lifecycle + WebRTC signalling. Clients <em>send</em> over these endpoints (so every rule is
+            enforced server-side, in one place) and <em>receive</em> over the chat hub (<c>CallIncoming</c>,
+            <c>RoomState</c>, <c>ParticipantJoined</c>, <c>ParticipantLeft</c>, <c>CallSignal</c>,
+            <c>CallMediaChanged</c>, <c>RoomEnded</c>). Anything the caller isn't a participant of answers 404.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallController.Start(KeshavSingh.Realtime.Calls.StartCallRequest)">
+            <summary>
+            Starts a call in a conversation — ringing the other person for a 1:1 thread, or everyone else in
+            the group. The response carries the roster and this client's ICE servers.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallController.Join(System.String)">
+            <summary>Answers a ringing call, or rejoins one you were already part of.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallController.Leave(System.String)">
+            <summary>Leaves the call (the room closes when nobody is left).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallController.Invite(System.String,KeshavSingh.Realtime.Calls.InviteToCallRequest)">
+            <summary>Adds another person to a live call.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallController.SetMedia(System.String,KeshavSingh.Realtime.Calls.SetCallMediaRequest)">
+            <summary>Records that this call became a video call (someone switched a camera on).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallController.Failed(System.String)">
+            <summary>The browser reported that media never established (ICE failed).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallController.Signal(System.String,KeshavSingh.Realtime.Calls.CallSignalRequest)">
+            <summary>Relays one offer / answer / ICE candidate to a specific peer in the call.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallController.History(System.String)">
+            <summary>Past calls: for one conversation, or (without the query) all of yours.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallAdminController">
+            <summary>Call log for moderation: who was on, when, how long. No media, ever.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.IceServerDto">
+            <summary>One ICE server entry, shaped for the browser's <c>RTCConfiguration.iceServers</c>.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.IceServerDto.#ctor(System.Collections.Generic.IReadOnlyList{System.String},System.String,System.String)">
+            <summary>One ICE server entry, shaped for the browser's <c>RTCConfiguration.iceServers</c>.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallParticipantDto">
+            <summary>Someone in a call, as everyone else in the room sees them.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallParticipantDto.#ctor(System.String,System.String,System.String,System.Boolean,System.Int32)">
+            <summary>Someone in a call, as everyone else in the room sees them.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallRoomDto">
+            <summary>
+            The roster: who is in the call, who is still ringing, and how many are actually on it. Pushed as
+            <c>RoomState</c> whenever it changes, and returned when joining.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRoomDto.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.DateTime,System.Int32,System.Collections.Generic.IReadOnlyList{KeshavSingh.Realtime.Calls.CallParticipantDto})">
+            <summary>
+            The roster: who is in the call, who is still ringing, and how many are actually on it. Pushed as
+            <c>RoomState</c> whenever it changes, and returned when joining.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallJoinDto">
+            <summary>What a client needs to join: the roster plus its ICE servers.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallJoinDto.#ctor(KeshavSingh.Realtime.Calls.CallRoomDto,System.Collections.Generic.IReadOnlyList{KeshavSingh.Realtime.Calls.IceServerDto})">
+            <summary>What a client needs to join: the roster plus its ICE servers.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.IncomingCallDto">
+            <summary>Pushed to an invited user's clients as <c>CallIncoming</c> — this is the ring.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.IncomingCallDto.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.Int32,System.DateTime)">
+            <summary>Pushed to an invited user's clients as <c>CallIncoming</c> — this is the ring.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallEndedDto">
+            <summary>Pushed as <c>RoomEnded</c> when the whole call is over.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallEndedDto.#ctor(System.String,System.String,System.Int32)">
+            <summary>Pushed as <c>RoomEnded</c> when the whole call is over.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallMediaDto">
+            <summary>Pushed as <c>CallMediaChanged</c> when a call becomes a video call.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallMediaDto.#ctor(System.String,System.String)">
+            <summary>Pushed as <c>CallMediaChanged</c> when a call becomes a video call.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.StartCallRequest">
+            <summary>
+            Starts a call in a conversation. <c>Media</c> is audio | video (null means audio); <c>PostSummary</c>
+            opts into a per-person summary in the thread once the call ends.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.StartCallRequest.#ctor(System.String,System.String,System.Boolean)">
+            <summary>
+            Starts a call in a conversation. <c>Media</c> is audio | video (null means audio); <c>PostSummary</c>
+            opts into a per-person summary in the thread once the call ends.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallSignalRequest">
+            <summary>One relayed WebRTC signal, addressed to a specific peer (calls are a mesh).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallSignalRequest.#ctor(System.String,System.String,System.String)">
+            <summary>One relayed WebRTC signal, addressed to a specific peer (calls are a mesh).</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallOptions">
+            <summary>Binds the <c>"Calls"</c> config section. All values have sensible defaults.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.Enabled">
+            <summary>Kill switch — when false every invite is refused (existing chat is unaffected).</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.VideoEnabled">
+            <summary>
+            Allow video calls. When false a video invite is answered as audio rather than refused, so an
+            older client asking for video still gets a working call.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.RingTimeoutSeconds">
+            <summary>How long an unanswered call rings before that invitee is dropped as missed.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.MaxParticipants">
+            <summary>
+            Roster cap. Calls are a peer-to-peer mesh (no media server), so each extra person costs every
+            other participant another upstream — six is about the ceiling for audio, four for video.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.MaxCallMinutes">
+            <summary>Hard ceiling on a single call, so a forgotten tab can't hold a call open forever.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.MaxSignalBytes">
+            <summary>Max size of one relayed SDP/ICE payload. Anything larger is rejected, not truncated.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.MaxSignalsPerCall">
+            <summary>Max signalling messages per call (offer/answer + trickled candidates) — abuse guard.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.StunUrls">
+            <summary>STUN servers handed to the browser. STUN only reveals the public IP:port; no auth.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallOptions.Turn">
+            <summary>TURN relay (needed when both peers sit behind symmetric NAT). Credentials are secrets.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.TurnOptions">
+            <summary>
+            TURN relay configuration. Credentials must come from the host's secret store (Key Vault / env),
+            never from a committed appsettings file, and are only ever handed to the two participants of a
+            live call — they are not part of the SPA bundle.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.TurnOptions.Urls">
+            <summary>e.g. <c>turns:turn.example.com:5349?transport=tcp</c>. Empty disables TURN.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.TurnOptions.Username">
+            <summary>Long-term credentials (the default scheme). Ignored when ephemeral creds are enabled.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.TurnOptions.UseEphemeralCredentials">
+            <summary>
+            Opt in to per-user, time-limited TURN credentials derived from <see cref="P:KeshavSingh.Realtime.Calls.TurnOptions.StaticAuthSecret"/>
+            (coturn's <c>use-auth-secret</c> / the TURN REST API scheme). Off by default because that
+            scheme mandates HMAC-SHA1 — see <see cref="T:KeshavSingh.Realtime.Calls.IceServerProvider"/>.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.TurnOptions.StaticAuthSecret">
+            <summary>The shared secret configured on the TURN server. Secret — env var / Key Vault only.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.TurnOptions.CredentialTtlSeconds">
+            <summary>Lifetime of an ephemeral credential. Clamped to at least 60s.</summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Calls.CallParticipantState.Invited">
+            <summary>Ringing — invited but not in yet.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.RoomParticipant">
+            <summary>One person's slot in a call: whether they're in, and how long they've been on.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.RoomParticipant.Seconds">
+            <summary>Accumulated talk time, so re-joining adds up instead of resetting.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.RoomParticipant.OfflineSince">
+            <summary>
+            When this person was first seen with no live hub session, so a brief SignalR reconnect doesn't
+            drop them from a call whose media is still fine. Only the watchdog sweep touches this.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallRoom">
+            <summary>
+            A live call. Calls are peer-to-peer **mesh**: every joined participant connects directly to every
+            other, so the server never carries media — which is what keeps calls end-to-end encrypted, and also
+            why the roster is capped (see <see cref="P:KeshavSingh.Realtime.Calls.CallOptions.MaxParticipants"/>): each extra person costs
+            everyone another upstream.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallRoom.Media">
+            <summary>audio | video. Only ever upgraded (a camera switched off doesn't make it audio again).</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallRoom.ConversationId">
+            <summary>The thread this call belongs to, and where its summary is posted. Null for an ad-hoc room.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallRoom.PostSummary">
+            <summary>Opted in to a detailed per-person summary in the thread when the call ends.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRoom.JoinedIds">
+            <summary>Everyone currently in the call — the audience for a signalling relay.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRoom.LiveIds">
+            <summary>Everyone who should hear about the call at all (in, or still ringing).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRoom.AllIds">
+            <summary>Everyone ever in the room, for the log and the end-of-call push.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRoom.TryDepart(System.String,System.DateTime,System.String)">
+            <summary>Marks someone out of the call, banking their talk time. False if they weren't in it.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRoom.CloseAll(System.DateTime)">
+            <summary>Banks talk time for everyone still in when the whole room ends.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallRegistry">
+            <summary>
+            The set of in-flight call rooms, and the "one call per user" rule that makes a second incoming call
+            return busy instead of two rings. Deliberately in-memory: a live call can't outlive the hub
+            connections it depends on, so a restart correctly drops everything. Single-instance, like
+            <see cref="T:KeshavSingh.Realtime.Chat.InMemoryPresenceStore"/> — a scaled-out deployment needs a shared store plus a
+            SignalR backplane.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRegistry.TryCreate(KeshavSingh.Realtime.Calls.CallRoom)">
+            <summary>Registers a new room, claiming its owner. False when the owner is already on a call.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRegistry.TryClaim(System.String,System.String)">
+            <summary>Claims a user for an existing room (an invite). False when they're already on a call.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRegistry.Release(System.String,System.String)">
+            <summary>Releases a user so they can be called again, without touching the room itself.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRegistry.Remove(System.String)">
+            <summary>Removes a room. False when it was already removed — callers use this to stay idempotent.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRegistry.TryCountSignal(System.String,System.Int32)">
+            <summary>Counts one relayed signal against the room's budget. False when unknown or over budget.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallRegistry.TryUpgradeToVideo(System.String)">
+            <summary>Upgrades a live call to video. False when unknown, or already video.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallService">
+             <summary>
+             Group audio/video calls on top of chat conversations and scheduled meetings.
+            
+             The server is a <em>signalling</em> server only: it decides who may call or be invited, relays each
+             participant's SDP/ICE to the specific peer it is addressed to, keeps the roster, and logs that the
+             call happened. Media never touches it — participants connect to each other in a **mesh** and WebRTC
+             encrypts every stream end to end (DTLS-SRTP), so no call content can be recorded or intercepted here.
+             The mesh is also why <see cref="P:KeshavSingh.Realtime.Calls.CallOptions.MaxParticipants"/> exists.
+            
+             Every operation is scoped to the room's participants; anyone else gets <c>NotFound</c>, the same
+             answer as an unknown room id, so a call's existence can't be probed (anti-IDOR).
+             </summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Calls.CallService.DisconnectGrace">
+            <summary>How long a participant may have no hub session before they're dropped from the call.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.StartAsync(System.String,System.String,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Starts a call in a conversation and rings everyone else in it — one person for a 1:1 thread, the
+            whole group for a group thread (up to the roster cap). The caller is joined immediately.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.StartMeetingAsync(System.String,System.String,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.String,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Opens (or rejoins) the room for a scheduled meeting. The first person in creates it and rings the
+            other invitees who are online; later arrivals just join.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.JoinAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Answers a ringing call, or rejoins one this user was already part of.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.DeclineAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Refuses a ringing call. The call carries on for anyone else who is already in it.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.LeaveAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Leaves the call. The room closes once nobody is left to talk to.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.InviteAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Pulls someone else into a live call — the "add another person by searching" path. Any participant
+            may invite anyone they could start a chat with (blocked users are not callable).
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.ReportFailureAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Media could not be established for this participant (ICE failure).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.SetMediaAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Records that a live call gained video (someone switched their camera on).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.RelaySignalAsync(System.String,System.String,System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Forwards one WebRTC signal (offer / answer / trickled ICE candidate) to the peer it is addressed
+            to. Both ends must be in the same call. The payload is opaque to us and is never logged — SDP and
+            candidates carry network addresses.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.SweepAsync(System.Threading.CancellationToken)">
+            <summary>
+            Cleans up what nobody else will: invitees who never picked up, participants whose hub connection
+            went away (tab closed, crash, network drop), calls past the duration ceiling, and rooms nobody is
+            left in.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.EndIfDesertedAsync(KeshavSingh.Realtime.Calls.CallRoom,System.String,System.Threading.CancellationToken)">
+            <summary>Ends the room when there is nobody left to talk to (or ring).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.EndRoomAsync(KeshavSingh.Realtime.Calls.CallRoom,System.String,System.Threading.CancellationToken)">
+            <summary>Idempotent: the first caller to remove the room from the registry owns finishing it.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.PostSummaryAsync(KeshavSingh.Realtime.Calls.CallRoom,System.Collections.Generic.List{KeshavSingh.Realtime.Calls.CallParticipantLog},System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Writes the call's row into the thread. A 1:1 call always gets the usual one-liner; a multi-party
+            call adds the per-person breakdown only when the organiser opted into a summary.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.SyncParticipantsAsync(KeshavSingh.Realtime.Calls.CallRoom,System.Threading.CancellationToken)">
+            <summary>Keeps the persisted roster in step with the live one (join/leave/invite).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallService.OutcomeOf(System.String,System.Int32)">
+            <summary>Reduces an end reason to what the thread should show: completed | missed | declined | failed.</summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Calls.CallEndReason.Completed">
+            <summary>Someone answered, then everyone hung up normally.</summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Calls.CallEndReason.Declined">
+            <summary>The only invitee declined.</summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Calls.CallEndReason.Missed">
+            <summary>Rang out with nobody joining, or the organiser gave up first.</summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Calls.CallEndReason.Disconnected">
+            <summary>Everyone lost their hub connection (tabs closed, crash, network drop).</summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Calls.CallEndReason.Timeout">
+            <summary>Hit <see cref="P:KeshavSingh.Realtime.Calls.CallOptions.MaxCallMinutes"/>.</summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Calls.CallEndReason.Failed">
+            <summary>Media never established.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallMedia.Normalize(System.String)">
+            <summary>Normalises client input to one of the two supported kinds (anything else is audio).</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallParticipantLog">
+            <summary>One person's participation in a call, as recorded in the log.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallSession">
+             <summary>
+             The audit row for one call, in <c>chat_calls</c>. It records who was on and for how long — never any
+             media (calls are peer-to-peer, DTLS-SRTP encrypted end to end) and never the SDP/ICE payloads, which
+             contain network addresses.
+            
+             Rows written before calls became multi-party rooms stored a caller/callee pair instead of a
+             participant list. Those fields are still mapped (see the Legacy* properties) so old calls keep
+             showing up in the log instead of breaking the read — the collection is an audit trail, so losing
+             history to a schema change would be the wrong trade.
+             </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallSession.ConversationId">
+            <summary>The thread the call belongs to (and where its summary goes). Null for an ad-hoc room.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallSession.OwnerUserId">
+            <summary>Who placed the call / owns the room.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallSession.Media">
+            <summary>audio | video — the richest media this call carried (an upgrade mid-call sticks).</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallSession.DurationSeconds">
+            <summary>Wall-clock length of the call from first join to the end; 0 if nobody ever joined.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallSession.PostSummary">
+            <summary>Whether the organiser asked for the per-person summary to be posted in the thread.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.CallSession.Owner">
+            <summary>Who owned the call, falling back to the old caller field.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.CallSession.Roster">
+            <summary>
+            The roster, synthesised from the old caller/callee pair when this row predates rooms. Both are
+            credited with the call's duration, which is what a 1:1 call's talk time actually was.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.IceServerProvider">
+            <summary>
+            Builds the ICE server list a participant's browser needs. STUN is public; TURN credentials are
+            secrets, so they are minted here (server-side) and returned only in the invite/accept responses of
+            a live call — never embedded in the client bundle and never logged.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Calls.IceServerProvider.HasTurn">
+            <summary>True when a relay is configured; without one, calls fail between strict NATs.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Calls.RealtimeCallExtensions.AddKeshavCalls(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds 1:1 audio calling on top of chat: the call registry, ICE/TURN credential minting, the
+            <see cref="T:KeshavSingh.Realtime.Calls.CallService"/> and a watchdog that reaps unanswered/abandoned calls. Requires
+            <c>AddKeshavChat</c> (SignalR, presence, <c>ChatService</c>) to have been called — calls reuse the
+            chat hub, so no extra hub, connection or JWT plumbing is needed. The <c>api/calls</c> controllers
+            ship with the same application part that <c>AddKeshavChatControllers</c> adds.
+            Optional <c>"Calls"</c> config section: see <see cref="T:KeshavSingh.Realtime.Calls.CallOptions"/>.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Calls.CallWatchdog">
+            <summary>
+            Creates the call log's indexes on startup, then ends calls nobody else will: unanswered rings,
+            calls over the duration ceiling, and calls whose participant dropped off the hub.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatBlock">
+            <summary>A one-way block: <see cref="P:KeshavSingh.Realtime.Chat.ChatBlock.BlockedUserId"/> can no longer start or send chats to
+            <see cref="P:KeshavSingh.Realtime.Chat.ChatBlock.BlockerUserId"/>. A "spam" report creates one of these with <c>Reason = spam</c>.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatController.RemoveMember(System.String,System.String)">
+            <summary>Removes a member (owner only), or yourself — which is how you leave a group.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatController.CreateShareLink(System.String)">
+            <summary>Mints a public, unauthenticated link to a message's attachment (fetched at <c>/api/chat/share/{token}</c>).</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatConversation">
+            <summary>
+            A conversation: either **1:1** between two users — which starts as <c>pending</c> (a chat request)
+            until the recipient accepts, and whose <see cref="P:KeshavSingh.Realtime.Chat.ChatConversation.PairKey"/> (sorted participant ids) is unique so
+            there is only ever one thread per pair — or a **group** with N members, which is always
+            <c>accepted</c> (you are added by a member, there is nothing to accept) and gets a synthetic
+            <c>group:{id}</c> pair key so the same unique index keeps working. Only participants (and admins)
+            may read either kind.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatConversation.IsGroup">
+            <summary>True for an N-member group thread. 1:1 rules (request/accept, blocking) don't apply.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatConversation.Title">
+            <summary>Group name. Null for 1:1 threads, which are titled by the other person's name.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatConversation.OwnerUserId">
+            <summary>Group creator: the only member who may rename it or remove others.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatConversation.MakePairKey(System.String,System.String)">
+            <summary>Order-independent key for the pair, so the two directions map to one conversation.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatConversation.MakeGroupKey(System.String)">
+            <summary>
+            Groups have no natural pair key, so they get a synthetic one derived from their own id. That
+            keeps the existing unique index on <see cref="P:KeshavSingh.Realtime.Chat.ChatConversation.PairKey"/> valid without an index migration.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.DirectoryUserDto">
+            <summary>Minimal directory entry for starting a chat — no email/roles (least privilege).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.DirectoryUserDto.#ctor(System.String,System.String,System.String)">
+            <summary>Minimal directory entry for starting a chat — no email/roles (least privilege).</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ParticipantDto">
+            <summary>A member of a group thread, with their live presence.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ParticipantDto.#ctor(System.String,System.String,System.String,System.Boolean)">
+            <summary>A member of a group thread, with their live presence.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ConversationDto">
+            <summary>
+            A conversation as seen by one participant. For a group, <c>PartnerId</c> is empty and
+            <c>PartnerName</c> mirrors <c>Title</c>, so a 1:1-only client still renders something sensible.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ConversationDto.#ctor(System.String,System.String,System.String,System.String,System.Boolean,System.Boolean,System.String,System.Int32,System.String,System.Nullable{System.DateTime},System.Boolean,System.String,System.Collections.Generic.IReadOnlyList{KeshavSingh.Realtime.Chat.ParticipantDto})">
+            <summary>
+            A conversation as seen by one participant. For a group, <c>PartnerId</c> is empty and
+            <c>PartnerName</c> mirrors <c>Title</c>, so a 1:1-only client still renders something sensible.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.CallSummaryDto">
+            <summary>Set on a message that records a call rather than typed text.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.CallSummaryDto.#ctor(System.String,System.String,System.String,System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{KeshavSingh.Realtime.Chat.CallParticipantSummaryDto})">
+            <summary>Set on a message that records a call rather than typed text.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ShareLinkDto">
+            <summary>A freshly minted public share link's token (the public URL is <c>/api/chat/share/{Token}</c>) and expiry.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ShareLinkDto.#ctor(System.String,System.DateTime)">
+            <summary>A freshly minted public share link's token (the public URL is <c>/api/chat/share/{Token}</c>) and expiry.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatHub">
+            <summary>
+            The chat hub. Kept thin: it only maintains presence (a session per live connection) and pushes
+            presence changes to the user's conversation partners. Message delivery is pushed from
+            <see cref="T:KeshavSingh.Realtime.Chat.ChatService"/> via <c>IHubContext</c>, so all validation stays in the controllers.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatHub.Heartbeat">
+            <summary>Client pings this periodically so we can tell Online from Idle.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatHub.Typing(System.String,System.Boolean)">
+             <summary>
+             Tells the other participants that this user is writing (or has stopped). Membership is checked
+             server-side, so a conversation id alone can't be used to make a stranger's window twitch.
+            
+             Nothing is stored: a typing notice that outlives the connection it came from is worse than none,
+             so a dropped client simply stops sending them and the receiver's own timeout clears the dot.
+             </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatAttachment">
+            <summary>An optional file attached to a chat message. Bytes live in the object store under a random key.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatCallParticipant">
+            <summary>What one person's time in a call added up to, for the post-call summary.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatCallSummary">
+            <summary>
+            The trace a call leaves in the thread ("Audio call · 2:14", "Missed video call", or a multi-party
+            summary listing who was on and for how long). Written when a call ends — see <c>CallService</c>.
+            No media is ever stored: calls are peer-to-peer and end-to-end encrypted.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatCallSummary.Media">
+            <summary>audio | video.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatCallSummary.Outcome">
+            <summary>completed | missed | declined | failed — a UI-friendly reduction of the call's end reason.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatCallSummary.ParticipantCount">
+            <summary>How many people were on the call (2 for a plain 1:1).</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatCallSummary.Participants">
+            <summary>Per-person talk time — only filled in for multi-party calls that opted into a summary.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatSystemKind">
+            <summary>The kinds of housekeeping rows a group thread accumulates.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatMessage">
+            <summary>
+            A persisted chat message. <see cref="P:KeshavSingh.Realtime.Chat.ChatMessage.DeletedByAdmin"/> is a soft-delete used by moderation: the
+            body is cleared and any attachment blob removed, but the audit row is kept. When <see cref="P:KeshavSingh.Realtime.Chat.ChatMessage.Call"/>
+            is set the row is a call record rather than something a user typed.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatMessage.Body">
+            <summary>Encrypted at rest (see <c>DataProtector</c>) — decrypted only when mapping to a DTO.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatMessage.Call">
+            <summary>Set when this row records a call instead of a typed message.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatMessage.SystemKind">
+            <summary>Set when this row is group housekeeping ("X added Y") — see <see cref="T:KeshavSingh.Realtime.Chat.ChatSystemKind"/>.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatMessage.ForwardedFromMessageId">
+            <summary>Set when this message was created via "forward" from another message, for a "Forwarded" label.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatOptions">
+            <summary>Binds the <c>"Chat"</c> config section. All values have sensible defaults.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatOptions.HubPath">
+            <summary>The SignalR hub path (also the only path the host should accept access_token auth on).</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatOptions.PendingInitiatorCap">
+            <summary>How many messages an initiator may send before the recipient accepts (anti-spam).</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Chat.ChatOptions.ShareLinkLifetime">
+            <summary>How long a public share link (<see cref="T:KeshavSingh.Realtime.Chat.ChatShareLink"/>) stays valid before it 404s.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.AttachmentInput">
+            <summary>Optional file attached to an outgoing message (built by the controller from an IFormFile).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.AttachmentInput.#ctor(System.IO.Stream,System.String,System.String,System.Int64)">
+            <summary>Optional file attached to an outgoing message (built by the controller from an IFormFile).</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatService">
+            <summary>
+            1:1 chat: conversations (request/accept/decline), messages (with optional attachments), blocking
+            and spam reports, plus admin moderation. Every read/write is scoped to a conversation's two
+            participants (non-participants get 404 — anti-IDOR); real-time delivery is pushed to both via
+            <c>IHubContext&lt;ChatHub&gt;</c>. User identities come from the host's <see cref="T:KeshavSingh.Realtime.Chat.IChatUserDirectory"/>.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.GetOtherParticipantsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            The other participants of a conversation the caller is actually in, or an empty list. Used by the
+            hub to route "typing" without letting anyone poke at a conversation they don't belong to — a
+            typing event nobody can validate is a way to make a stranger's chat window twitch.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.CreateGroupAsync(System.String,System.String,System.Collections.Generic.IEnumerable{System.String},System.Threading.CancellationToken)">
+            <summary>
+            Creates a group thread owned by the caller. Members are validated against the directory (so an
+            unknown or inactive id can't be smuggled in) and anyone the caller has blocked, or who blocked
+            them, is dropped rather than silently added.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.AddMembersAsync(System.String,System.String,System.Collections.Generic.IEnumerable{System.String},System.Threading.CancellationToken)">
+            <summary>Adds people to a group. Any member may add; the thread records who added whom.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.RemoveMemberAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Removes a member. Only the owner may remove someone else; anyone may remove themselves.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.RenameGroupAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Renames a group. Owner only.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.AppendSystemAsync(KeshavSingh.Realtime.Chat.ChatConversation,System.String,System.String,System.String,System.Threading.CancellationToken,System.String)">
+            <summary>Writes a "X added Y" housekeeping row and pushes it to the members.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.ForwardAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Re-sends an existing message (body + attachment, if any) into another conversation the caller
+            is a participant of. Attachment bytes are copied to a new object-store key rather than shared,
+            so deleting either copy later can't orphan or break the other. Runs through the normal
+            <see cref="M:KeshavSingh.Realtime.Chat.ChatService.SendAsync(System.String,System.String,System.String,KeshavSingh.Realtime.Chat.AttachmentInput,System.Threading.CancellationToken,System.String)"/> rules (blocking, pending caps, size/type limits).
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.CreateShareLinkAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Mints a public, unauthenticated link to a message's attachment, valid for <see cref="P:KeshavSingh.Realtime.Chat.ChatOptions.ShareLinkLifetime"/>.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.OpenShareLinkAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Resolves a share token to its file, or null if unknown/expired/revoked — no auth required.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.GetCallableConversationAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Resolves a conversation that the caller may start a call in. Null when it doesn't exist, the
+            caller isn't a participant (anti-IDOR — the caller can't tell those apart), it isn't accepted
+            yet, or — for a 1:1 thread — either side has blocked the other.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.DisplayNamesAsync(System.Collections.Generic.IEnumerable{System.String},System.Threading.CancellationToken)">
+            <summary>Resolves display names for a set of user ids — used by calls and meetings.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.CallableUsersAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Active directory users the caller may call or invite, minus anyone blocked either way.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.PartnerIdOf(KeshavSingh.Realtime.Chat.ChatConversation,System.String)">
+            <summary>The other participant of a 1:1 conversation.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.AppendCallSummaryAsync(System.String,System.String,KeshavSingh.Realtime.Chat.ChatCallSummary,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Writes the "Audio call · 2:14" / "Missed audio call" row a finished call leaves in the thread,
+            attributed to the caller, and pushes it to both participants like any other message. Bypasses
+            the <see cref="M:KeshavSingh.Realtime.Chat.ChatService.SendAsync(System.String,System.String,System.String,KeshavSingh.Realtime.Chat.AttachmentInput,System.Threading.CancellationToken,System.String)"/> rules on purpose: it is a system record, not user-authored text, so
+            it must not count against the pending-request cap.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.Encrypt(System.String)">
+            <summary>Encrypts for storage. Empty strings pass through untouched (nothing to protect).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatService.TryDecrypt(System.String)">
+            <summary>
+            Decrypts a value written by <see cref="M:KeshavSingh.Realtime.Chat.ChatService.Encrypt(System.String)"/>. Falls back to returning the raw value if it
+            isn't valid ciphertext (e.g. rows written before encryption was added) so history never 500s.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatShareController">
+            <summary>
+            Serves public chat attachment share links minted by <see cref="M:KeshavSingh.Realtime.Chat.ChatController.CreateShareLink(System.String)"/>.
+            Deliberately outside <see cref="T:KeshavSingh.Realtime.Chat.ChatController"/>'s [Authorize] scope — the whole point of a
+            share link is that it works without a session — but the token itself is the only credential:
+            unguessable (Mongo ObjectId), single-purpose (one attachment) and time-limited.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatShareLink">
+            <summary>
+            A time-limited, unauthenticated link to a chat attachment's bytes (a "share" outside the app).
+            The document id doubles as the opaque token embedded in the public URL — nothing else about the
+            conversation or sender is exposed. Expired/revoked links resolve to 404.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatDirectoryEntry">
+            <summary>A user the chat feature can address — id + a display name. Supplied by the host app.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.ChatDirectoryEntry.#ctor(System.String,System.String)">
+            <summary>A user the chat feature can address — id + a display name. Supplied by the host app.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.IChatUserDirectory">
+            <summary>
+            The app-provided bridge to its own user store. The chat package owns conversations, messages and
+            blocks, but never the identity model — so the consuming app implements this to enumerate who can
+            be chatted with and to resolve display names. Implementations must exclude inactive/deleted users
+            and should return the caller's preferred display name (falling back to something stable).
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.IChatUserDirectory.ListActiveAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Active users the caller may start a chat with, excluding the caller.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.IChatUserDirectory.DisplayNamesAsync(System.Collections.Generic.IEnumerable{System.String},System.Threading.CancellationToken)">
+            <summary>Resolves display names for the given user ids (missing ids may be omitted).</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.InMemoryPresenceStore">
+            <summary>
+            In-memory <see cref="T:KeshavSingh.Realtime.IPresenceStore"/> keyed by SignalR connection id — presence is derived from
+            live hub connections, so it self-heals on restart (everyone reconnects). Online/Idle/Offline is
+            computed by <see cref="T:KeshavSingh.Realtime.PresenceEvaluator"/>. Single-instance; a scaled deployment would swap this
+            for a Redis-backed store + a SignalR backplane.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.InMemoryPresenceStore.Touch(System.String)">
+            <summary>Refreshes the activity timestamps for a connection (drives Online vs Idle).</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.InMemoryPresenceStore.StateFor(System.String)">
+            <summary>The user's current presence as a lowercase string ("online" | "idle" | "offline").</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.RealtimeChatExtensions.AddKeshavChat(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Registers the chat backend: SignalR, the in-memory presence store, the sub-claim
+            <see cref="T:Microsoft.AspNetCore.SignalR.IUserIdProvider"/>, <see cref="T:KeshavSingh.Realtime.Chat.ChatService"/>, and a hosted initializer that
+            creates the Mongo indexes on startup. The host must additionally register an
+            <see cref="T:KeshavSingh.Realtime.Chat.IChatUserDirectory"/>, add the controllers via <see cref="M:KeshavSingh.Realtime.Chat.RealtimeChatExtensions.AddKeshavChatControllers(Microsoft.Extensions.DependencyInjection.IMvcBuilder)"/>,
+            map the hub via <see cref="M:KeshavSingh.Realtime.Chat.RealtimeChatExtensions.MapKeshavChatHub(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder,Microsoft.Extensions.Configuration.IConfiguration)"/>, and accept the <c>access_token</c> query param
+            on the hub path in its JWT bearer setup (WebSockets can't send an Authorization header).
+            Message bodies and previews are encrypted at rest via <see cref="T:KeshavSingh.Security.DataProtector"/> (from
+            KeshavSingh.Security) — the host must have <c>Encryption:DataKey</c> configured; a
+            <see cref="T:KeshavSingh.Security.DataProtector"/> is registered here only if the host hasn't already added one.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.RealtimeChatExtensions.AddKeshavChatControllers(Microsoft.Extensions.DependencyInjection.IMvcBuilder)">
+            <summary>Ships the package's chat controllers (api/chat, api/chat/admin) into the app's MVC pipeline.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Chat.RealtimeChatExtensions.MapKeshavChatHub(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>Maps the SignalR hub at the configured path (default /hubs/chat), requiring auth.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.ChatIndexInitializer">
+            <summary>Creates the chat Mongo indexes once on startup, so the host doesn't have to.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Chat.SubUserIdProvider">
+            <summary>
+            Maps a SignalR connection to the app's user id (the JWT <c>sub</c> claim — the host must set
+            <c>MapInboundClaims = false</c> so it stays verbatim) so <c>Clients.User(userId)</c> targets the
+            same id the rest of the app uses.
+            </summary>
+        </member>
+        <member name="F:KeshavSingh.Realtime.Meetings.MeetingStatus.Started">
+            <summary>Someone has opened the room.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Meetings.Meeting">
+            <summary>
+            A scheduled call: a time, a guest list, and the settings the room is opened with. Meetings own no
+            media and no transcript — joining one just opens a normal peer-to-peer <see cref="T:KeshavSingh.Realtime.Calls.CallRoom"/>.
+            </summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.Meeting.Description">
+            <summary>Agenda / joining notes. Encrypted at rest, like message bodies.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.Meeting.ConversationId">
+            <summary>Optional thread the meeting belongs to — where its post-call summary is posted.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.Meeting.StartsAt">
+            <summary>Always UTC. The client converts for display.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.Meeting.PostSummary">
+            <summary>Post the per-person summary into the thread when the call ends.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.Meeting.RoomId">
+            <summary>Set once someone opens the room, so later arrivals join the same call.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.Meeting.RemindedAt">
+            <summary>Set when the reminder has gone out, so it only fires once.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Meetings.MeetingController">
+            <summary>
+            Scheduled meetings. Everything is scoped to the organiser and invitees — anyone else gets 404, the
+            same answer as an unknown id, so meetings can't be enumerated (anti-IDOR). Only the organiser may
+            edit or cancel.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingController.AddInvitees(System.String,KeshavSingh.Realtime.Meetings.AddInviteesRequest)">
+            <summary>Adds people to a meeting without rewriting the rest of it. Organiser only.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingController.Delete(System.String)">
+            <summary>Deletes a meeting outright. Organiser only — prefer cancel, which keeps the record.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingController.Join(System.String)">
+            <summary>Opens (or joins) the meeting's call room. Only inside the join window.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Meetings.SaveMeetingRequest">
+            <summary>
+            Create/update payload. <c>StartsAt</c> must be UTC; the client sends an ISO instant. Everything is
+            validated server-side (title length, duration bounds, invitees must be people you could call).
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.SaveMeetingRequest.#ctor(System.String,System.String,System.DateTime,System.Int32,System.String,System.Boolean,System.Collections.Generic.IReadOnlyList{System.String},System.String)">
+            <summary>
+            Create/update payload. <c>StartsAt</c> must be UTC; the client sends an ISO instant. Everything is
+            validated server-side (title length, duration bounds, invitees must be people you could call).
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Meetings.MeetingReminderDto">
+            <summary>Pushed as <c>MeetingReminder</c> shortly before a meeting starts.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingReminderDto.#ctor(System.String,System.String,System.DateTime,System.Int32)">
+            <summary>Pushed as <c>MeetingReminder</c> shortly before a meeting starts.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Meetings.MeetingJoinDto">
+            <summary>Result of joining: the live room to connect to.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingJoinDto.#ctor(KeshavSingh.Realtime.Meetings.MeetingDto,KeshavSingh.Realtime.Calls.CallJoinDto)">
+            <summary>Result of joining: the live room to connect to.</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Meetings.MeetingOptions">
+            <summary>Binds the <c>"Meetings"</c> config section.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.MeetingOptions.ReminderLeadMinutes">
+            <summary>How long before the start the reminder fires.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.MeetingOptions.JoinEarlyMinutes">
+            <summary>How early the Join button opens.</summary>
+        </member>
+        <member name="P:KeshavSingh.Realtime.Meetings.MeetingOptions.JoinGraceMinutes">
+            <summary>How long after the scheduled end you can still join (meetings run over).</summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Meetings.MeetingService">
+            <summary>
+            Scheduled meetings: create, invite, remind, join. A meeting is only a plan — joining hands off to
+            <see cref="T:KeshavSingh.Realtime.Calls.CallService"/>, so the media path (peer-to-peer, end-to-end encrypted, never recorded) is
+            exactly the same as an ad-hoc call. Reads and writes are scoped to the owner and invitees; anyone
+            else gets null, the same answer as an unknown id (anti-IDOR).
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingService.ListAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>Your agenda: meetings you own or were invited to. Past ones only when asked for.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingService.UpdateAsync(System.String,System.String,KeshavSingh.Realtime.Meetings.SaveMeetingRequest,System.Threading.CancellationToken)">
+            <summary>Edits a meeting. Owner only. Changing the time re-arms the reminder.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingService.AddInviteesAsync(System.String,System.String,System.Collections.Generic.IEnumerable{System.String},System.Threading.CancellationToken)">
+            <summary>
+            Adds people to an existing meeting without touching the rest of it — the "add participant" path
+            from the details panel. Owner only, and invitees must still be people the owner could call.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingService.DeleteAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Deletes a meeting outright (owner only). Cancelling is usually kinder — it leaves invitees an
+            explanation — so this is for mistakes rather than changes of plan.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingService.CancelAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Cancels a meeting (owner only). Kept, not deleted, so invitees see why it vanished.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingService.JoinAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Opens the meeting's call room (or joins the one already running). Only inside the join window, so
+            a meeting can't be used as a permanent open line.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingService.SweepAsync(System.Threading.CancellationToken)">
+            <summary>
+            Fires the one reminder per meeting, then retires meetings whose window has closed. Reminders go
+            over the chat hub, so a browser that's open anywhere in the app gets them.
+            </summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.MeetingService.TryDecrypt(System.String)">
+            <summary>Falls back to the raw value if it isn't valid ciphertext, so a read never 500s.</summary>
+        </member>
+        <member name="M:KeshavSingh.Realtime.Meetings.RealtimeMeetingExtensions.AddKeshavMeetings(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Adds scheduled meetings on top of calls: <see cref="T:KeshavSingh.Realtime.Meetings.MeetingService"/> plus a worker that fires
+            reminders and retires finished meetings. Requires <c>AddKeshavChat</c> and <c>AddKeshavCalls</c>
+            (meetings ring through the chat hub and join a normal call room). The <c>api/meetings</c>
+            controller ships with the same application part that <c>AddKeshavChatControllers</c> adds.
+            Optional <c>"Meetings"</c> config section: see <see cref="T:KeshavSingh.Realtime.Meetings.MeetingOptions"/>.
+            </summary>
+        </member>
+        <member name="T:KeshavSingh.Realtime.Meetings.MeetingReminderWorker">
+            <summary>Creates the meeting indexes on startup, then reminds and tidies up once a minute.</summary>
+        </member>
+    </members>
+</doc>
