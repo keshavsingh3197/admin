@@ -98,7 +98,8 @@ export class FamilyDevicesComponent implements OnInit {
     this.usersService.list().subscribe({
       next: users => {
         console.log('Fetched admin users:', users);
-        this.adminUsers.set(users);
+        // Filter out users who already have the MobileUser role
+        this.adminUsers.set(users.filter(u => !u.roles.includes('MobileUser')));
       },
       error: err => {
         console.error('Failed to fetch admin users:', err);

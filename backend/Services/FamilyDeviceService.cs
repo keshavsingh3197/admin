@@ -77,6 +77,11 @@ public sealed class FamilyDeviceService
                 new CreateIndexOptions { Unique = true });
             await _qrSessions.Indexes.CreateOneAsync(qrIndex);
 
+            var userEmailIndex = new CreateIndexModel<FamUser>(
+                Builders<FamUser>.IndexKeys.Ascending(u => u.Email),
+                new CreateIndexOptions { Unique = true });
+            await _famUsers.Indexes.CreateOneAsync(userEmailIndex);
+
             var contactIndex = new CreateIndexModel<FamContact>(
                 Builders<FamContact>.IndexKeys
                     .Ascending(c => c.FamilyId)
@@ -417,6 +422,9 @@ public sealed class FamilyDeviceService
             eventType: "UserDataDeleted",
             severity: "Warning",
             details: $"User {userId} permanently deleted all family tracking data, location history, and {deviceIds.Count} devices.");
+
+        // Also delete the mobile user account itself
+        await DeleteMobileUserAsync(userId);
 
         _logger.LogInformation("Wiped all family tracking data for user {UserId}", userId);
     }
