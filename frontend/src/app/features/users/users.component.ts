@@ -107,7 +107,20 @@ export class UsersComponent implements OnInit {
   eName = ''; eUsername = ''; ePhone = ''; resetPw = ''; readonly eRoles = new Set<Role>(); readonly eCustomRoles = new Set<string>(); readonly eGroups = new Set<string>();
   readonly columns: BrandTableColumn<UserListItem>[] = [{ key:'email',label:'Email',value:u=>u.email },{ key:'displayName',label:'Name',value:u=>u.displayName },{ key:'roles',label:'Roles',value:u=>u.roles.join(', '),filterable:true },{ key:'websites',label:'Websites',value:u=>this.websitesFor(u),filterable:true },{ key:'status',label:'Status',value:u=>u.isActive?'Active':'Disabled',filterable:true },{ key:'twoFactor',label:'2FA',value:u=>u.twoFactorEnabled?'Enabled':'Not enrolled',filterable:true },{ key:'lastLogin',label:'Last login',value:u=>u.lastLoginAt??'' },{ key:'actions',label:'' }];
   trackById = (u: UserListItem) => u.id; selfId(): string | undefined { return this.auth.user()?.id; }
-  ngOnInit(): void { this.appFilter.set(this.route.snapshot.queryParamMap.get('app')); this.reload(); this.api.roles().subscribe({next:r=>this.allRoles.set(r)}); this.rbac.listRoles().subscribe({next:r=>this.roles.set(r)}); this.rbac.listGroups().subscribe({next:g=>this.groups.set(g)}); }
+  ngOnInit(): void {
+    this.appFilter.set(this.route.snapshot.queryParamMap.get('app'));
+    this.reload();
+    this.api.roles().subscribe({
+      next: r => {
+        // Ensure MobileUser is always in the system roles list so it can be managed
+        const completeRoles = new Set(r);
+        completeRoles.add('MobileUser');
+        this.allRoles.set(Array.from(completeRoles).sort());
+      }
+    });
+    this.rbac.listRoles().subscribe({next:r=>this.roles.set(r)});
+    this.rbac.listGroups().subscribe({next:g=>this.groups.set(g)});
+  }
   private reload(): void { this.loading.set(true); this.api.list().subscribe({next: list=>{this.users.set(list);this.loading.set(false);},error:e=>{this.loading.set(false);this.fail(e,'Could not load users.');}}); }
   openCreate(): void { this.showCreate.set(true); } closeCreate(): void { this.showCreate.set(false); } closeEdit(): void { this.editingUser.set(null); }
   toggleRole(set: Set<Role>, role: Role): void { set.has(role) ? set.delete(role) : set.add(role); } toggleCustomRole(set: Set<string>, key: string): void { set.has(key) ? set.delete(key) : set.add(key); }

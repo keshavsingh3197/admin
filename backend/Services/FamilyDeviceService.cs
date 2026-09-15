@@ -418,6 +418,9 @@ public sealed class FamilyDeviceService
             severity: "Warning",
             details: $"User {userId} permanently deleted all family tracking data, location history, and {deviceIds.Count} devices.");
 
+        // Also delete the mobile user account itself
+        await DeleteMobileUserAsync(userId);
+
         _logger.LogInformation("Wiped all family tracking data for user {UserId}", userId);
     }
 
