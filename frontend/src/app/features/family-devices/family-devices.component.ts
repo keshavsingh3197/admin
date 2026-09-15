@@ -37,6 +37,16 @@ export class FamilyDevicesComponent implements OnInit {
   readonly error = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
 
+  // Settings Modal State
+  readonly showSettingsModal = signal(false);
+  readonly savingCapabilities = signal(false);
+  readonly capabilitiesForm = signal<any>({
+    locationTrackingEnabled: true,
+    callShieldEnabled: false,
+    smsSyncEnabled: false,
+    contactsSyncEnabled: true
+  });
+
   // Mobile account provisioning state (database-backed, zero hardcoded credentials)
   readonly mobileUsers = signal<MobileUserAccount[]>([]);
   readonly mobileUsersLoading = signal(false);
@@ -143,6 +153,48 @@ export class FamilyDevicesComponent implements OnInit {
     this.deviceService.getDeviceHistory(deviceId, 48).subscribe({
       next: history => this.locationHistory.set(history),
       error: () => {}
+    });
+  }
+
+  
+
+  openSettingsModal(dev: FamDevice) {
+    this.selectedDevice.set(dev);
+    this.capabilitiesForm.set(dev.capabilities || {
+      locationTrackingEnabled: true,
+      callShieldEnabled: false,
+      smsSyncEnabled: false,
+      contactsSyncEnabled: true
+    });
+    this.showSettingsModal.set(true);
+  }
+
+  closeSettingsModal() {
+    this.showSettingsModal.set(false);
+    this.selectedDevice.set(null);
+  }
+
+  toggleCapability(key: string, event: Event) {
+    const isChecked = (event.target as HTMLInputElement).checked;
+    this.capabilitiesForm.set({ ...this.capabilitiesForm(), [key]: isChecked });
+  }
+
+  saveCapabilities() {
+    const dev = this.selectedDevice();
+    if (!dev) return;
+    this.savingCapabilities.set(true);
+    this.deviceService.updateCapabilities(dev.deviceId, this.capabilitiesForm()).subscribe({
+      next: (updatedDev: FamDevice) => {
+        this.devices.set(this.devices().map(d => d.id === updatedDev.id ? updatedDev : d));
+        this.successMessage.set('Capabilities saved successfully.');
+        this.closeSettingsModal();
+        this.savingCapabilities.set(false);
+      },
+      error: (err: any) => {
+        console.error(err);
+        this.error.set('Failed to save settings.');
+        this.savingCapabilities.set(false);
+      }
     });
   }
 
@@ -363,4 +415,7 @@ export class FamilyDevicesComponent implements OnInit {
     });
   }
 }
+
+
+
 

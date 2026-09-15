@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   FamDevice,
+  FamDeviceCapabilities,
   FamLocation,
   FamAuditLog,
   FamQrSession,
@@ -26,6 +27,10 @@ export class FamilyDeviceService {
 
   getDevices(): Observable<FamDevice[]> {
     return this.http.get<FamDevice[]>(`${this.baseUrl}/device/list`);
+  }
+
+  updateCapabilities(deviceId: string, caps: FamDeviceCapabilities): Observable<FamDevice> {
+    return this.http.put<FamDevice>(`${this.baseUrl}/device/${encodeURIComponent(deviceId)}/capabilities`, caps);
   }
 
   getDeviceHistory(deviceId: string, hours = 24): Observable<FamLocation[]> {

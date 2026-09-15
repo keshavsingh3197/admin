@@ -60,6 +60,29 @@ public sealed class FamDevice
 
     [BsonElement("lastLocation")]
     public FamLocationSnapshot? LastLocation { get; set; }
+
+    [BsonElement("capabilities")]
+    public FamDeviceCapabilities Capabilities { get; set; } = new();
+}
+
+/// <summary>
+/// Snapshot of the latest location attached directly to the device document.
+/// </summary>
+
+
+public sealed class FamDeviceCapabilities
+{
+    [BsonElement("locationTrackingEnabled")]
+    public bool LocationTrackingEnabled { get; set; } = true;
+
+    [BsonElement("callShieldEnabled")]
+    public bool CallShieldEnabled { get; set; } = false;
+
+    [BsonElement("smsSyncEnabled")]
+    public bool SmsSyncEnabled { get; set; } = false;
+
+    [BsonElement("contactsSyncEnabled")]
+    public bool ContactsSyncEnabled { get; set; } = true;
 }
 
 /// <summary>
@@ -280,4 +303,5 @@ public sealed record ProvisionMobileUserRequest(
     string DisplayName,
     string Password
 );
+
 

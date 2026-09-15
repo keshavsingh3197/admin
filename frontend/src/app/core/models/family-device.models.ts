@@ -1,3 +1,11 @@
+
+export interface FamDeviceCapabilities {
+  locationTrackingEnabled: boolean;
+  callShieldEnabled: boolean;
+  smsSyncEnabled: boolean;
+  contactsSyncEnabled: boolean;
+}
+
 export interface FamLocationSnapshot {
   latitude: number;
   longitude: number;
@@ -26,6 +34,7 @@ export interface FamDevice {
   registeredAt: string;
   lastActiveAt: string;
   lastLocation?: FamLocationSnapshot;
+  capabilities?: FamDeviceCapabilities;
 }
 
 export interface FamLocation {
@@ -156,4 +165,5 @@ export interface UpdateAppVersionConfigRequest {
   releaseNotes: string;
   playStoreUrl: string;
 }
+
 

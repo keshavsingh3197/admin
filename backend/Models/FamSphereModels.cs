@@ -109,6 +109,42 @@ public sealed class FamCallRecord
 /// <summary>
 /// Family chat message stored in FamSphereDb collection "Fam_Messages".
 /// </summary>
+
+
+/// <summary>
+/// SMS message log stored in FamSphereDb collection "Fam_Sms".
+/// </summary>
+public sealed class FamSmsRecord
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; } = ObjectId.GenerateNewId().ToString();
+
+    [BsonElement("userId")]
+    public string UserId { get; set; } = string.Empty;
+
+    [BsonElement("familyId")]
+    public string FamilyId { get; set; } = string.Empty;
+
+    [BsonElement("deviceId")]
+    public string? DeviceId { get; set; }
+
+    [BsonElement("direction")]
+    public string Direction { get; set; } = "Inbound"; // "Inbound" or "Outbound"
+
+    [BsonElement("targetNameOrPhone")]
+    public string TargetNameOrPhone { get; set; } = string.Empty;
+
+    [BsonElement("messageBody")]
+    public string MessageBody { get; set; } = string.Empty;
+
+    [BsonElement("timestamp")]
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Family chat message stored in FamSphereDb collection "Fam_Messages".
+/// </summary>
 public sealed class FamChatMessage
 {
     [BsonId]
@@ -195,6 +231,20 @@ public sealed record FamContactDto(
     string? Company
 );
 
+
+
+public sealed record SyncSmsRequest(
+    List<FamSmsDto> Messages
+);
+
+public sealed record FamSmsDto(
+    string? DeviceId,
+    string Direction,
+    string TargetNameOrPhone,
+    string MessageBody,
+    DateTime Timestamp
+);
+
 public sealed record LogCallRequest(
     string? DeviceId,
     string CallType,
@@ -227,4 +277,5 @@ public sealed record UpdateAppVersionConfigRequest(
     string ReleaseNotes,
     string PlayStoreUrl
 );
+
 
