@@ -62,7 +62,7 @@ import { CreateUserRequest, UpdateUserRequest, UserListItem } from '../../core/m
       </brand-modal>
     </div>`,
   styles: [`
-    .users-wrap { max-width: 1080px; margin: 0 auto; padding: 1rem; font-family: inherit; }
+    .users-wrap { max-width: 1080px; margin: 0 auto; padding: 2rem; font-family: inherit; }
     .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.75rem; }
     .page-title { margin: 0; color: var(--text); font-size: 1.55rem; line-height: 1.2; font-weight: 700; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem; }
@@ -78,8 +78,13 @@ import { CreateUserRequest, UpdateUserRequest, UserListItem } from '../../core/m
     .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
     .btn-danger { background: var(--danger); color: var(--on-accent); border: 0; }
     button:disabled { opacity: 0.55; cursor: default; }
-    .badge { display: inline-block; margin-right: 0.25rem; padding: 0.12rem 0.5rem; border-radius: 10px; font-size: 0.78rem; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); }
-    .linkish { border: 0; background: none; color: var(--brand); cursor: pointer; font: inherit; }
+    .badge { display: inline-block; margin-right: 0.25rem; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: 500; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); }
+    .linkish { border: 0; background: none; color: var(--brand); cursor: pointer; font: inherit; font-weight: 600; text-decoration: none; padding: 0.25rem 0.5rem; border-radius: 4px; transition: background 0.2s; }
+    .linkish:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); }
+    td { padding: 14px 16px; font-size: 0.95rem; vertical-align: middle; border-bottom: 1px solid var(--border); }
+    tr:hover td { background-color: color-mix(in srgb, var(--text) 3%, transparent); }
+    ::ng-deep .brand-data-table table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    ::ng-deep .brand-data-table th { padding: 14px 16px; text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--border); font-weight: 700; }
     .inactive td { opacity: 0.6; }
     .admin-actions { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1.25rem; }
     .reset { display: inline-flex; align-items: center; gap: 0.4rem; }

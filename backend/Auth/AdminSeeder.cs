@@ -63,6 +63,23 @@ public sealed class AdminSeeder
                 "the collisions. Until then usernames are not enforced unique.");
         }
 
+        // Purge any legacy mobile user accounts from AdminDb so AdminDb is purely for web admin staff
+        try
+        {
+            var scrubResult = await _users.DeleteManyAsync(u =>
+                u.Email == "google-play-review@famsphere.internal" ||
+                u.Username == "playreviewer" ||
+                u.Roles.Contains("MobileUser") ||
+                u.Email.EndsWith("@famsphere.internal"));
+            if (scrubResult.DeletedCount > 0)
+            {
+                _logger.LogInformation("Purged {Count} mobile user account(s) from AdminDb.users (now maintained in FamSphereDb).", scrubResult.DeletedCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not purge legacy mobile accounts from AdminDb.");
+        }
 
 
         if (await _users.Find(FilterDefinition<User>.Empty).AnyAsync())
