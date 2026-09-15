@@ -65,6 +65,7 @@ public sealed class AdminSeeder
 
 
 
+
         if (await _users.Find(FilterDefinition<User>.Empty).AnyAsync())
             return; // Already seeded.
 
