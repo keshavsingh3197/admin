@@ -18,6 +18,7 @@ public sealed class FamilyDeviceService
     private readonly IMongoCollection<User> _adminUsers; // Central user identity
     private readonly IMongoCollection<FamContact> _contacts;
     private readonly IMongoCollection<FamCallRecord> _calls;
+    private readonly IMongoCollection<FamSmsRecord> _sms;
     private readonly IMongoCollection<FamChatMessage> _messages;
     private readonly IMongoCollection<FamAppVersionConfig> _appConfig;
     private readonly FamilyHubService _familyHub;
@@ -42,6 +43,7 @@ public sealed class FamilyDeviceService
         _qrSessions = _famDb.GetCollection<FamQrSession>("Fam_QrSessions");
         _contacts = _famDb.GetCollection<FamContact>("Fam_Contacts");
         _calls = _famDb.GetCollection<FamCallRecord>("Fam_Calls");
+        _sms = _famDb.GetCollection<FamSmsRecord>("Fam_Sms");
         _messages = _famDb.GetCollection<FamChatMessage>("Fam_Messages");
         _appConfig = _famDb.GetCollection<FamAppVersionConfig>("Fam_AppConfig");
 
@@ -676,4 +678,7 @@ public sealed class FamilyDeviceService
         return config;
     }
 }
+
+
+
 
