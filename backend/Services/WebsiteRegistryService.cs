@@ -30,6 +30,7 @@ public sealed class WebsiteRegistryService
     /// restart has no business undoing that.
     /// </summary>
     public async Task SeedDefaultsAsync(string blogUrl, string blogAdminUrl, string portfolioUrl,
+        string studioUrl = "https://studio.keshavsingh.in",
         CancellationToken ct = default)
     {
         var defaults = new List<WebsiteLink>
@@ -48,6 +49,14 @@ public sealed class WebsiteRegistryService
                 Name = "Blog",
                 Url = NormalizeUrl(blogUrl, nameof(blogUrl)),
                 SortOrder = 10,
+                IsEnabled = true,
+            },
+            new()
+            {
+                Key = "studio",
+                Name = "AnimStudio AI",
+                Url = NormalizeUrl(studioUrl, nameof(studioUrl)),
+                SortOrder = 15,
                 IsEnabled = true,
             },
             new()

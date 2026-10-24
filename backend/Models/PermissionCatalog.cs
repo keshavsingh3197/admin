@@ -45,6 +45,10 @@ public static class PermissionCatalog
     {
         new("site.view", "Site", "View", "View this site's analytics and dashboard card."),
         new("site.manage", "Site", "Manage", "Manage this site's content, links, and settings."),
+        new("site.studio.create", "Studio", "Create Projects", "Create, edit, and organize studio projects and scripts."),
+        new("site.studio.render", "Studio", "Render & Export", "Render video projects, clips, and exports."),
+        new("site.studio.publish", "Studio", "YouTube & Social Publish", "Connect and publish to personal YouTube channels."),
+        new("site.studio.admin", "Studio", "Studio Administrator", "Administer AnimStudio settings, quotas, and feature flags."),
     };
 
     public static readonly IReadOnlySet<string> AdminPermissionKeys =

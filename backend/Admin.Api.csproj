@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,6 +12,7 @@
     -->
     <UseLocalProjectReferences Condition="'$(UseLocalProjectReferences)' == '' and Exists('..\..\shared-security\src\KeshavSingh.Security\KeshavSingh.Security.csproj')">true</UseLocalProjectReferences>
     <SkipPrivatePackages Condition="'$(UseLocalProjectReferences)' == 'true' or '$(PACKAGES_READ_TOKEN)' == ''">true</SkipPrivatePackages>
+    <UserSecretsId>eaa36ab6-f8e7-496b-bc79-2981617a82d5</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
