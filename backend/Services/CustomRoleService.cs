@@ -75,6 +75,27 @@ public sealed class CustomRoleService
                 },
                 IsSystem = true,
             },
+            new()
+            {
+                Key = "studio-user",
+                Name = "Studio User",
+                Description = "Access to AnimStudio AI workspace, personal projects, rendering, and YouTube publishing.",
+                WebsiteGrants = new List<WebsiteGrant>
+                {
+                    new()
+                    {
+                        WebsiteKey = "studio",
+                        Permissions = new List<string>
+                        {
+                            "site.view",
+                            "site.studio.create",
+                            "site.studio.render",
+                            "site.studio.publish"
+                        }
+                    }
+                },
+                IsSystem = true,
+            },
         };
 
         foreach (var role in seeded)

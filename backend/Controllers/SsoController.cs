@@ -75,11 +75,10 @@ public sealed class SsoController : ControllerBase
                 SessionConfirmationTicket: result.SessionConfirmationTicket,
                 ConflictingSessions: result.ConflictingSessions));
 
-        if (result.Tokens != null && IsRestrictedMobileUser(result.Tokens.User.Roles))
+        var loginAppKey = string.IsNullOrWhiteSpace(request.AppKey) ? Request.Query["app"].ToString() : request.AppKey;
+        if (result.Tokens != null && IsRestrictedAppUser(result.Tokens.User.Roles, loginAppKey, out var refusalMsg))
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new {
-                error = "Access denied. Mobile accounts can only sign into the mobile application and cannot access web portals."
-            });
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = refusalMsg });
         }
 
         return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
@@ -151,11 +150,10 @@ public sealed class SsoController : ControllerBase
             await _twoFactorDevices.MarkUsedAsync(result.Tokens!.User.Id);
         }
 
-        if (result.Tokens != null && IsRestrictedMobileUser(result.Tokens.User.Roles))
+        var twoFactorAppKey = Request.Query["app"].ToString();
+        if (result.Tokens != null && IsRestrictedAppUser(result.Tokens.User.Roles, twoFactorAppKey, out var refusalMsg))
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new {
-                error = "Access denied. Mobile accounts can only sign into the mobile application and cannot access web portals."
-            });
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = refusalMsg });
         }
 
         return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
@@ -169,11 +167,10 @@ public sealed class SsoController : ControllerBase
     public async Task<ActionResult<SsoSessionResponse>> ConfirmSession(SessionConfirmRequest request)
     {
         var result = await _auth.ConfirmSessionAsync(request, DeviceLabel());
-        if (result.Tokens != null && IsRestrictedMobileUser(result.Tokens.User.Roles))
+        var confirmAppKey = Request.Query["app"].ToString();
+        if (result.Tokens != null && IsRestrictedAppUser(result.Tokens.User.Roles, confirmAppKey, out var refusalConfirm))
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new {
-                error = "Access denied. Mobile accounts can only sign into the mobile application and cannot access web portals."
-            });
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = refusalConfirm });
         }
         return Ok(IssueSession(result.Tokens!));
     }
@@ -224,12 +221,19 @@ public sealed class SsoController : ControllerBase
         try
         {
             var refreshed = await _auth.RefreshAsync(refreshToken);
-            if (IsRestrictedMobileUser(refreshed.User.Roles))
+            var appKey = Request.Query["app"].ToString();
+            if (string.IsNullOrWhiteSpace(appKey))
+            {
+                var origin = Request.Headers.Origin.ToString();
+                var referer = Request.Headers.Referer.ToString();
+                if (origin.Contains("studio", StringComparison.OrdinalIgnoreCase) || referer.Contains("studio", StringComparison.OrdinalIgnoreCase))
+                    appKey = "studio";
+            }
+
+            if (IsRestrictedAppUser(refreshed.User.Roles, appKey, out var refusal))
             {
                 Response.Cookies.Delete(_cookie.CookieName, _cookie.BuildDeleteOptions());
-                return StatusCode(StatusCodes.Status403Forbidden, new {
-                    error = "Access denied. Mobile accounts cannot access the admin web portal."
-                });
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = refusal });
             }
             return Ok(IssueSession(refreshed));
         }
@@ -272,16 +276,42 @@ public sealed class SsoController : ControllerBase
     }
 
     /// <summary>
-    /// Checks whether an account is provisioned for mobile-only access (e.g. mobile app reviewer/fleet)
-    /// and should be completely blocked from accessing the web management portal and SSO family.
+    /// Checks whether an account is restricted to a single application/portal:
+    /// - MobileUser can only access the mobile app.
+    /// - StudioUser can only access AnimStudio (appKey == "studio" or "animstudio").
     /// </summary>
-    private static bool IsRestrictedMobileUser(IReadOnlyList<string>? roles)
+    private static bool IsRestrictedAppUser(IReadOnlyList<string>? roles, string? appKey, out string? refusalMessage)
     {
+        refusalMessage = null;
         if (roles is null || roles.Count == 0) return false;
-        var hasMobileUser = roles.Contains("MobileUser", StringComparer.OrdinalIgnoreCase);
+
         var hasAdminOrEditor = roles.Contains(Roles.Admin, StringComparer.OrdinalIgnoreCase) ||
                                roles.Contains(Roles.Editor, StringComparer.OrdinalIgnoreCase);
-        return hasMobileUser && !hasAdminOrEditor;
+        if (hasAdminOrEditor) return false;
+
+        if (roles.Contains("MobileUser", StringComparer.OrdinalIgnoreCase))
+        {
+            var isMobile = string.Equals(appKey, "mobile", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(appKey, "famsphere", StringComparison.OrdinalIgnoreCase);
+            if (!isMobile)
+            {
+                refusalMessage = "Access denied. Mobile accounts can only sign into the mobile application and cannot access web portals.";
+                return true;
+            }
+        }
+
+        if (roles.Contains("StudioUser", StringComparer.OrdinalIgnoreCase))
+        {
+            var isStudio = string.Equals(appKey, "studio", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(appKey, "animstudio", StringComparison.OrdinalIgnoreCase);
+            if (!isStudio)
+            {
+                refusalMessage = "Access denied. This account is restricted to AnimStudio and cannot access other services without administrator approval.";
+                return true;
+            }
+        }
+
+        return false;
     }
 
 }

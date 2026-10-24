@@ -69,7 +69,8 @@ public static class StartupInitializationExtensions
             .SeedDefaultsAsync(
                 publicConfig.BlogUrl,
                 publicConfig.BlogAdminUrl,
-                configuration["Websites:PortfolioUrl"] ?? "https://keshavsingh.in");
+                configuration["Websites:PortfolioUrl"] ?? "https://keshavsingh.in",
+                configuration["Websites:StudioUrl"] ?? "https://studio.keshavsingh.in");
         using (var scope = services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();
