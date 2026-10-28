@@ -22,22 +22,27 @@ namespace Admin.Api.Services;
 public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorageSettingsSource
 {
     private readonly IMongoCollection<AppSettings> _col;
+    private readonly IMongoCollection<AppConfig> _appConfigCol;
     private readonly AuthSettingsOptions _seed;
     private readonly JwtOptions _jwtSeed;
+    private readonly WebAuthnOptions _webAuthnStartup;
     private readonly PublicConfigOptions _publicSeed;
     private readonly StorageOptions _storageSeed;
     private readonly DataProtector _protector;
     private readonly IMemoryCache _cache;
     private volatile AppSettings _current = new();
+    private AppConfig _appConfig = new();
 
     public SettingsService(MongoDbService db, IOptions<AuthSettingsOptions> seed, IOptions<JwtOptions> jwtSeed,
-        IOptions<PublicConfigOptions> publicSeed, IOptions<StorageOptions> storageSeed, DataProtector protector,
-        IMemoryCache cache)
+        IOptions<WebAuthnOptions> webAuthnStartup, IOptions<PublicConfigOptions> publicSeed,
+        IOptions<StorageOptions> storageSeed, DataProtector protector, IMemoryCache cache)
     {
         _cache = cache;
         _col = db.GetCollection<AppSettings>("settings");
+        _appConfigCol = db.GetCollection<AppConfig>("config");
         _seed = seed.Value;
         _jwtSeed = jwtSeed.Value;
+        _webAuthnStartup = webAuthnStartup.Value;
         _publicSeed = publicSeed.Value;
         _storageSeed = storageSeed.Value;
         _protector = protector;
@@ -113,34 +118,56 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     public async Task InitAsync()
     {
         var existing = await _col.Find(s => s.Id == AppSettings.SingletonId).FirstOrDefaultAsync();
-        if (existing is not null) { _current = existing; return; }
-
-        // First run: seed from the "Auth" + "PublicConfig" config so behaviour is unchanged until edited.
-        var seeded = new AppSettings
+        if (existing is not null)
         {
-            SiteTitle = _publicSeed.SiteTitle,
-            BlogUrl = _publicSeed.BlogUrl,
-            BlogAdminUrl = _publicSeed.BlogAdminUrl,
-            EmailTwoFactorEnabled = _seed.EmailTwoFactorEnabled,
-            SmsTwoFactorEnabled = _seed.SmsTwoFactorEnabled,
-            WhatsAppTwoFactorEnabled = _seed.WhatsAppTwoFactorEnabled,
-            AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
-            RefreshTokenDays = _jwtSeed.RefreshTokenDays,
-            TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
-            EnforceSingleSessionPerUser = true,
-            RefreshTokenRetentionDays = 30,
-            AnalyticsRetentionDays = 90,
-            LoginAuditRetentionDays = 180,
-            AdminAuditRetentionDays = 730,
-            EmailOtpMinutes = _seed.EmailOtpMinutes,
-            MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
-            LockoutMinutes = _seed.LockoutMinutes,
-            BackupCodeCount = _seed.BackupCodeCount,
-            StorageProvider = _storageSeed.Provider,
-        };
-        await _col.ReplaceOneAsync(s => s.Id == AppSettings.SingletonId, seeded,
+            _current = existing;
+        }
+        else
+        {
+            // First run: seed from the "Auth" + "PublicConfig" config so behaviour is unchanged until edited.
+            var seeded = new AppSettings
+            {
+                SiteTitle = _publicSeed.SiteTitle,
+                BlogUrl = _publicSeed.BlogUrl,
+                BlogAdminUrl = _publicSeed.BlogAdminUrl,
+                EmailTwoFactorEnabled = _seed.EmailTwoFactorEnabled,
+                SmsTwoFactorEnabled = _seed.SmsTwoFactorEnabled,
+                WhatsAppTwoFactorEnabled = _seed.WhatsAppTwoFactorEnabled,
+                AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
+                RefreshTokenDays = _jwtSeed.RefreshTokenDays,
+                TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
+                EnforceSingleSessionPerUser = true,
+                RefreshTokenRetentionDays = 30,
+                AnalyticsRetentionDays = 90,
+                LoginAuditRetentionDays = 180,
+                AdminAuditRetentionDays = 730,
+                EmailOtpMinutes = _seed.EmailOtpMinutes,
+                MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
+                LockoutMinutes = _seed.LockoutMinutes,
+                BackupCodeCount = _seed.BackupCodeCount,
+                StorageProvider = _storageSeed.Provider,
+            };
+            await _col.ReplaceOneAsync(s => s.Id == AppSettings.SingletonId, seeded,
+                new ReplaceOptions { IsUpsert = true });
+            _current = seeded;
+        }
+
+        _appConfig = await _appConfigCol.Find(c => c.Id == AppConfig.SingletonId).FirstOrDefaultAsync()
+            ?? new AppConfig
+            {
+                WebAuthn = new AppConfig.WebAuthnConfig
+                {
+                    RelyingPartyId = _webAuthnStartup.RelyingPartyId,
+                    RelyingPartyName = _webAuthnStartup.RelyingPartyName,
+                    Origins = _webAuthnStartup.Origins.ToList(),
+                    ChallengeMinutes = _webAuthnStartup.ChallengeMinutes,
+                    MaxCredentialsPerUser = _webAuthnStartup.MaxCredentialsPerUser,
+                }
+            };
+        _appConfig.WebAuthn ??= new AppConfig.WebAuthnConfig();
+        _appConfig.WebAuthn.Origins ??= _webAuthnStartup.Origins.ToList();
+        await _appConfigCol.ReplaceOneAsync(c => c.Id == AppConfig.SingletonId, _appConfig,
             new ReplaceOptions { IsUpsert = true });
-        _current = seeded;
     }
 
     public SettingsView ToView()
@@ -161,6 +188,8 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
             s.GitHubOAuthClientId, !string.IsNullOrEmpty(s.GitHubOAuthClientSecretEncrypted),
             s.GitHubSocialLoginEnabled, s.LinkedInSocialLoginEnabled, s.LinkedInOAuthClientId,
             !string.IsNullOrEmpty(s.LinkedInOAuthClientSecretEncrypted), s.PackageInventoryRepositories,
+            _appConfig.WebAuthn.RelyingPartyId, _appConfig.WebAuthn.Origins,
+            !SameOrigins(_appConfig.WebAuthn.Origins, _webAuthnStartup.Origins, _appConfig.WebAuthn.RelyingPartyId),
             s.UpdatedAt);
     }
 
@@ -199,6 +228,17 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     public async Task<SettingsView> ApplyAsync(UpdateSettingsRequest r)
     {
         var s = Clone(_current);
+        AppConfig? updatedConfig = null;
+        if (r.WebAuthnOrigins is not null)
+        {
+            updatedConfig = await _appConfigCol.Find(c => c.Id == AppConfig.SingletonId).FirstOrDefaultAsync()
+                ?? throw new InvalidOperationException("The identity provider config document is missing.");
+            var origins = NormalizeWebAuthnOrigins(
+                r.WebAuthnOrigins,
+                updatedConfig.WebAuthn.RelyingPartyId);
+            updatedConfig.WebAuthn.Origins = origins.ToList();
+            updatedConfig.UpdatedAt = DateTime.UtcNow;
+        }
 
         if (r.SiteTitle is not null) s.SiteTitle = r.SiteTitle.Trim();
         // Launcher URLs are validated against an allowlist (https/keshavsingh.in) before storage;
@@ -267,9 +307,56 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         s.UpdatedAt = DateTime.UtcNow;
         await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s,
             new ReplaceOptions { IsUpsert = true });
+        if (updatedConfig is not null)
+        {
+            await _appConfigCol.ReplaceOneAsync(c => c.Id == AppConfig.SingletonId, updatedConfig,
+                new ReplaceOptions { IsUpsert = true });
+            _appConfig = updatedConfig;
+        }
         _current = s;
         return ToView();
     }
+
+    public static IReadOnlyList<string> NormalizeWebAuthnOrigins(
+        IEnumerable<string>? origins,
+        string relyingPartyId)
+    {
+        var rpId = relyingPartyId.Trim().ToLowerInvariant();
+        if (rpId.Length == 0 || Uri.CheckHostName(rpId) != UriHostNameType.Dns)
+            throw new ArgumentException("The WebAuthn relying-party ID must be a valid DNS host.");
+
+        var normalized = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in origins ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            var value = raw.Trim();
+            var isLocalhost = Uri.TryCreate(value, UriKind.Absolute, out var candidate) && candidate.IsLoopback;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
+                || (uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && isLocalhost))
+                || (!isLocalhost &&
+                    !uri.Host.Equals(rpId, StringComparison.OrdinalIgnoreCase) &&
+                    !uri.Host.EndsWith("." + rpId, StringComparison.OrdinalIgnoreCase))
+                || !string.IsNullOrEmpty(uri.UserInfo)
+                || uri.AbsolutePath != "/"
+                || !string.IsNullOrEmpty(uri.Query)
+                || !string.IsNullOrEmpty(uri.Fragment))
+            {
+                throw new ArgumentException(
+                    "WebAuthn origins must be exact HTTPS origins on the relying-party domain or one of its subdomains. HTTP is allowed only for loopback development origins. Paths, queries, and fragments are not allowed.");
+            }
+
+            normalized.Add(uri.GetLeftPart(UriPartial.Authority));
+        }
+
+        if (normalized.Count > 30)
+            throw new ArgumentException("No more than 30 WebAuthn origins may be configured.");
+
+        return normalized.ToArray();
+    }
+
+    private static bool SameOrigins(IEnumerable<string> left, IEnumerable<string> right, string relyingPartyId) =>
+        NormalizeWebAuthnOrigins(left, relyingPartyId)
+            .SequenceEqual(NormalizeWebAuthnOrigins(right, relyingPartyId), StringComparer.OrdinalIgnoreCase);
 
     private static AppSettings Clone(AppSettings s) => new()
     {

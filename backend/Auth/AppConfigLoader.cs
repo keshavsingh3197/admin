@@ -34,7 +34,7 @@ public static class AppConfigLoader
                 doc = SeedFromAppsettings(bootstrap);
                 col.ReplaceOne(c => c.Id == AppConfig.SingletonId, doc, new ReplaceOptions { IsUpsert = true });
             }
-            return Flatten(doc);
+            return Flatten(doc, bootstrap.GetSection("WebAuthn:Origins").GetChildren().Count());
         }
         catch (Exception ex)
         {
@@ -84,7 +84,7 @@ public static class AppConfigLoader
     }
 
     /// <summary>Projects the typed document to flat config keys. Secret keys are never produced.</summary>
-    private static IEnumerable<KeyValuePair<string, string?>> Flatten(AppConfig c)
+    private static IEnumerable<KeyValuePair<string, string?>> Flatten(AppConfig c, int fallbackOriginCount)
     {
         var d = new Dictionary<string, string?>
         {
@@ -104,8 +104,9 @@ public static class AppConfigLoader
             ["Seed:AdminEmail"] = c.Seed.AdminEmail,
             ["Seed:AdminDisplayName"] = c.Seed.AdminDisplayName,
         };
-        for (var i = 0; i < c.WebAuthn.Origins.Count; i++)
-            d[$"WebAuthn:Origins:{i}"] = c.WebAuthn.Origins[i];
+        var origins = c.WebAuthn.Origins ?? [];
+        for (var i = 0; i < Math.Max(origins.Count, fallbackOriginCount); i++)
+            d[$"WebAuthn:Origins:{i}"] = i < origins.Count ? origins[i] : string.Empty;
         return d;
     }
 }
