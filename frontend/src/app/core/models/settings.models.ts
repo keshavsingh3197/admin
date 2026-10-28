@@ -40,6 +40,12 @@ export interface SettingsView {
   linkedInOAuthClientSecretSet: boolean;
   /** The only repositories the Packages screen scans — chosen here, stored server-side. */
   packageInventoryRepositories: string[];
+  /** Exact browser origins permitted to complete passkey ceremonies. */
+  webAuthnOrigins: string[];
+  /** The WebAuthn RP ID loaded when the identity provider started. */
+  webAuthnRelyingPartyId: string;
+  /** True when the saved origins differ from the allow-list active in this process. */
+  webAuthnOriginsPendingRestart: boolean;
   updatedAt: string;
 }
 
@@ -48,7 +54,7 @@ export interface SettingsView {
  * via whatsAppAccessToken / storageS3SecretAccessKey instead — a blank value keeps the stored one.
  */
 export type UpdateSettingsRequest =
-  Partial<Omit<SettingsView, 'updatedAt' | 'oAuthCallbackUrl' | 'whatsAppAccessTokenSet' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet' | 'gitHubOAuthClientSecretSet' | 'linkedInOAuthClientSecretSet'>>
+  Partial<Omit<SettingsView, 'updatedAt' | 'oAuthCallbackUrl' | 'whatsAppAccessTokenSet' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet' | 'gitHubOAuthClientSecretSet' | 'linkedInOAuthClientSecretSet' | 'webAuthnRelyingPartyId' | 'webAuthnOriginsPendingRestart'>>
   & {
     whatsAppAccessToken?: string;
     storageS3SecretAccessKey?: string;
