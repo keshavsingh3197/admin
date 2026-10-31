@@ -119,26 +119,48 @@ public sealed class SettingsService : IAuthSettings, IStorageSettingsSource
         }
         else
         {
-            SiteTitle = _publicSeed.SiteTitle,
-            BlogUrl = _publicSeed.BlogUrl,
-            BlogAdminUrl = _publicSeed.BlogAdminUrl,
-            EmailTwoFactorEnabled = _seed.EmailTwoFactorEnabled,
-            SmsTwoFactorEnabled = _seed.SmsTwoFactorEnabled,
-            AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
-            RefreshTokenDays = _jwtSeed.RefreshTokenDays,
-            TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
-            EnforceSingleSessionPerUser = true,
-            RefreshTokenRetentionDays = 30,
-            AnalyticsRetentionDays = 90,
-            LoginAuditRetentionDays = 180,
-            AdminAuditRetentionDays = 730,
-            EmailOtpMinutes = _seed.EmailOtpMinutes,
-            MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
-            LockoutMinutes = _seed.LockoutMinutes,
-            BackupCodeCount = _seed.BackupCodeCount,
-            StorageProvider = _storageSeed.Provider,
-        };
-        await _col.ReplaceOneAsync(s => s.Id == AppSettings.SingletonId, seeded,
+            // First run: seed from the "Auth" + "PublicConfig" config so behaviour is unchanged until edited.
+            var seeded = new AppSettings
+            {
+                SiteTitle = _publicSeed.SiteTitle,
+                BlogUrl = _publicSeed.BlogUrl,
+                BlogAdminUrl = _publicSeed.BlogAdminUrl,
+                EmailTwoFactorEnabled = _seed.EmailTwoFactorEnabled,
+                SmsTwoFactorEnabled = _seed.SmsTwoFactorEnabled,
+                AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
+                RefreshTokenDays = _jwtSeed.RefreshTokenDays,
+                TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
+                EnforceSingleSessionPerUser = true,
+                RefreshTokenRetentionDays = 30,
+                AnalyticsRetentionDays = 90,
+                LoginAuditRetentionDays = 180,
+                AdminAuditRetentionDays = 730,
+                EmailOtpMinutes = _seed.EmailOtpMinutes,
+                MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
+                LockoutMinutes = _seed.LockoutMinutes,
+                BackupCodeCount = _seed.BackupCodeCount,
+                StorageProvider = _storageSeed.Provider,
+            };
+            await _col.ReplaceOneAsync(s => s.Id == AppSettings.SingletonId, seeded,
+                new ReplaceOptions { IsUpsert = true });
+            _current = seeded;
+        }
+
+        _appConfig = await _appConfigCol.Find(c => c.Id == AppConfig.SingletonId).FirstOrDefaultAsync()
+            ?? new AppConfig
+            {
+                WebAuthn = new AppConfig.WebAuthnConfig
+                {
+                    RelyingPartyId = _webAuthnStartup.RelyingPartyId,
+                    RelyingPartyName = _webAuthnStartup.RelyingPartyName,
+                    Origins = _webAuthnStartup.Origins.ToList(),
+                    ChallengeMinutes = _webAuthnStartup.ChallengeMinutes,
+                    MaxCredentialsPerUser = _webAuthnStartup.MaxCredentialsPerUser,
+                }
+            };
+        _appConfig.WebAuthn ??= new AppConfig.WebAuthnConfig();
+        _appConfig.WebAuthn.Origins ??= _webAuthnStartup.Origins.ToList();
+        await _appConfigCol.ReplaceOneAsync(c => c.Id == AppConfig.SingletonId, _appConfig,
             new ReplaceOptions { IsUpsert = true });
     }
 
