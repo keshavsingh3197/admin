@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, finalize, map, shareReplay, tap } from 'rxjs';
+import { Observable, defer, finalize, firstValueFrom, from, map, shareReplay, tap, timeout } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ConfirmTwoFactorDeviceEnrollmentResponse,
@@ -93,10 +93,6 @@ export class AuthService {
     return this.http.post<void>(`${this.base}/sso/2fa/sms/send`, { twoFactorToken }, { withCredentials: true });
   }
 
-  sendWhatsAppOtp(twoFactorToken: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/sso/2fa/whatsapp/send`, { twoFactorToken }, { withCredentials: true });
-  }
-
   // ---- Session (silent SSO) ----
 
   /** Shared in-flight session check: a route guard and the login page's own resume check can both
@@ -107,13 +103,21 @@ export class AuthService {
   /** Exchange the shared SSO cookie for a fresh access token. 401 => no active session. */
   session(): Observable<SsoSessionResponse> {
     if (!this.sessionCheck$) {
-      this.sessionCheck$ = this.http
+      const request$ = this.http
         .post<SsoSessionResponse>(`${this.base}/sso/session`, {}, { withCredentials: true })
         .pipe(
+          timeout(30_000),
           tap(session => this.setSession(session)),
-          finalize(() => { this.sessionCheck$ = null; }),
-          shareReplay(1),
         );
+      this.sessionCheck$ = defer(() => {
+        if (typeof navigator !== 'undefined' && navigator.locks) {
+          return from(navigator.locks.request('admin-sso-refresh', () => firstValueFrom(request$)));
+        }
+        return request$;
+      }).pipe(
+        finalize(() => { this.sessionCheck$ = null; }),
+        shareReplay(1),
+      );
     }
     return this.sessionCheck$;
   }

@@ -91,28 +91,10 @@ interface SettingsImportPayload {
           </div>
 
           <h2>Two-factor fallback</h2>
-          <p class="hint">Authenticator (TOTP) 2FA always works. Email/SMS/WhatsApp fallback only delivers once real
-             email/SMS/WhatsApp senders are configured for this service.</p>
+          <p class="hint">Authenticator (TOTP) 2FA always works. Email/SMS fallback only delivers once real
+             email/SMS senders are configured for this service.</p>
           <label class="chk"><input type="checkbox" name="e2fa" [(ngModel)]="m.emailTwoFactorEnabled" /> Allow email code fallback</label>
           <label class="chk"><input type="checkbox" name="s2fa" [(ngModel)]="m.smsTwoFactorEnabled" /> Allow SMS code fallback</label>
-          <label class="chk"><input type="checkbox" name="wa2fa" [(ngModel)]="m.whatsAppTwoFactorEnabled" /> Allow WhatsApp code fallback</label>
-
-          <h2>WhatsApp security alerts</h2>
-          <p class="hint">Sends a WhatsApp message (via the Meta Cloud API) to the number below whenever an
-             account is locked out from repeated failed logins. Freeform text only delivers within the 24h
-             window after the recipient has messaged the sending number first; otherwise Meta requires a
-             pre-approved template.</p>
-          <label class="chk"><input type="checkbox" name="waEnabled" [(ngModel)]="m.whatsAppAlertsEnabled" /> Enable WhatsApp alerts</label>
-          <div class="grid">
-            <label class="field"><span>Access token {{ m.whatsAppAccessTokenSet ? '(already set — leave blank to keep)' : '' }}</span>
-              <input class="input" type="password" name="waToken" autocomplete="new-password"
-                placeholder="{{ m.whatsAppAccessTokenSet ? '••••••••' : 'Meta Cloud API access token' }}"
-                [(ngModel)]="whatsAppAccessTokenInput" /></label>
-            <label class="field"><span>Phone number ID</span>
-              <input class="input" type="text" name="waPhoneId" [(ngModel)]="m.whatsAppPhoneNumberId" /></label>
-            <label class="field"><span>Alert-to number (E.164, e.g. +15551234567)</span>
-              <input class="input" type="text" name="waTo" [(ngModel)]="m.whatsAppAlertToNumber" /></label>
-          </div>
 
           <h2>File storage</h2>
           <p class="hint">Where private user files are stored. <strong>Local</strong> keeps them on the server's
@@ -369,8 +351,6 @@ export class SettingsComponent implements OnInit {
 
   readonly model = signal<SettingsView | null>(null);
   readonly websites = signal<WebsiteLinkView[]>([]);
-  /** Write-only draft for the WhatsApp access token; blank means "leave the stored token unchanged". */
-  whatsAppAccessTokenInput = '';
   /** Write-only draft for the R2 secret access key; blank means "leave the stored secret unchanged". */
   storageS3SecretInput = '';
   /** Write-only draft for the GitHub Packages token; blank means "leave the stored token unchanged". */
@@ -587,7 +567,6 @@ export class SettingsComponent implements OnInit {
       blogAdminUrl: m.blogAdminUrl,
       emailTwoFactorEnabled: m.emailTwoFactorEnabled,
       smsTwoFactorEnabled: m.smsTwoFactorEnabled,
-      whatsAppTwoFactorEnabled: m.whatsAppTwoFactorEnabled,
       accessTokenMinutes: Number(m.accessTokenMinutes),
       refreshTokenDays: Number(m.refreshTokenDays),
       twoFactorTokenMinutes: Number(m.twoFactorTokenMinutes),
@@ -600,10 +579,6 @@ export class SettingsComponent implements OnInit {
       maxFailedLoginAttempts: Number(m.maxFailedLoginAttempts),
       lockoutMinutes: Number(m.lockoutMinutes),
       backupCodeCount: Number(m.backupCodeCount),
-      whatsAppAlertsEnabled: m.whatsAppAlertsEnabled,
-      whatsAppPhoneNumberId: m.whatsAppPhoneNumberId,
-      whatsAppAlertToNumber: m.whatsAppAlertToNumber,
-      ...(this.whatsAppAccessTokenInput ? { whatsAppAccessToken: this.whatsAppAccessTokenInput } : {}),
       storageProvider: m.storageProvider,
       storageS3ServiceUrl: m.storageS3ServiceUrl,
       storageS3Bucket: m.storageS3Bucket,
@@ -623,7 +598,6 @@ export class SettingsComponent implements OnInit {
   }
 
   private clearSecretDrafts(): void {
-    this.whatsAppAccessTokenInput = '';
     this.storageS3SecretInput = '';
     this.gitHubPackagesTokenInput = '';
     this.gitHubOAuthClientSecretInput = '';

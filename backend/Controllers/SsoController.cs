@@ -64,13 +64,12 @@ public sealed class SsoController : ControllerBase
                 TwoFactorToken: result.TwoFactorToken,
                 EmailFallbackAvailable: result.EmailFallbackAvailable,
                 SmsFallbackAvailable: result.SmsFallbackAvailable,
-                WhatsAppFallbackAvailable: result.WhatsAppFallbackAvailable,
                 Session: null));
 
         // Another session already active for this site — ask before removing anything.
         if (result.RequiresSessionConfirmation)
             return Ok(new SsoLoginResponse(
-                false, null, false, false, false, Session: null,
+                false, null, false, false, Session: null,
                 RequiresSessionConfirmation: true,
                 SessionConfirmationTicket: result.SessionConfirmationTicket,
                 ConflictingSessions: result.ConflictingSessions));
@@ -81,7 +80,7 @@ public sealed class SsoController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, new { error = refusalMsg });
         }
 
-        return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
+        return Ok(new SsoLoginResponse(false, null, false, false, IssueSession(result.Tokens!)));
     }
 
     /// <summary>Which social providers the login screen should offer — only the ones an Admin has
@@ -140,7 +139,7 @@ public sealed class SsoController : ControllerBase
 
         if (result.RequiresSessionConfirmation)
             return Ok(new SsoLoginResponse(
-                false, null, false, false, false, Session: null,
+                false, null, false, false, Session: null,
                 RequiresSessionConfirmation: true,
                 SessionConfirmationTicket: result.SessionConfirmationTicket,
                 ConflictingSessions: result.ConflictingSessions));
@@ -156,7 +155,7 @@ public sealed class SsoController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, new { error = refusalMsg });
         }
 
-        return Ok(new SsoLoginResponse(false, null, false, false, false, IssueSession(result.Tokens!)));
+        return Ok(new SsoLoginResponse(false, null, false, false, IssueSession(result.Tokens!)));
     }
 
     /// <summary>Answers a session-conflict prompt: removes whichever other sessions on this same
@@ -192,16 +191,6 @@ public sealed class SsoController : ControllerBase
     public async Task<IActionResult> SendSmsOtp(SendSmsOtpRequest request)
     {
         await _auth.SendSmsOtpAsync(request);
-        return Accepted(); // Do not reveal whether a phone number is on file.
-    }
-
-    /// <summary>Sends the WhatsApp-fallback OTP for a pending two-factor session.</summary>
-    [HttpPost("2fa/whatsapp/send")]
-    [AllowAnonymous]
-    [EnableRateLimiting("auth")]
-    public async Task<IActionResult> SendWhatsAppOtp(SendWhatsAppOtpRequest request)
-    {
-        await _auth.SendWhatsAppOtpAsync(request);
         return Accepted(); // Do not reveal whether a phone number is on file.
     }
 

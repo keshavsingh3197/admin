@@ -20,7 +20,7 @@ when it ships; don't delete history.
 - **A real `IEmailSender` / `ISmsSender`.** Both are still wired to the `Logging*` stubs
   (`Program.cs`), so the email and SMS two-factor fallbacks silently deliver nothing in production.
   Either wire a provider or hide those options in the UI, so a locked-out user is not offered a
-  channel that cannot deliver. (WhatsApp is real; email and SMS are not.)
+  channel that cannot deliver.
 - **Split the largest frontend components.** `localization.component.ts` (60 KB),
   `finance-manage.component.ts` (46 KB), `messages.component.ts` (38 KB) and
   `call.service.ts` (37 KB) each carry template, styles and logic in one file, and have no tests.
@@ -79,7 +79,7 @@ when it ships; don't delete history.
   email (`IAuthUserStore.FindByLoginAsync`, no new-account path exists at all); refuses if no match /
   inactive / locked; refuses with "enroll 2FA first" if `TwoFactorEnabled` is false; otherwise mints
   the SAME two-factor step-token password login does, so `VerifyTwoFactorAsync` and every existing
-  2FA endpoint/UI need zero changes — 2FA is not optional here regardless of the email/SMS/WhatsApp
+  2FA endpoint/UI need zero changes — 2FA is not optional here regardless of the email/SMS
   fallback toggles. New `AuthEvents.LoginSocial{Success,Failed,Blocked}`. Since content-blog/
   ghar-ledger have no login UI of their own and redirect to admin to sign in, this reaches the whole
   family automatically without touching those repos.
@@ -91,7 +91,7 @@ when it ships; don't delete history.
   AES-GCM pattern as the Packages OAuth flow, stands in for auth). The callback exchanges the code,
   reads the account's verified PRIMARY email via `GET https://api.github.com/user/emails` (never the
   public/possibly-unverified `/user` email field), then redirects back to `/login` with either
-  `?twoFactorToken=&emailFallback=&smsFallback=&whatsAppFallback=` (existing 2FA screen takes over,
+  `?twoFactorToken=&emailFallback=&smsFallback=` (existing 2FA screen takes over,
   unchanged) or `?socialError=<reason>`.
   Frontend: `login.component.ts` gained a "Sign in with GitHub" button and reads those same query
   params on `ngOnInit` (skipping the silent-session check when present) to land straight on the 2FA

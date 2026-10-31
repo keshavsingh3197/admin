@@ -31,14 +31,13 @@ export interface SsoLoginResponse {
   twoFactorToken?: string;
   emailFallbackAvailable: boolean;
   smsFallbackAvailable: boolean;
-  whatsAppFallbackAvailable: boolean;
   session?: SsoSessionResponse;
   requiresSessionConfirmation: boolean;
   sessionConfirmationTicket?: string | null;
   conflictingSessions?: SessionConflictInfo[] | null;
 }
 
-export type TwoFactorMethod = 'Totp' | 'Email' | 'BackupCode' | 'Sms' | 'WhatsApp';
+export type TwoFactorMethod = 'Totp' | 'Email' | 'BackupCode' | 'Sms';
 
 export interface EnrollStartResponse {
   secret: string;

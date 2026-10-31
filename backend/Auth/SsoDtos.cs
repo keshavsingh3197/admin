@@ -19,7 +19,6 @@ public sealed record SsoLoginResponse(
     string? TwoFactorToken,
     bool EmailFallbackAvailable,
     bool SmsFallbackAvailable,
-    bool WhatsAppFallbackAvailable,
     SsoSessionResponse? Session,
     bool RequiresSessionConfirmation = false,
     string? SessionConfirmationTicket = null,

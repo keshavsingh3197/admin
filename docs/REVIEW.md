@@ -314,7 +314,7 @@ session and the legitimate user is silently signed out, so theft looks like a gl
 
 **Fix:** on finding a record whose `RevokedAt` is set, revoke every active token for that user
 (`RevokeAllForUserAsync`) and audit it as a security event — this is OAuth 2.0 Security BCP §4.13.2.
-`MongoAuditSink` already has a WhatsApp alert path for exactly this class of event.
+Admin persists these events through `AdminAuthAuditSink`, without outbound notifications.
 
 ### M7 — Login timing distinguishes real accounts from unknown ones
 
@@ -349,13 +349,8 @@ rather than in one `OR`.
 
 **Where:** `KeshavSingh-Packages-Core/src/KeshavSingh.Core/MongoAuditSink.cs:61`
 
-`await _whatsApp.SendAlertAsync(...)` runs inline in the request path on every lockout — an outbound
-HTTPS call to Meta's Cloud API that the user's login response waits on. A slow or hanging Meta endpoint
-directly slows the auth path, exactly when it is under attack. The failure is caught, so it cannot
-error the request; it can only stall it.
-
-**Fix:** queue it (a `Channel<T>` + hosted service) or at minimum bound it with an explicit
-`HttpClient` timeout.
+**Resolved in admin:** `AdminAuthAuditSink` preserves the audit collection/schema and indexes but has
+no outbound notification dependency. The shared package sink is no longer registered in admin.
 
 ### L3 — Legacy JWT handler
 
@@ -368,7 +363,7 @@ maintenance mode for some time in favour of `Microsoft.IdentityModel.JsonWebToke
 ### L4 — No key rotation path for either symmetric key
 
 `DataProtector` (`KeshavSingh.Security/DataProtector.cs`) writes `nonce | tag | ciphertext` with no key
-version byte, so rotating `Encryption:DataKey` makes every stored TOTP secret, WhatsApp token, S3 secret
+version byte, so rotating `Encryption:DataKey` makes every stored TOTP secret, S3 secret
 and OAuth client secret permanently undecryptable, with no migration path. Similarly `JwtService` has no
 `kid` header, so the shared HS256 signing key cannot be rotated without simultaneously restarting every
 service in the family.
@@ -582,8 +577,8 @@ Ranked by likely impact:
 - **Admin-visible session management.** `ListAllActiveForUserAsync` already exists in the store and
   `SessionsController` exposes some of this — extend it to "sign out every device", surfaced in the UI
   and triggered automatically on password change (M5).
-- **Security event notifications to the affected user**, not just the admin WhatsApp number: new device
-  sign-in, 2FA changed, password changed. The `IEmailSender`/`IWhatsAppSender` abstractions are already
+- **Security event notifications to the affected user:** new device
+  sign-in, 2FA changed, password changed. The `IEmailSender` abstraction is already
   in place — and note that `IEmailSender` is still wired to `LoggingEmailSender` (`Program.cs:129`), so
   no email actually leaves the system today. That is worth knowing.
 

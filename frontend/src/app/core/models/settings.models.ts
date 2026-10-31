@@ -5,7 +5,6 @@ export interface SettingsView {
   blogAdminUrl: string;
   emailTwoFactorEnabled: boolean;
   smsTwoFactorEnabled: boolean;
-  whatsAppTwoFactorEnabled: boolean;
   accessTokenMinutes: number;
   refreshTokenDays: number;
   twoFactorTokenMinutes: number;
@@ -18,10 +17,6 @@ export interface SettingsView {
   maxFailedLoginAttempts: number;
   lockoutMinutes: number;
   backupCodeCount: number;
-  whatsAppAlertsEnabled: boolean;
-  whatsAppAccessTokenSet: boolean;
-  whatsAppPhoneNumberId: string;
-  whatsAppAlertToNumber: string;
   storageProvider: string;            // 'Local' | 'S3'
   storageS3ServiceUrl: string;
   storageS3Bucket: string;
@@ -51,12 +46,11 @@ export interface SettingsView {
 
 /**
  * The *Set booleans are read-only (server tells us whether a secret is stored); write the secrets
- * via whatsAppAccessToken / storageS3SecretAccessKey instead — a blank value keeps the stored one.
+ * via storageS3SecretAccessKey or the other secret inputs — a blank value keeps the stored one.
  */
 export type UpdateSettingsRequest =
-  Partial<Omit<SettingsView, 'updatedAt' | 'oAuthCallbackUrl' | 'whatsAppAccessTokenSet' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet' | 'gitHubOAuthClientSecretSet' | 'linkedInOAuthClientSecretSet' | 'webAuthnRelyingPartyId' | 'webAuthnOriginsPendingRestart'>>
+  Partial<Omit<SettingsView, 'updatedAt' | 'oAuthCallbackUrl' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet' | 'gitHubOAuthClientSecretSet' | 'linkedInOAuthClientSecretSet'>>
   & {
-    whatsAppAccessToken?: string;
     storageS3SecretAccessKey?: string;
     gitHubPackagesToken?: string;
     gitHubOAuthClientSecret?: string;

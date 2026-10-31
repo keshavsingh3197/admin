@@ -120,23 +120,19 @@ builder.Services.AddSingleton<DataProtector>();
 builder.Services.AddSingleton<JwtService>();
 
 // ---- Shared auth engine (KeshavSingh.Auth) + this app's storage adapters ----
-// MongoRefreshTokenStore/MongoAuditSink come from KeshavSingh.Core (shared with content-blog).
+// MongoRefreshTokenStore comes from KeshavSingh.Core (shared with content-blog).
 // Single-session-per-user is enforced by AuthEngine itself now (scoped per site via AppKey, with
 // a block-and-confirm prompt), so the store no longer needs a settings callback wired into it.
 builder.Services.AddScoped<IAuthUserStore, MongoAuthUserStore>();
 builder.Services.AddScoped<IRefreshTokenStore, MongoRefreshTokenStore>();
-builder.Services.AddScoped<IAuthAuditSink, MongoAuditSink>();
+builder.Services.AddScoped<IAuthAuditSink, AdminAuthAuditSink>();
 // Auth settings are DB-backed (editable at runtime on the Settings screen) and also serve as the
 // engine's IAuthSettings. Seeded from the "Auth" config on first run (see SettingsService.InitAsync).
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<IAuthSettings>(sp => sp.GetRequiredService<SettingsService>());
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddSingleton<ISmsSender, LoggingSmsSender>();
-// WhatsApp security alerts (e.g. account lockout) via KeshavSingh.Core's Meta Cloud API notifier.
-builder.Services.AddSingleton<IWhatsAppSettings>(sp => sp.GetRequiredService<SettingsService>());
-builder.Services.AddSingleton<WhatsAppNotifier>();
-// Same notifier also delivers the WhatsApp-fallback 2FA OTP, to the signed-in user's own number.
-builder.Services.AddSingleton<IWhatsAppSender, WhatsAppOtpSender>();
+builder.Services.AddSingleton<IWhatsAppSender, DisabledWhatsAppSender>();
 builder.Services.AddKeshavAuthEngine();
 builder.Services.AddScoped<AdminSeeder>();
 // OAuth: one signed state + one registered redirect URI shared by social sign-in and the Packages
@@ -159,7 +155,7 @@ builder.Services.AddScoped<SessionMinter>();
 
 // ---- Controllers (incl. the shared /api/auth controller from the package) ----
 builder.Services
-    .AddControllers()
+    .AddControllers(o => o.Filters.Add<DisabledOtpChannelFilter>())
     .AddKeshavAuthControllers()
     .AddKeshavChatControllers()
     // /api/i18n/** (public reads + the editorial surface) and /api/app-config/** (Admin-only).

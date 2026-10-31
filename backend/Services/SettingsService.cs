@@ -19,7 +19,7 @@ namespace Admin.Api.Services;
 /// Also the runtime <see cref="IStorageSettingsSource"/> so the file-storage backend picks up
 /// provider/credential changes made here without a restart.
 /// </summary>
-public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorageSettingsSource
+public sealed class SettingsService : IAuthSettings, IStorageSettingsSource
 {
     private readonly IMongoCollection<AppSettings> _col;
     private readonly IMongoCollection<AppConfig> _appConfigCol;
@@ -51,7 +51,8 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     // ---- IAuthSettings (read by the engine) ----
     public bool EmailTwoFactorEnabled => _current.EmailTwoFactorEnabled;
     public bool SmsTwoFactorEnabled => _current.SmsTwoFactorEnabled;
-    public bool WhatsAppTwoFactorEnabled => _current.WhatsAppTwoFactorEnabled;
+    // Required by the shared package; legacy DB/config values must never enable this channel.
+    public bool WhatsAppTwoFactorEnabled => false;
     public int EmailOtpMinutes => _current.EmailOtpMinutes;
     public int MaxFailedLoginAttempts => _current.MaxFailedLoginAttempts;
     public int LockoutMinutes => _current.LockoutMinutes;
@@ -64,12 +65,6 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     public int AnalyticsRetentionDays => _current.AnalyticsRetentionDays;
     public int LoginAuditRetentionDays => _current.LoginAuditRetentionDays;
     public int AdminAuditRetentionDays => _current.AdminAuditRetentionDays;
-
-    // ---- IWhatsAppSettings (read by WhatsAppNotifier) ----
-    public bool WhatsAppAlertsEnabled => _current.WhatsAppAlertsEnabled;
-    public string WhatsAppAccessToken => Decrypt(_current.WhatsAppAccessTokenEncrypted) ?? string.Empty;
-    public string WhatsAppPhoneNumberId => _current.WhatsAppPhoneNumberId;
-    public string WhatsAppAlertToNumber => _current.WhatsAppAlertToNumber;
 
     // ---- GitHub Packages token (read by PackageInventoryService) ----
     public string? GitHubPackagesToken => Decrypt(_current.GitHubPackagesTokenEncrypted);
@@ -124,49 +119,26 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         }
         else
         {
-            // First run: seed from the "Auth" + "PublicConfig" config so behaviour is unchanged until edited.
-            var seeded = new AppSettings
-            {
-                SiteTitle = _publicSeed.SiteTitle,
-                BlogUrl = _publicSeed.BlogUrl,
-                BlogAdminUrl = _publicSeed.BlogAdminUrl,
-                EmailTwoFactorEnabled = _seed.EmailTwoFactorEnabled,
-                SmsTwoFactorEnabled = _seed.SmsTwoFactorEnabled,
-                WhatsAppTwoFactorEnabled = _seed.WhatsAppTwoFactorEnabled,
-                AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
-                RefreshTokenDays = _jwtSeed.RefreshTokenDays,
-                TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
-                EnforceSingleSessionPerUser = true,
-                RefreshTokenRetentionDays = 30,
-                AnalyticsRetentionDays = 90,
-                LoginAuditRetentionDays = 180,
-                AdminAuditRetentionDays = 730,
-                EmailOtpMinutes = _seed.EmailOtpMinutes,
-                MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
-                LockoutMinutes = _seed.LockoutMinutes,
-                BackupCodeCount = _seed.BackupCodeCount,
-                StorageProvider = _storageSeed.Provider,
-            };
-            await _col.ReplaceOneAsync(s => s.Id == AppSettings.SingletonId, seeded,
-                new ReplaceOptions { IsUpsert = true });
-            _current = seeded;
-        }
-
-        _appConfig = await _appConfigCol.Find(c => c.Id == AppConfig.SingletonId).FirstOrDefaultAsync()
-            ?? new AppConfig
-            {
-                WebAuthn = new AppConfig.WebAuthnConfig
-                {
-                    RelyingPartyId = _webAuthnStartup.RelyingPartyId,
-                    RelyingPartyName = _webAuthnStartup.RelyingPartyName,
-                    Origins = _webAuthnStartup.Origins.ToList(),
-                    ChallengeMinutes = _webAuthnStartup.ChallengeMinutes,
-                    MaxCredentialsPerUser = _webAuthnStartup.MaxCredentialsPerUser,
-                }
-            };
-        _appConfig.WebAuthn ??= new AppConfig.WebAuthnConfig();
-        _appConfig.WebAuthn.Origins ??= _webAuthnStartup.Origins.ToList();
-        await _appConfigCol.ReplaceOneAsync(c => c.Id == AppConfig.SingletonId, _appConfig,
+            SiteTitle = _publicSeed.SiteTitle,
+            BlogUrl = _publicSeed.BlogUrl,
+            BlogAdminUrl = _publicSeed.BlogAdminUrl,
+            EmailTwoFactorEnabled = _seed.EmailTwoFactorEnabled,
+            SmsTwoFactorEnabled = _seed.SmsTwoFactorEnabled,
+            AccessTokenMinutes = _jwtSeed.AccessTokenMinutes,
+            RefreshTokenDays = _jwtSeed.RefreshTokenDays,
+            TwoFactorTokenMinutes = _jwtSeed.TwoFactorTokenMinutes,
+            EnforceSingleSessionPerUser = true,
+            RefreshTokenRetentionDays = 30,
+            AnalyticsRetentionDays = 90,
+            LoginAuditRetentionDays = 180,
+            AdminAuditRetentionDays = 730,
+            EmailOtpMinutes = _seed.EmailOtpMinutes,
+            MaxFailedLoginAttempts = _seed.MaxFailedLoginAttempts,
+            LockoutMinutes = _seed.LockoutMinutes,
+            BackupCodeCount = _seed.BackupCodeCount,
+            StorageProvider = _storageSeed.Provider,
+        };
+        await _col.ReplaceOneAsync(s => s.Id == AppSettings.SingletonId, seeded,
             new ReplaceOptions { IsUpsert = true });
     }
 
@@ -174,12 +146,10 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     {
         var s = _current;
         return new SettingsView(s.SiteTitle, s.BlogUrl, s.BlogAdminUrl, s.EmailTwoFactorEnabled,
-            s.SmsTwoFactorEnabled, s.WhatsAppTwoFactorEnabled, s.AccessTokenMinutes, s.RefreshTokenDays, s.TwoFactorTokenMinutes,
+            s.SmsTwoFactorEnabled, s.AccessTokenMinutes, s.RefreshTokenDays, s.TwoFactorTokenMinutes,
             s.EnforceSingleSessionPerUser, s.RefreshTokenRetentionDays, s.AnalyticsRetentionDays,
             s.LoginAuditRetentionDays, s.AdminAuditRetentionDays,
             s.EmailOtpMinutes, s.MaxFailedLoginAttempts, s.LockoutMinutes, s.BackupCodeCount,
-            s.WhatsAppAlertsEnabled, !string.IsNullOrEmpty(s.WhatsAppAccessTokenEncrypted),
-            s.WhatsAppPhoneNumberId, s.WhatsAppAlertToNumber,
             s.StorageProvider, s.StorageS3ServiceUrl, s.StorageS3Bucket, s.StorageS3AccessKeyId,
             !string.IsNullOrEmpty(s.StorageS3SecretAccessKeyEncrypted),
             !string.IsNullOrEmpty(s.GitHubPackagesTokenEncrypted),
@@ -247,7 +217,6 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         if (r.BlogAdminUrl is not null) s.BlogAdminUrl = ValidateLauncherUrl(r.BlogAdminUrl, nameof(r.BlogAdminUrl));
         if (r.EmailTwoFactorEnabled is { } e) s.EmailTwoFactorEnabled = e;
         if (r.SmsTwoFactorEnabled is { } sm) s.SmsTwoFactorEnabled = sm;
-        if (r.WhatsAppTwoFactorEnabled is { } wa2fa) s.WhatsAppTwoFactorEnabled = wa2fa;
         if (r.AccessTokenMinutes is { } atm) s.AccessTokenMinutes = Math.Clamp(atm, 1, 240);
         if (r.RefreshTokenDays is { } rtd) s.RefreshTokenDays = Math.Clamp(rtd, 1, 90);
         if (r.TwoFactorTokenMinutes is { } tft) s.TwoFactorTokenMinutes = Math.Clamp(tft, 1, 30);
@@ -262,10 +231,6 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         if (r.LockoutMinutes is { } lm) s.LockoutMinutes = Math.Clamp(lm, 1, 1440);
         if (r.BackupCodeCount is { } bc) s.BackupCodeCount = Math.Clamp(bc, 5, 20);
 
-        if (r.WhatsAppAlertsEnabled is { } wae) s.WhatsAppAlertsEnabled = wae;
-        if (!string.IsNullOrEmpty(r.WhatsAppAccessToken)) s.WhatsAppAccessTokenEncrypted = _protector.Encrypt(r.WhatsAppAccessToken);
-        if (r.WhatsAppPhoneNumberId is not null) s.WhatsAppPhoneNumberId = r.WhatsAppPhoneNumberId.Trim();
-        if (r.WhatsAppAlertToNumber is not null) s.WhatsAppAlertToNumber = r.WhatsAppAlertToNumber.Trim();
 
         // File storage backend. Provider is allow-listed; the S3 endpoint must be an absolute https URL.
         // The secret key is write-only: a non-empty value replaces it (encrypted), blank keeps the stored one.
@@ -362,7 +327,6 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
     {
         Id = s.Id, SiteTitle = s.SiteTitle, BlogUrl = s.BlogUrl, BlogAdminUrl = s.BlogAdminUrl,
         EmailTwoFactorEnabled = s.EmailTwoFactorEnabled, SmsTwoFactorEnabled = s.SmsTwoFactorEnabled,
-        WhatsAppTwoFactorEnabled = s.WhatsAppTwoFactorEnabled,
         AccessTokenMinutes = s.AccessTokenMinutes, RefreshTokenDays = s.RefreshTokenDays,
         TwoFactorTokenMinutes = s.TwoFactorTokenMinutes,
         EnforceSingleSessionPerUser = s.EnforceSingleSessionPerUser,
@@ -372,10 +336,6 @@ public sealed class SettingsService : IAuthSettings, IWhatsAppSettings, IStorage
         AdminAuditRetentionDays = s.AdminAuditRetentionDays,
         EmailOtpMinutes = s.EmailOtpMinutes, MaxFailedLoginAttempts = s.MaxFailedLoginAttempts,
         LockoutMinutes = s.LockoutMinutes, BackupCodeCount = s.BackupCodeCount,
-        WhatsAppAlertsEnabled = s.WhatsAppAlertsEnabled,
-        WhatsAppAccessTokenEncrypted = s.WhatsAppAccessTokenEncrypted,
-        WhatsAppPhoneNumberId = s.WhatsAppPhoneNumberId,
-        WhatsAppAlertToNumber = s.WhatsAppAlertToNumber,
         StorageProvider = s.StorageProvider,
         StorageS3ServiceUrl = s.StorageS3ServiceUrl,
         StorageS3Bucket = s.StorageS3Bucket,

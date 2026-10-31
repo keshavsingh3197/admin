@@ -35,7 +35,7 @@ public static class StartupInitializationExtensions
         {
             await ((MongoRefreshTokenStore)authIndexScope.ServiceProvider.GetRequiredService<IRefreshTokenStore>())
                 .EnsureIndexesAsync();
-            await ((MongoAuditSink)authIndexScope.ServiceProvider.GetRequiredService<IAuthAuditSink>())
+            await ((AdminAuthAuditSink)authIndexScope.ServiceProvider.GetRequiredService<IAuthAuditSink>())
                 .EnsureIndexesAsync();
         }
         await services.GetRequiredService<WebsiteRegistryService>()
