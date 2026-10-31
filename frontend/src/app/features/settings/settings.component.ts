@@ -163,6 +163,20 @@ interface SettingsImportPayload {
           <p class="hint">Social sign-in never creates an account: it signs in an existing user whose email
              matches the provider's <em>verified</em> address, and always still asks for the second factor.</p>
 
+          <h2>Passkey sign-in (WebAuthn)</h2>
+          <p class="hint">Only exact browser origins listed here can complete a passkey sign-in. Each origin must use HTTPS and belong to the relying-party domain or one of its subdomains. Enter one origin per line. The relying-party ID is <code>{{ m.webAuthnRelyingPartyId }}</code>;
+            changing it can make existing passkeys unusable.</p>
+          <label class="field"><span>Allowed WebAuthn origins</span>
+            <textarea class="input" rows="5" name="webAuthnOrigins" [(ngModel)]="webAuthnOriginsInput"
+              placeholder="https://app.example.com"></textarea>
+          </label>
+          @if (!webAuthnOriginsInput.trim()) {
+            <p class="hint warn" role="alert">No passkey origins are configured. Add the exact origin for every app that offers passkey sign-in; an unlisted app's passkey verification will be rejected.</p>
+          }
+          @if (m.webAuthnOriginsPendingRestart) {
+            <p class="hint warn" role="status">Saved WebAuthn origin changes are not active yet. Restart the identity-provider service to apply them.</p>
+          }
+
           <h2>Package inventory (GitHub)</h2>
           <p class="hint">Powers the <a routerLink="/packages">Packages</a> screen: a token with
              <code>read:packages</code> (and <code>repo</code> if any workspace repo is private) lets it
@@ -345,6 +359,7 @@ export class SettingsComponent implements OnInit {
   gitHubOAuthClientSecretInput = '';
   /** Write-only draft for the LinkedIn OAuth Client Secret; blank means "leave the stored secret unchanged". */
   linkedInOAuthClientSecretInput = '';
+  webAuthnOriginsInput = '';
   readonly connectingGitHub = signal(false);
 
   /** Repository picker for the Packages scan. `selectedRepos` is what gets saved; `repoResults` is
@@ -409,6 +424,7 @@ export class SettingsComponent implements OnInit {
         this.model.set(settings);
         this.websites.set(websites);
         this.selectedRepos.set([...settings.packageInventoryRepositories].sort());
+        this.webAuthnOriginsInput = settings.webAuthnOrigins.join('\n');
         this.clearSecretDrafts();
         this.loading.set(false);
         this.searchRepos();
@@ -430,10 +446,13 @@ export class SettingsComponent implements OnInit {
         this.busy.set(false);
         this.model.set(s);
         this.selectedRepos.set([...s.packageInventoryRepositories].sort());
+        this.webAuthnOriginsInput = s.webAuthnOrigins.join('\n');
         this.clearSecretDrafts();
         this.config.refresh(); // Propagate launcher/branding changes to the cached central config.
         this.ok.set(true);
-        this.message.set('Settings saved.');
+        this.message.set(s.webAuthnOriginsPendingRestart
+          ? 'Settings saved. Restart the identity provider for passkey origin changes to take effect.'
+          : 'Settings saved.');
       },
       error: (err: HttpErrorResponse) => { this.busy.set(false); this.fail(err, 'Could not save settings.'); },
     });
@@ -485,9 +504,11 @@ export class SettingsComponent implements OnInit {
         ...current,
         ...(raw.settings ?? {}),
       };
+      this.webAuthnOriginsInput = (merged.webAuthnOrigins ?? []).join('\n');
 
       const savedSettings = await firstValueFrom(this.api.update(this.toUpdateRequest(merged)));
       this.model.set(savedSettings);
+      this.webAuthnOriginsInput = savedSettings.webAuthnOrigins.join('\n');
 
       if (Array.isArray(raw.websites) && raw.websites.length > 0) {
         await this.upsertImportedWebsites(raw.websites);
@@ -572,6 +593,7 @@ export class SettingsComponent implements OnInit {
       linkedInOAuthClientId: m.linkedInOAuthClientId,
       ...(this.linkedInOAuthClientSecretInput ? { linkedInOAuthClientSecret: this.linkedInOAuthClientSecretInput } : {}),
       packageInventoryRepositories: this.selectedRepos(),
+      webAuthnOrigins: this.webAuthnOriginsInput.split(/\r?\n/).map(origin => origin.trim()).filter(Boolean),
     };
   }
 

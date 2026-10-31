@@ -44,6 +44,13 @@ Wiring is three lines in `Program.cs` (`AddKeshavLocalization`, two `AddLocaliza
 The two singleton documents that already existed are unchanged: `config`/`app-config` still carries
 startup infrastructure config, and `settings`/`app-settings` the auth knobs and launcher URLs.
 
+The identity provider's WebAuthn origins are managed on **Admin → Settings → Passkey sign-in**.
+Add the exact HTTPS origin for each app that offers passkey login; the server accepts only origins
+on the configured relying-party domain or one of its subdomains. The allow-list is persisted in
+`config`/`app-config` under `WebAuthn.Origins` and is loaded when the identity provider starts;
+restart that service after changing it. Keep the relying-party ID unchanged so existing passkeys
+remain valid.
+
 ---
 
 ## How a client boots

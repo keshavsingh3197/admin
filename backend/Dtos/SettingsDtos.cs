@@ -34,6 +34,9 @@ public sealed record SettingsView(
     string LinkedInOAuthClientId,
     bool LinkedInOAuthClientSecretSet,
     IReadOnlyList<string> PackageInventoryRepositories,
+    string WebAuthnRelyingPartyId,
+    IReadOnlyList<string> WebAuthnOrigins,
+    bool WebAuthnOriginsPendingRestart,
     DateTime UpdatedAt);
 
 /// <summary>Partial update — only non-null fields are applied.</summary>
@@ -68,7 +71,8 @@ public sealed record UpdateSettingsRequest(
     bool? LinkedInSocialLoginEnabled,
     string? LinkedInOAuthClientId,
     string? LinkedInOAuthClientSecret,
-    IReadOnlyList<string>? PackageInventoryRepositories);
+    IReadOnlyList<string>? PackageInventoryRepositories,
+    IReadOnlyList<string>? WebAuthnOrigins);
 
 /// <summary>
 /// The non-secret, shareable config served publicly at <c>GET /api/config</c> for every
