@@ -80,7 +80,6 @@ public sealed class OAuthController : ControllerBase
                 + $"?twoFactorToken={Uri.EscapeDataString(result.TwoFactorToken!)}"
                 + $"&emailFallback={result.EmailFallbackAvailable}"
                 + $"&smsFallback={result.SmsFallbackAvailable}"
-                + $"&whatsAppFallback={result.WhatsAppFallbackAvailable}"
                 + returnParam);
         }
         catch (AuthException ex)

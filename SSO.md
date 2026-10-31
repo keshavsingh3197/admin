@@ -80,3 +80,17 @@ login/seed have been removed; its old user records are ignored.
 5. An admin-issued token is accepted by `content-blog-nms8.onrender.com/api`, and an
    `Editor`-gated content action authorizes.
    
+## Removed authentication channel
+
+Admin does not support WhatsApp OTP or security alerts. Settings and login responses no longer
+expose that channel. The shared auth engine still requires `IWhatsAppSender` and the
+`WhatsAppTwoFactorEnabled` setting; admin supplies a rejecting sender and always returns `false`,
+regardless of legacy database or environment values. Requests to the package's still-mounted send
+endpoint and verification requests selecting that method are rejected with HTTP 400 before engine
+execution. Existing numeric method values remain unchanged: TOTP 0, email 1, backup code 2, SMS 3;
+the reserved package value 4 is unsupported.
+
+Legacy settings fields are ignored when loading Mongo documents, so deployment needs no database
+changes. The database-console redaction entry for the old encrypted token is intentionally retained
+to protect historical records. Auth auditing uses `AdminAuthAuditSink`, preserving the shared
+collection/schema and indexes without the shared sink's mandatory notifier dependency.

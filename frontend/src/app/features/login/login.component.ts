@@ -116,9 +116,6 @@ import { createPasskeyErrorMessage, getPasskeyAssertion, isPasskeySupported, Ser
               @if (smsFallback()) {
                 <button type="button" class="linkish" (click)="sendSms()">Text me a code</button>
               }
-              @if (whatsAppFallback()) {
-                <button type="button" class="linkish" (click)="sendWhatsApp()">WhatsApp me a code</button>
-              }
             </div>
             <button type="button" class="linkish back" (click)="reset()">← Start over</button>
           </form>
@@ -217,7 +214,6 @@ export class LoginComponent implements OnInit {
       this.twoFactorToken = twoFactorToken;
       this.emailFallback.set(params.get('emailFallback')?.toLowerCase() === 'true');
       this.smsFallback.set(params.get('smsFallback')?.toLowerCase() === 'true');
-      this.whatsAppFallback.set(params.get('whatsAppFallback')?.toLowerCase() === 'true');
       this.method.set('Totp');
       this.step.set('twofactor');
       this.checking.set(false);
@@ -253,7 +249,6 @@ export class LoginComponent implements OnInit {
   readonly method = signal<TwoFactorMethod>('Totp');
   readonly emailFallback = signal(false);
   readonly smsFallback = signal(false);
-  readonly whatsAppFallback = signal(false);
 
   /** Whether this browser can do WebAuthn at all — gates the passkey button. */
   readonly passkeySupported = isPasskeySupported();
@@ -306,7 +301,6 @@ export class LoginComponent implements OnInit {
       case 'BackupCode': return 'Backup code';
       case 'Email': return 'Emailed code';
       case 'Sms': return 'Texted code';
-      case 'WhatsApp': return 'WhatsApp code';
       default: return 'Authenticator code';
     }
   }
@@ -324,7 +318,6 @@ export class LoginComponent implements OnInit {
           this.twoFactorToken = res.twoFactorToken;
           this.emailFallback.set(res.emailFallbackAvailable);
           this.smsFallback.set(res.smsFallbackAvailable);
-          this.whatsAppFallback.set(res.whatsAppFallbackAvailable);
           this.method.set('Totp');
           this.step.set('twofactor');
         } else if (res.session) {
@@ -416,13 +409,6 @@ export class LoginComponent implements OnInit {
     this.auth.sendSmsOtp(this.twoFactorToken).subscribe({
       next: () => { this.useMethod('Sms'); this.errorMessage.set(null); },
       error: () => this.errorMessage.set('Could not send the SMS code.'),
-    });
-  }
-
-  sendWhatsApp(): void {
-    this.auth.sendWhatsAppOtp(this.twoFactorToken).subscribe({
-      next: () => { this.useMethod('WhatsApp'); this.errorMessage.set(null); },
-      error: () => this.errorMessage.set('Could not send the WhatsApp code.'),
     });
   }
 

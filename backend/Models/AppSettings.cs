@@ -7,6 +7,7 @@ namespace Admin.Api.Models;
 /// tune the auth-security parameters at runtime without a redeploy. The shared auth engine reads
 /// this via <c>IAuthSettings</c> (see <c>SettingsService</c>).
 /// </summary>
+[BsonIgnoreExtraElements]
 public sealed class AppSettings
 {
     public const string SingletonId = "app-settings";
@@ -23,11 +24,10 @@ public sealed class AppSettings
     public string BlogUrl { get; set; } = "https://blog.keshavsingh.in";
     public string BlogAdminUrl { get; set; } = "https://blog.keshavsingh.in/admin";
 
-    // Email/SMS/WhatsApp second-factor toggles. Admin uses logging notification stubs, so these
+    // Email/SMS second-factor toggles. Admin uses logging notification stubs, so these
     // stay off unless real senders are wired; TOTP (authenticator) 2FA works regardless via /security.
     public bool EmailTwoFactorEnabled { get; set; }
     public bool SmsTwoFactorEnabled { get; set; }
-    public bool WhatsAppTwoFactorEnabled { get; set; }
 
     public int EmailOtpMinutes { get; set; } = 5;
     public int MaxFailedLoginAttempts { get; set; } = 5;
@@ -48,15 +48,9 @@ public sealed class AppSettings
     /// </summary>
     public int AdminAuditRetentionDays { get; set; } = 730;
 
-    // ---- WhatsApp security alerts (Meta Cloud API), sent on account lockout ----
-    public bool WhatsAppAlertsEnabled { get; set; }
-    public string? WhatsAppAccessTokenEncrypted { get; set; }   // 🔒 AES-encrypted.
-    public string WhatsAppPhoneNumberId { get; set; } = string.Empty;
-    public string WhatsAppAlertToNumber { get; set; } = string.Empty;
-
     // ---- Private file storage backend (KeshavSingh.Storage), managed on the Settings screen ----
     // Provider "Local" keeps files on disk; "S3" uses an S3-compatible bucket (Cloudflare R2). The
-    // access key is an identifier (stored as-is); the secret is AES-encrypted like the WhatsApp token.
+    // access key is an identifier (stored as-is); the secret is AES-encrypted.
     public string StorageProvider { get; set; } = "Local";       // "Local" | "S3"
     public string StorageS3ServiceUrl { get; set; } = string.Empty;
     public string StorageS3Bucket { get; set; } = string.Empty;

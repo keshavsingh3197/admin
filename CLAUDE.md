@@ -46,8 +46,8 @@ mongosh "<connection string>" db/migrations/_run-all.mongodb.js
 where. `AddKeshavAuthControllers` / `AddKeshavChatControllers` / `AddKeshavLocalizationControllers`
 mount whole API surfaces (`/api/auth/*`, `/api/chat/*`, `/api/i18n/**`, `/api/app-config/**`) that
 have **no controller in this repo**; the app supplies only the adapters (`MongoAuthUserStore`,
-`AdminChatUserDirectory`, `SettingsService` as `IAuthSettings`/`IStorageSettingsSource`/
-`IWhatsAppSettings`, `PermissionsService` as `IPageAccessEvaluator`) and its own seeds. Before adding
+`AdminChatUserDirectory`, `SettingsService` as `IAuthSettings`/`IStorageSettingsSource`,
+`PermissionsService` as `IPageAccessEvaluator`) and its own seeds. Before adding
 an endpoint, check whether the package already owns that surface.
 
 **Configuration is layered, and the layer decides where an edit goes.**
@@ -57,7 +57,7 @@ an endpoint, check whether the package already owns that surface.
 | Secrets (`Jwt__SigningKey`, `Encryption__DataKey`, `MongoDbSettings__ConnectionString`, `Seed__*`, TURN) | env vars only | startup | Render dashboard / user-secrets |
 | `appsettings.json` | git | startup | code change + deploy |
 | Mongo `config` / `app-config` (non-secret Jwt/Sso/WebAuthn/Seed) | DB, layered over appsettings by `Auth/AppConfigLoader.cs` | **startup only** | migration or DB edit + **restart** |
-| Mongo `settings` / `app-settings` (auth knobs, branding, storage provider, WhatsApp) | DB, live via `SettingsService` | per request | admin Settings screen |
+| Mongo `settings` / `app-settings` (auth knobs, branding, storage provider) | DB, live via `SettingsService` | per request | admin Settings screen |
 | `locales` / `translations` / `config_entries` / `website_content` | DB | per request, cached + ETagged | admin Localization screen |
 
 `AppConfigLoader` never emits secret keys, so the DB layer can only override non-secret config.
