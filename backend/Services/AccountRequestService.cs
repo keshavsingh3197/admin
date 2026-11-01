@@ -1,3 +1,4 @@
+using Admin.Api.Auth;
 using Admin.Api.Dtos;
 using Admin.Api.Models;
 using KeshavSingh.Core;
@@ -195,13 +196,16 @@ public sealed class AccountRequestService
         InvalidRoles,
     }
 
-    /// <summary>Viewer unless the admin says otherwise, and never a role outside the known set.</summary>
+    /// <summary>
+    /// Viewer unless the admin says otherwise, and never a role outside the known set - the shared
+    /// roles, or a single app-scoped one such as StudioUser.
+    /// </summary>
     private static List<string>? NormalizeRoles(List<string>? roles)
     {
         if (roles is null || roles.Count == 0) return new List<string> { Roles.Viewer };
 
         var cleaned = roles.Where(r => !string.IsNullOrWhiteSpace(r)).Select(r => r.Trim()).Distinct().ToList();
-        return cleaned.All(Roles.IsValid) ? cleaned : null;
+        return AppScopedRoles.IsValidSet(cleaned) ? cleaned : null;
     }
 
     private static string? Trim(string? value) =>

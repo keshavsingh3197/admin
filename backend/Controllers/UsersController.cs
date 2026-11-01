@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Admin.Api.Auth;
 using Admin.Api.Dtos;
 using Admin.Api.Models;
 using Admin.Api.Services;
@@ -352,7 +353,7 @@ public sealed class UsersController : ControllerBase
     {
         if (roles is null || roles.Count == 0) return new List<string> { Roles.Viewer };
         var normalized = roles.Distinct().ToList();
-        return normalized.All(Roles.IsValid) ? normalized : null;
+        return AppScopedRoles.IsValidSet(normalized) ? normalized : null;
     }
 
     private static UserListItem Map(User u, IReadOnlyList<string> groupIds) => new(
