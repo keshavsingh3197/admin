@@ -48,6 +48,10 @@ export class SessionsComponent implements OnInit {
     'content-blog': 'Blog',
     portfolio: 'Portfolio',
     'ghar-ledger': 'Ghar Ledger',
+    pratiyogita: 'Pratiyogita',
+    studio: 'AnimStudio AI',
+    'social-analytics': 'Social Analytics',
+    'hindu-panchang': 'Hindu Panchang',
   };
 
   appDisplayName(appKey: string): string {
