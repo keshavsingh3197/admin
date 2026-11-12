@@ -144,8 +144,9 @@ import { LocaleView } from '../../core/models/localization.models';
             }
             <div class="app-form">
               <div class="grid-2"><label class="field"><span>Application key</span><input class="input" [(ngModel)]="appDraft.key" [readonly]="!!editingAppId" placeholder="portfolio"></label><label class="field"><span>Name</span><input class="input" [(ngModel)]="appDraft.name" placeholder="Portfolio"></label></div>
-              <label class="field"><span>URL</span><input class="input" type="url" [(ngModel)]="appDraft.url" placeholder="https://example.keshavsingh.in"></label>
-              <div class="grid-2"><label class="field"><span>Sort order</span><input class="input" type="number" [(ngModel)]="appDraft.sortOrder"></label><label class="check app-enabled"><input type="checkbox" [(ngModel)]="appDraft.isEnabled"> Enabled</label></div>
+              <div class="grid-2"><label class="field"><span>Icon / Emoji</span><input class="input" [(ngModel)]="appDraft.icon" placeholder="🌐"></label><label class="field"><span>URL</span><input class="input" type="url" [(ngModel)]="appDraft.url" placeholder="https://example.keshavsingh.in"></label></div>
+              <label class="field"><span>Description</span><input class="input" [(ngModel)]="appDraft.description" placeholder="Short description for ecosystem cards and funnels"></label>
+              <div class="grid-2"><label class="field"><span>Sort order</span><input class="input" type="number" [(ngModel)]="appDraft.sortOrder"></label><div class="check app-enabled" style="display:flex;gap:1rem;flex-wrap:wrap"><label class="check"><input type="checkbox" [(ngModel)]="appDraft.isEnabled"> Enabled</label><label class="check"><input type="checkbox" [(ngModel)]="appDraft.showInEcosystemBar"> Show in ecosystem bar</label></div></div>
               <div class="row-actions"><button class="btn primary" [disabled]="busy()" (click)="saveApplication()">{{ editingAppId ? 'Update application' : 'Create application' }}</button>@if (editingAppId) { <button class="btn danger" [disabled]="busy()" (click)="deleteApplication()">Delete</button> }</div>
             </div>
           </section>
@@ -226,7 +227,7 @@ export class WebsiteManageComponent implements OnInit {
 
   draft = this.blank();
   editingAppId: string | null = null;
-  appDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 0 };
+  appDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 0, icon: '🌐', description: '', showInEcosystemBar: true };
 
   ngOnInit(): void {
     this.settings.listWebsites().subscribe({
@@ -256,7 +257,16 @@ export class WebsiteManageComponent implements OnInit {
   selectApp(app: WebsiteLinkView): void {
     this.selectedApp.set(app);
     this.editingAppId = app.id;
-    this.appDraft = { key: app.key, name: app.name, url: app.url, isEnabled: app.isEnabled, sortOrder: app.sortOrder };
+    this.appDraft = {
+      key: app.key,
+      name: app.name,
+      url: app.url,
+      isEnabled: app.isEnabled,
+      sortOrder: app.sortOrder,
+      icon: app.icon ?? '🌐',
+      description: app.description ?? '',
+      showInEcosystemBar: app.showInEcosystemBar ?? true,
+    };
     this.appMetrics.set(null);
     this.settings.websiteMetrics(app.key).subscribe({ next: metrics => this.appMetrics.set(metrics), error: () => this.error.set('Could not load application metrics.') });
   }
@@ -265,13 +275,20 @@ export class WebsiteManageComponent implements OnInit {
     this.selectedApp.set(null);
     this.appMetrics.set(null);
     this.editingAppId = null;
-    this.appDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: this.sites().length };
+    this.appDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: this.sites().length, icon: '🌐', description: '', showInEcosystemBar: true };
   }
 
   saveApplication(): void {
     if (!this.appDraft.key.trim() || !this.appDraft.name.trim() || !this.appDraft.url.trim()) { this.error.set('Key, name, and URL are required.'); return; }
     this.busy.set(true);
-    const request = { ...this.appDraft, key: this.appDraft.key.trim(), name: this.appDraft.name.trim(), url: this.appDraft.url.trim() };
+    const request = {
+      ...this.appDraft,
+      key: this.appDraft.key.trim(),
+      name: this.appDraft.name.trim(),
+      url: this.appDraft.url.trim(),
+      icon: this.appDraft.icon.trim() || '🌐',
+      description: this.appDraft.description.trim(),
+    };
     const operation = this.editingAppId ? this.settings.updateWebsite(this.editingAppId, request) : this.settings.createWebsite(request);
     operation.subscribe({ next: saved => { this.busy.set(false); this.sites.update(items => [...items.filter(item => item.id !== saved.id), saved].sort((a, b) => a.sortOrder - b.sortOrder)); this.selectApp(saved); this.message.set(`Saved application ${saved.name}.`); }, error: (err: HttpErrorResponse) => { this.busy.set(false); this.error.set(err.error?.error ?? 'Could not save the application.'); } });
   }

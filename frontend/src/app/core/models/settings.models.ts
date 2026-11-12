@@ -69,6 +69,9 @@ export interface WebsiteLinkView {
   isEnabled: boolean;
   sortOrder: number;
   updatedAt: string;
+  icon?: string;
+  description?: string;
+  showInEcosystemBar?: boolean;
 }
 
 export interface UpsertWebsiteLinkRequest {
@@ -77,6 +80,9 @@ export interface UpsertWebsiteLinkRequest {
   url: string;
   isEnabled: boolean;
   sortOrder: number;
+  icon?: string;
+  description?: string;
+  showInEcosystemBar?: boolean;
 }
 
 export interface ApplicationMetrics {

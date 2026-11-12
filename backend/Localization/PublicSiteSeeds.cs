@@ -181,6 +181,21 @@ public sealed class PublicSiteSeeds : ILocalizationSeedSource
             + "path (+ optional query) for an in-site route or a url for an external one."),
         SeedBuilder.Config("blog.contact.email", "blog", ConfigValueType.String,
             "keshavsingh4522@gmail.com", ConfigScope.Public, "Contact address shown in the blog footer."),
+        SeedBuilder.Config("ecosystem.creatorName", "ecosystem", ConfigValueType.String,
+            "Keshav Singh", ConfigScope.Public, "Global creator/brand owner displayed across ecosystem headers and footers."),
+        SeedBuilder.Config("ecosystem.copyrightNotice", "ecosystem", ConfigValueType.String,
+            "© 2026 Keshav Singh. Part of the keshavsingh.in ecosystem. All rights reserved.",
+            ConfigScope.Public, "Global copyright line displayed in ecosystem app footers."),
+        SeedBuilder.Config("ecosystem.youtubeChannelName", "ecosystem", ConfigValueType.String,
+            "Keshav Singh Official", ConfigScope.Public, "Primary creator YouTube channel name."),
+        SeedBuilder.Config("ecosystem.youtubeChannelUrl", "ecosystem", ConfigValueType.String,
+            "https://www.youtube.com/@KeshavSingh", ConfigScope.Public, "Primary creator YouTube channel URL."),
+        SeedBuilder.Config("social.featuredPromoText", "social", ConfigValueType.String,
+            "Track multi-platform performance and funnel traffic directly into Keshav Singh ecosystem websites.",
+            ConfigScope.Public, "Global banner tagline shown on Social Analytics dashboard."),
+        SeedBuilder.Config("panchang.dailyBroadcastNote", "panchang", ConfigValueType.String,
+            "दैनिक वैदिक पंचांग, शुभ मुहूर्त, आज का इतिहास एवं सनातन ज्ञान प्रसार।",
+            ConfigScope.Public, "Global tagline shown on Hindu Panchang portal."),
     };
 
     // -----------------------------------------------------------------------------------------

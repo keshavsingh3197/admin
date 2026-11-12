@@ -32,35 +32,40 @@ public sealed class ConfigController : ControllerBase
     private readonly ConfigRegistryService _config;
     private readonly LocaleService _locales;
     private readonly TranslationService _translations;
+    private readonly WebsiteRegistryService _websites;
 
     public ConfigController(SettingsService settings, ConfigRegistryService config,
-        LocaleService locales, TranslationService translations)
+        LocaleService locales, TranslationService translations, WebsiteRegistryService websites)
     {
         _settings = settings;
         _config = config;
         _locales = locales;
         _translations = translations;
+        _websites = websites;
     }
 
     [HttpGet]
-    public ActionResult<AppConfigEnvelopeView> Get()
+    public async Task<ActionResult<AppConfigEnvelopeView>> Get(CancellationToken ct)
     {
         var authenticated = User.Identity?.IsAuthenticated == true;
         var settings = _settings.ToPublicConfig();
         var locales = _locales.Enabled;
+        var websites = await _websites.ListEcosystemAsync(ct);
+        var websitesTick = websites.Count > 0 ? websites.Max(w => w.UpdatedAt).Ticks : 0L;
 
         var envelope = new AppConfigEnvelopeView(
             settings.SiteTitle,
             settings.BlogUrl,
             settings.BlogAdminUrl,
-            // Combined so a change to either the registry or the settings moves the version.
-            $"{_config.Version}.{settings.UpdatedAt.Ticks:x}",
+            // Combined so a change to the registry, settings, or websites moves the version.
+            $"{_config.Version}.{settings.UpdatedAt.Ticks:x}.{websitesTick:x}",
             _locales.DefaultCode,
             locales.Select(LocaleService.ToPublic).ToList(),
             _config.ProjectForClient(authenticated),
             _config.ProjectTypesForClient(authenticated),
             locales.ToDictionary(l => l.Code, l => _translations.VersionFor(l.Code), StringComparer.Ordinal),
-            settings.UpdatedAt);
+            settings.UpdatedAt,
+            websites);
 
         var etag = $"\"{(authenticated ? "a" : "p")}-{envelope.Version}\"";
         if (Request.Headers.TryGetValue(HeaderNames.IfNoneMatch, out var inm) && inm.ToString().Contains(etag))
@@ -71,5 +76,13 @@ public sealed class ConfigController : ControllerBase
         Response.Headers.CacheControl = authenticated ? "private, max-age=30" : "public, max-age=60";
         Response.Headers.Vary = HeaderNames.Authorization;
         return Ok(envelope);
+    }
+
+    /// <summary>Public read of enabled ecosystem websites maintained in Admin Websites Registry.</summary>
+    [HttpGet("ecosystem")]
+    public async Task<ActionResult<IReadOnlyList<EcosystemWebsiteView>>> Ecosystem(CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "public, max-age=60";
+        return Ok(await _websites.ListEcosystemAsync(ct));
     }
 }

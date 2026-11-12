@@ -44,46 +44,97 @@ public sealed class WebsiteRegistryService
                 Url = NormalizeUrl(portfolioUrl, nameof(portfolioUrl)),
                 SortOrder = 5,
                 IsEnabled = true,
+                Icon = "💼",
+                Description = "Engineering portfolio, architecture resume, and project showcase.",
+                ShowInEcosystemBar = false,
             },
             new()
             {
                 Key = "blog",
-                Name = "Blog",
+                Name = "Content Blog",
                 Url = NormalizeUrl(blogUrl, nameof(blogUrl)),
-                SortOrder = 10,
+                SortOrder = 35,
                 IsEnabled = true,
+                Icon = "✍️",
+                Description = "Deep-dive programming tutorials, cloud guides, and interview prep notes.",
+                ShowInEcosystemBar = true,
             },
             new()
             {
                 Key = "studio",
-                Name = "AnimStudio AI",
+                Name = "Studio AI",
                 Url = NormalizeUrl(studioUrl, nameof(studioUrl)),
-                SortOrder = 15,
+                SortOrder = 10,
                 IsEnabled = true,
+                Icon = "🎬",
+                Description = "Generate viral 2D/3D AI animated stories and YouTube shorts in minutes.",
+                ShowInEcosystemBar = true,
             },
             new()
             {
                 Key = "blog-admin",
                 Name = "Blog Admin",
                 Url = NormalizeUrl(blogAdminUrl, nameof(blogAdminUrl)),
-                SortOrder = 20,
+                SortOrder = 45,
                 IsEnabled = true,
+                Icon = "📝",
+                Description = "Editorial studio and GitHub-synced publishing console for blog articles.",
+                ShowInEcosystemBar = false,
             },
             new()
             {
                 Key = "social",
                 Name = "Social Analytics",
                 Url = NormalizeUrl(socialUrl, nameof(socialUrl)),
-                SortOrder = 25,
+                SortOrder = 15,
                 IsEnabled = true,
+                Icon = "📊",
+                Description = "Creator analytics, RPM earnings intelligence & traffic funnel engine.",
+                ShowInEcosystemBar = true,
             },
             new()
             {
                 Key = "panchang",
                 Name = "Hindu Panchang",
                 Url = NormalizeUrl(panchangUrl, nameof(panchangUrl)),
+                SortOrder = 20,
+                IsEnabled = true,
+                Icon = "🕉️",
+                Description = "Daily Vedic calendar, muhurats, spiritual video hub & Aaj Ka Itihaas.",
+                ShowInEcosystemBar = true,
+            },
+            new()
+            {
+                Key = "ghar-ledger",
+                Name = "Ghar Ledger",
+                Url = NormalizeUrl("https://ghar.keshavsingh.in", "gharLedgerUrl"),
+                SortOrder = 25,
+                IsEnabled = true,
+                Icon = "🏠",
+                Description = "Household vendor ledgers, milk/newspaper tracking & expense settlements.",
+                ShowInEcosystemBar = true,
+            },
+            new()
+            {
+                Key = "pratiyogita",
+                Name = "Pratiyogita",
+                Url = NormalizeUrl("https://pratiyogita.keshavsingh.in", "pratiyogitaUrl"),
                 SortOrder = 30,
                 IsEnabled = true,
+                Icon = "🏆",
+                Description = "Community sports tournaments, live fixtures, leaderboards & news.",
+                ShowInEcosystemBar = true,
+            },
+            new()
+            {
+                Key = "admin",
+                Name = "Admin & SSO",
+                Url = NormalizeUrl("https://admin.keshavsingh.in", "adminUrl"),
+                SortOrder = 40,
+                IsEnabled = true,
+                Icon = "🛡️",
+                Description = "Central identity provider, RBAC permissions, global config & audit portal.",
+                ShowInEcosystemBar = true,
             }
         };
 
@@ -105,13 +156,17 @@ public sealed class WebsiteRegistryService
 
     public async Task<WebsiteLinkView> CreateAsync(UpsertWebsiteLinkRequest request, CancellationToken ct = default)
     {
+        var key = NormalizeKey(request.Key);
         var entity = new WebsiteLink
         {
-            Key = NormalizeKey(request.Key),
+            Key = key,
             Name = request.Name.Trim(),
             Url = NormalizeUrl(request.Url, nameof(request.Url)),
             IsEnabled = request.IsEnabled,
             SortOrder = request.SortOrder,
+            Icon = NormalizeIcon(request.Icon, key),
+            Description = (request.Description ?? string.Empty).Trim(),
+            ShowInEcosystemBar = request.ShowInEcosystemBar ?? true,
             UpdatedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
         };
@@ -131,6 +186,9 @@ public sealed class WebsiteRegistryService
             .Set(x => x.Url, NormalizeUrl(request.Url, nameof(request.Url)))
             .Set(x => x.IsEnabled, request.IsEnabled)
             .Set(x => x.SortOrder, request.SortOrder)
+            .Set(x => x.Icon, NormalizeIcon(request.Icon, key))
+            .Set(x => x.Description, (request.Description ?? string.Empty).Trim())
+            .Set(x => x.ShowInEcosystemBar, request.ShowInEcosystemBar ?? true)
             .Set(x => x.UpdatedAt, now);
 
         var updated = await _websites.FindOneAndUpdateAsync(x => x.Id == id, update,
@@ -145,8 +203,52 @@ public sealed class WebsiteRegistryService
     public async Task<IReadOnlyList<WebsiteLink>> ListEnabledAsync(CancellationToken ct = default)
         => await _websites.Find(x => x.IsEnabled).SortBy(x => x.SortOrder).ThenBy(x => x.Name).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<EcosystemWebsiteView>> ListEcosystemAsync(CancellationToken ct = default)
+    {
+        var enabled = await ListEnabledAsync(ct);
+        return enabled.Select(x => new EcosystemWebsiteView(
+            x.Key,
+            x.Name,
+            x.Url,
+            ResolveIcon(x.Icon, x.Key),
+            x.Description ?? string.Empty,
+            x.SortOrder,
+            x.ShowInEcosystemBar,
+            x.UpdatedAt)).ToList();
+    }
+
     private static WebsiteLinkView Map(WebsiteLink x) =>
-        new(x.Id, x.Key, x.Name, x.Url, x.IsEnabled, x.SortOrder, x.UpdatedAt);
+        new(
+            x.Id,
+            x.Key,
+            x.Name,
+            x.Url,
+            x.IsEnabled,
+            x.SortOrder,
+            x.UpdatedAt,
+            ResolveIcon(x.Icon, x.Key),
+            x.Description ?? string.Empty,
+            x.ShowInEcosystemBar);
+
+    private static string NormalizeIcon(string? icon, string key) =>
+        string.IsNullOrWhiteSpace(icon) ? DefaultIconForKey(key) : icon.Trim();
+
+    private static string ResolveIcon(string? icon, string key) =>
+        string.IsNullOrWhiteSpace(icon) ? DefaultIconForKey(key) : icon.Trim();
+
+    private static string DefaultIconForKey(string key) => key.ToLowerInvariant() switch
+    {
+        "studio" => "🎬",
+        "social" or "social-analytics" => "📊",
+        "panchang" or "hindu-panchang" => "🕉️",
+        "ghar-ledger" => "🏠",
+        "pratiyogita" => "🏆",
+        "blog" or "content-blog" => "✍️",
+        "admin" => "🛡️",
+        "portfolio" => "💼",
+        "blog-admin" => "📝",
+        _ => "🌐",
+    };
 
     private static string NormalizeKey(string key)
     {
