@@ -14,6 +14,12 @@ public sealed class WebsiteLink
     public string Url { get; set; } = string.Empty;
     public bool IsEnabled { get; set; } = true;
     public int SortOrder { get; set; }
+    [BsonDefaultValue("")]
+    public string Icon { get; set; } = string.Empty;
+    [BsonDefaultValue("")]
+    public string Description { get; set; } = string.Empty;
+    [BsonDefaultValue(true)]
+    public bool ShowInEcosystemBar { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
