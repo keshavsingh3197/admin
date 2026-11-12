@@ -31,6 +31,8 @@ public sealed class WebsiteRegistryService
     /// </summary>
     public async Task SeedDefaultsAsync(string blogUrl, string blogAdminUrl, string portfolioUrl,
         string studioUrl = "https://studio.keshavsingh.in",
+        string socialUrl = "https://social.keshavsingh.in",
+        string panchangUrl = "https://panchang.keshavsingh.in",
         CancellationToken ct = default)
     {
         var defaults = new List<WebsiteLink>
@@ -65,6 +67,22 @@ public sealed class WebsiteRegistryService
                 Name = "Blog Admin",
                 Url = NormalizeUrl(blogAdminUrl, nameof(blogAdminUrl)),
                 SortOrder = 20,
+                IsEnabled = true,
+            },
+            new()
+            {
+                Key = "social",
+                Name = "Social Analytics",
+                Url = NormalizeUrl(socialUrl, nameof(socialUrl)),
+                SortOrder = 25,
+                IsEnabled = true,
+            },
+            new()
+            {
+                Key = "panchang",
+                Name = "Hindu Panchang",
+                Url = NormalizeUrl(panchangUrl, nameof(panchangUrl)),
+                SortOrder = 30,
                 IsEnabled = true,
             }
         };

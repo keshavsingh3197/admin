@@ -28,6 +28,16 @@ services:
         value: https://blog.keshavsingh.in
       - key: AllowedOrigins__4
         value: https://keshavsingh.in
+      - key: AllowedOrigins__5
+        value: https://social.keshavsingh.in
+      - key: AllowedOrigins__6
+        value: https://panchang.keshavsingh.in
+      - key: AllowedOrigins__7
+        value: https://ghar.keshavsingh.in
+      - key: AllowedOrigins__8
+        value: https://pratiyogita.keshavsingh.in
+      - key: AllowedOrigins__9
+        value: https://studio.keshavsingh.in
       # ---- Auth secrets (runtime) — set values in the Render dashboard, never in git ----
       - key: Jwt__SigningKey        # >= 32 chars
         sync: false
