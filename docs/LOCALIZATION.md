@@ -175,7 +175,7 @@ These values are edited at runtime and most of them are rendered into anonymous 
 registry is validated like any other untrusted input:
 
 - **URLs and icons are allow-listed by host.** The deployment's `Localization:AllowedHosts`
-  (`keshavsingh.in`, `keshavsingh.net`) plus `localhost`, and subdomains of each; same-origin relative
+  (`keshavsingh.in`, `keshavsingh.net`, `youtube.com`, `youtu.be`) plus `localhost`, and subdomains of each; same-origin relative
   paths are always fine. Anything else is refused unless an Admin deliberately widens
   `config.url.allowedhosts` — an internal entry that is itself never served, and which can only widen,
   never narrow below what the deployment declared. No `data:` URIs, no inline SVG, no protocol-relative
