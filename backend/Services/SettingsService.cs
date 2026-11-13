@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Admin.Api.Auth;
 using Admin.Api.Dtos;
 using Admin.Api.Models;
@@ -182,6 +184,15 @@ public sealed class SettingsService : IAuthSettings, IStorageSettingsSource
             !string.IsNullOrEmpty(s.LinkedInOAuthClientSecretEncrypted), s.PackageInventoryRepositories,
             _appConfig.WebAuthn.RelyingPartyId, _appConfig.WebAuthn.Origins,
             !SameOrigins(_appConfig.WebAuthn.Origins, _webAuthnStartup.Origins, _appConfig.WebAuthn.RelyingPartyId),
+            !string.IsNullOrEmpty(s.YouTubeApiKeyEncrypted),
+            MaskEncryptedSecret(s.YouTubeApiKeyEncrypted, _protector),
+            s.GoogleOAuthClientId,
+            !string.IsNullOrEmpty(s.GoogleOAuthClientSecretEncrypted),
+            MaskEncryptedSecret(s.GoogleOAuthClientSecretEncrypted, _protector),
+            s.AdSenseClientId,
+            !string.IsNullOrEmpty(s.JamendoClientIdEncrypted),
+            MaskEncryptedSecret(s.JamendoClientIdEncrypted, _protector),
+            BuildAiProviderStatuses(s.AiProviderKeysEncrypted, _protector),
             s.UpdatedAt);
     }
 
@@ -291,6 +302,8 @@ public sealed class SettingsService : IAuthSettings, IStorageSettingsSource
             _cache.Remove("package-inventory");
         }
 
+        ApplyCentralIntegrations(s, r, _protector);
+
         s.UpdatedAt = DateTime.UtcNow;
         await _col.ReplaceOneAsync(x => x.Id == AppSettings.SingletonId, s,
             new ReplaceOptions { IsUpsert = true });
@@ -372,7 +385,188 @@ public sealed class SettingsService : IAuthSettings, IStorageSettingsSource
         LinkedInOAuthClientId = s.LinkedInOAuthClientId,
         LinkedInOAuthClientSecretEncrypted = s.LinkedInOAuthClientSecretEncrypted,
         PackageInventoryRepositories = [.. s.PackageInventoryRepositories],
+        YouTubeApiKeyEncrypted = s.YouTubeApiKeyEncrypted,
+        GoogleOAuthClientId = s.GoogleOAuthClientId,
+        GoogleOAuthClientSecretEncrypted = s.GoogleOAuthClientSecretEncrypted,
+        AdSenseClientId = s.AdSenseClientId,
+        JamendoClientIdEncrypted = s.JamendoClientIdEncrypted,
+        AiProviderKeysEncrypted = new Dictionary<string, string>(
+            s.AiProviderKeysEncrypted ?? new Dictionary<string, string>(),
+            StringComparer.OrdinalIgnoreCase),
     };
+
+    private sealed record AiProviderCatalogEntry(
+        string ProviderId,
+        string Label,
+        string Capability,
+        string Hint,
+        string KeyUrl);
+
+    private static readonly IReadOnlyList<AiProviderCatalogEntry> HostedAiCatalog =
+    [
+        new("groq", "Groq", "Text", "Fast free-tier LLM inference (Llama 3.3 70B & 8B).", "https://console.groq.com/keys"),
+        new("gemini", "Google Gemini", "Text", "AI Studio free/tiered key for Hindi & multilingual writing.", "https://aistudio.google.com/apikey"),
+        new("openrouter", "OpenRouter", "Text", "Aggregated gateway with free & paid fallback models.", "https://openrouter.ai/keys"),
+        new("together", "Together AI", "Text", "Hosted open models fallback.", "https://api.together.ai/settings/api-keys"),
+        new("cloudflare-ai", "Cloudflare Workers AI", "Image", "Image generation via Workers AI (set account URL in AnimStudio).", "https://dash.cloudflare.com/profile/api-tokens"),
+        new("huggingface", "Hugging Face Inference", "Image", "Open diffusion & Flux models.", "https://huggingface.co/settings/tokens"),
+        new("gemini-tts", "Google Gemini Speech", "Speech", "Multilingual AI narration & voices.", "https://aistudio.google.com/apikey"),
+        new("openai-tts", "OpenAI-Compatible Speech", "Speech", "Hosted /audio/speech endpoint key.", "https://platform.openai.com/api-keys"),
+        new("groq-whisper", "Groq Whisper", "Transcription", "Hosted Whisper Large v3 transcription.", "https://console.groq.com/keys"),
+        new("openai-asr", "OpenAI-Compatible Transcription", "Transcription", "Hosted /audio/transcriptions endpoint key.", "https://platform.openai.com/api-keys"),
+    ];
+
+    internal static void ApplyCentralIntegrations(AppSettings target, UpdateSettingsRequest r, DataProtector protector)
+    {
+        target.AiProviderKeysEncrypted ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (r.ClearYouTubeApiKey == true)
+        {
+            target.YouTubeApiKeyEncrypted = null;
+        }
+        else if (!string.IsNullOrWhiteSpace(r.YouTubeApiKey) && !r.YouTubeApiKey.Contains("••••", StringComparison.Ordinal))
+        {
+            target.YouTubeApiKeyEncrypted = protector.Encrypt(ValidateSingleLineSecret(r.YouTubeApiKey, "YouTube API Key"));
+        }
+
+        if (r.GoogleOAuthClientId is not null)
+        {
+            var clientId = r.GoogleOAuthClientId.Trim();
+            if (clientId.Length > 250 || clientId.Any(char.IsControl))
+                throw new ArgumentException("Google OAuth Client ID cannot exceed 250 characters or contain control characters.");
+            target.GoogleOAuthClientId = clientId;
+        }
+
+        if (r.ClearGoogleOAuthClientSecret == true)
+        {
+            target.GoogleOAuthClientSecretEncrypted = null;
+        }
+        else if (!string.IsNullOrWhiteSpace(r.GoogleOAuthClientSecret) && !r.GoogleOAuthClientSecret.Contains("••••", StringComparison.Ordinal))
+        {
+            target.GoogleOAuthClientSecretEncrypted = protector.Encrypt(
+                ValidateSingleLineSecret(r.GoogleOAuthClientSecret, "Google OAuth Client Secret"));
+        }
+
+        if (r.AdSenseClientId is not null)
+        {
+            target.AdSenseClientId = ValidateAdSenseClientId(r.AdSenseClientId);
+        }
+
+        if (r.ClearJamendoClientId == true)
+        {
+            target.JamendoClientIdEncrypted = null;
+        }
+        else if (!string.IsNullOrWhiteSpace(r.JamendoClientId) && !r.JamendoClientId.Contains("••••", StringComparison.Ordinal))
+        {
+            target.JamendoClientIdEncrypted = protector.Encrypt(
+                ValidateSingleLineSecret(r.JamendoClientId, "Jamendo Client ID"));
+        }
+
+        if (r.ClearAiProviderIds is not null)
+        {
+            foreach (var rawId in r.ClearAiProviderIds)
+            {
+                if (string.IsNullOrWhiteSpace(rawId)) continue;
+                target.AiProviderKeysEncrypted.Remove(NormalizeAiProviderId(rawId));
+            }
+        }
+
+        if (r.AiProviderKeys is not null)
+        {
+            foreach (var (rawProviderId, rawSecret) in r.AiProviderKeys)
+            {
+                if (string.IsNullOrWhiteSpace(rawSecret) || rawSecret.Contains("••••", StringComparison.Ordinal))
+                    continue;
+
+                var providerId = NormalizeAiProviderId(rawProviderId);
+                var cleaned = ValidateSingleLineSecret(rawSecret, $"AI key ({providerId})");
+                target.AiProviderKeysEncrypted[providerId] = protector.Encrypt(cleaned);
+            }
+        }
+    }
+
+    internal static IReadOnlyList<AiProviderKeyStatusView> BuildAiProviderStatuses(
+        IReadOnlyDictionary<string, string>? encryptedMap,
+        DataProtector protector)
+    {
+        var map = encryptedMap is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(encryptedMap, StringComparer.OrdinalIgnoreCase);
+
+        var items = new List<AiProviderKeyStatusView>(HostedAiCatalog.Count + map.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in HostedAiCatalog)
+        {
+            seen.Add(entry.ProviderId);
+            map.TryGetValue(entry.ProviderId, out var cipher);
+            items.Add(new AiProviderKeyStatusView(
+                entry.ProviderId,
+                entry.Label,
+                entry.Capability,
+                entry.Hint,
+                entry.KeyUrl,
+                !string.IsNullOrEmpty(cipher),
+                MaskEncryptedSecret(cipher, protector)));
+        }
+
+        foreach (var (providerId, cipher) in map.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (seen.Contains(providerId) || string.IsNullOrEmpty(cipher)) continue;
+            items.Add(new AiProviderKeyStatusView(
+                providerId,
+                providerId,
+                "Custom",
+                "Custom hosted AI provider credential.",
+                string.Empty,
+                true,
+                MaskEncryptedSecret(cipher, protector)));
+        }
+
+        return items;
+    }
+
+    internal static string MaskEncryptedSecret(string? cipherText, DataProtector protector)
+    {
+        if (string.IsNullOrEmpty(cipherText)) return string.Empty;
+        try
+        {
+            var plain = protector.Decrypt(cipherText).Trim();
+            if (plain.Length == 0) return string.Empty;
+            return plain.Length <= 4 ? new string('•', plain.Length) : $"••••{plain[^4..]}";
+        }
+        catch (Exception ex) when (ex is CryptographicException or FormatException)
+        {
+            return "•••• (encrypted)";
+        }
+    }
+
+    internal static string ValidateSingleLineSecret(string value, string label)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+            throw new ArgumentException($"{label} cannot be blank.");
+        if (trimmed.Any(char.IsControl))
+            throw new ArgumentException($"{label} cannot contain line breaks or control characters.");
+        return trimmed;
+    }
+
+    internal static string ValidateAdSenseClientId(string value)
+    {
+        var cleaned = value.Trim();
+        if (cleaned.Length == 0) return string.Empty;
+        if (!Regex.IsMatch(cleaned, @"^ca-pub-\d{10,20}$", RegexOptions.CultureInvariant))
+            throw new ArgumentException("Google AdSense Publisher ID must look like ca-pub-1234567890123456 (or leave empty to clear).");
+        return cleaned;
+    }
+
+    internal static string NormalizeAiProviderId(string raw)
+    {
+        var normalized = raw.Trim().ToLowerInvariant();
+        if (!Regex.IsMatch(normalized, @"^[a-z0-9][a-z0-9-]{1,39}$", RegexOptions.CultureInvariant))
+            throw new ArgumentException($"Invalid AI provider ID '{raw}'. Use lowercase letters, digits, and hyphens.");
+        return normalized;
+    }
 
     /// <summary>Storage provider is an allowlist: only "Local" or "S3" (mapped to 400 otherwise).</summary>
     private static string ValidateStorageProvider(string value)
