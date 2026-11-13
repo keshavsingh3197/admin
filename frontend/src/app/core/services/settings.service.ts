@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ApplicationMetrics, GitHubOAuthStartResponse, SettingsView, UpdateSettingsRequest, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../models/settings.models';
+import { ApplicationMetrics, CreatorChannelView, GitHubOAuthStartResponse, ResolvedYouTubeChannelResponse, SettingsView, UpdateSettingsRequest, UpsertCreatorChannelRequest, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../models/settings.models';
 
 /** Client for the identity provider's runtime auth-security settings (/api/settings). */
 @Injectable({ providedIn: 'root' })
@@ -36,6 +36,26 @@ export class SettingsService {
 
   websiteMetrics(key: string): Observable<ApplicationMetrics> {
     return this.http.get<ApplicationMetrics>(`${this.base}/settings/websites/${encodeURIComponent(key)}/metrics`);
+  }
+
+  listChannels(): Observable<CreatorChannelView[]> {
+    return this.http.get<CreatorChannelView[]>(`${this.base}/settings/channels`);
+  }
+
+  createChannel(req: UpsertCreatorChannelRequest): Observable<CreatorChannelView> {
+    return this.http.post<CreatorChannelView>(`${this.base}/settings/channels`, req);
+  }
+
+  updateChannel(id: string, req: UpsertCreatorChannelRequest): Observable<CreatorChannelView> {
+    return this.http.put<CreatorChannelView>(`${this.base}/settings/channels/${encodeURIComponent(id)}`, req);
+  }
+
+  deleteChannel(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/settings/channels/${encodeURIComponent(id)}`);
+  }
+
+  resolveYouTubeChannel(handleOrUrl: string): Observable<ResolvedYouTubeChannelResponse> {
+    return this.http.post<ResolvedYouTubeChannelResponse>(`${this.base}/settings/channels/resolve-youtube`, { handleOrUrl });
   }
 
   /** Returns the GitHub authorize URL to navigate the whole page to — never call this like a normal XHR result. */

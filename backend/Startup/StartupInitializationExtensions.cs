@@ -73,6 +73,8 @@ public static class StartupInitializationExtensions
                 configuration["Websites:StudioUrl"] ?? "https://studio.keshavsingh.in",
                 configuration["Websites:SocialUrl"] ?? "https://social.keshavsingh.in",
                 configuration["Websites:PanchangUrl"] ?? "https://panchang.keshavsingh.in");
+        await services.GetRequiredService<CreatorChannelService>().EnsureIndexesAsync();
+        await services.GetRequiredService<CreatorChannelService>().SeedDefaultsAsync();
         using (var scope = services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();
