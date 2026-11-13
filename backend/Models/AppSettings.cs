@@ -86,5 +86,16 @@ public sealed class AppSettings
     // every repo the token can see — that is slow, noisy, and burns the GitHub API rate limit.
     public List<string> PackageInventoryRepositories { get; set; } = [];
 
+    // ---- Central Shared Third-Party Integrations (stored in AdminDb; accessed server-side only) ----
+    // Sibling backends (AnimStudio, Social Analytics, Hindu Panchang, Pratiyogita) read this
+    // document directly from AdminDb using their server-side Mongo connection & Encryption:DataKey.
+    // Raw secrets are NEVER returned over HTTP or included in GET /api/config.
+    public string? YouTubeApiKeyEncrypted { get; set; }                  // 🔒 AES-encrypted.
+    public string GoogleOAuthClientId { get; set; } = string.Empty;
+    public string? GoogleOAuthClientSecretEncrypted { get; set; }      // 🔒 AES-encrypted.
+    public string AdSenseClientId { get; set; } = string.Empty;        // Public publisher id ca-pub-...
+    public string? JamendoClientIdEncrypted { get; set; }                // 🔒 AES-encrypted.
+    public Dictionary<string, string> AiProviderKeysEncrypted { get; set; } = new(StringComparer.OrdinalIgnoreCase); // 🔒 AES-encrypted values.
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

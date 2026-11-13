@@ -1,5 +1,14 @@
 namespace Admin.Api.Dtos;
 
+public sealed record AiProviderKeyStatusView(
+    string ProviderId,
+    string Label,
+    string Capability,
+    string Hint,
+    string KeyUrl,
+    bool KeySet,
+    string MaskedKey);
+
 /// <summary>Read model for the settings screen (Admin-only; includes the security knobs).</summary>
 public sealed record SettingsView(
     string SiteTitle,
@@ -37,6 +46,15 @@ public sealed record SettingsView(
     string WebAuthnRelyingPartyId,
     IReadOnlyList<string> WebAuthnOrigins,
     bool WebAuthnOriginsPendingRestart,
+    bool YouTubeApiKeySet,
+    string YouTubeApiKeyMasked,
+    string GoogleOAuthClientId,
+    bool GoogleOAuthClientSecretSet,
+    string GoogleOAuthClientSecretMasked,
+    string AdSenseClientId,
+    bool JamendoClientIdSet,
+    string JamendoClientIdMasked,
+    IReadOnlyList<AiProviderKeyStatusView> AiProviderKeys,
     DateTime UpdatedAt);
 
 /// <summary>Partial update — only non-null fields are applied.</summary>
@@ -72,7 +90,17 @@ public sealed record UpdateSettingsRequest(
     string? LinkedInOAuthClientId,
     string? LinkedInOAuthClientSecret,
     IReadOnlyList<string>? PackageInventoryRepositories,
-    IReadOnlyList<string>? WebAuthnOrigins);
+    IReadOnlyList<string>? WebAuthnOrigins,
+    string? YouTubeApiKey = null,
+    bool? ClearYouTubeApiKey = null,
+    string? GoogleOAuthClientId = null,
+    string? GoogleOAuthClientSecret = null,
+    bool? ClearGoogleOAuthClientSecret = null,
+    string? AdSenseClientId = null,
+    string? JamendoClientId = null,
+    bool? ClearJamendoClientId = null,
+    IReadOnlyDictionary<string, string>? AiProviderKeys = null,
+    IReadOnlyList<string>? ClearAiProviderIds = null);
 
 /// <summary>
 /// The non-secret, shareable config served publicly at <c>GET /api/config</c> for every

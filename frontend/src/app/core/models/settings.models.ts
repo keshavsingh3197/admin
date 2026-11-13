@@ -1,3 +1,13 @@
+export interface AiProviderKeyStatusView {
+  providerId: string;
+  label: string;
+  capability: string;
+  hint: string;
+  keyUrl: string;
+  keySet: boolean;
+  maskedKey: string;
+}
+
 /** Auth-security settings as returned by GET /api/settings. Mirrors the backend SettingsView. */
 export interface SettingsView {
   siteTitle: string;
@@ -41,6 +51,15 @@ export interface SettingsView {
   webAuthnRelyingPartyId: string;
   /** True when the saved origins differ from the allow-list active in this process. */
   webAuthnOriginsPendingRestart: boolean;
+  youTubeApiKeySet: boolean;
+  youTubeApiKeyMasked: string;
+  googleOAuthClientId: string;
+  googleOAuthClientSecretSet: boolean;
+  googleOAuthClientSecretMasked: string;
+  adSenseClientId: string;
+  jamendoClientIdSet: boolean;
+  jamendoClientIdMasked: string;
+  aiProviderKeys: AiProviderKeyStatusView[];
   updatedAt: string;
 }
 
@@ -49,12 +68,26 @@ export interface SettingsView {
  * via storageS3SecretAccessKey or the other secret inputs — a blank value keeps the stored one.
  */
 export type UpdateSettingsRequest =
-  Partial<Omit<SettingsView, 'updatedAt' | 'oAuthCallbackUrl' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet' | 'gitHubOAuthClientSecretSet' | 'linkedInOAuthClientSecretSet'>>
+  Partial<Omit<SettingsView,
+    'updatedAt' | 'oAuthCallbackUrl' | 'storageS3SecretAccessKeySet' | 'gitHubPackagesTokenSet' |
+    'gitHubOAuthClientSecretSet' | 'linkedInOAuthClientSecretSet' |
+    'youTubeApiKeySet' | 'youTubeApiKeyMasked' | 'googleOAuthClientSecretSet' | 'googleOAuthClientSecretMasked' |
+    'jamendoClientIdSet' | 'jamendoClientIdMasked' | 'aiProviderKeys'>>
   & {
     storageS3SecretAccessKey?: string;
     gitHubPackagesToken?: string;
     gitHubOAuthClientSecret?: string;
     linkedInOAuthClientSecret?: string;
+    youTubeApiKey?: string;
+    clearYouTubeApiKey?: boolean;
+    googleOAuthClientId?: string;
+    googleOAuthClientSecret?: string;
+    clearGoogleOAuthClientSecret?: boolean;
+    adSenseClientId?: string;
+    jamendoClientId?: string;
+    clearJamendoClientId?: boolean;
+    aiProviderKeys?: Record<string, string>;
+    clearAiProviderIds?: string[];
   };
 
 export interface GitHubOAuthStartResponse {
