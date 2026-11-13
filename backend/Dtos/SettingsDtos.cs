@@ -109,4 +109,5 @@ public sealed record AppConfigEnvelopeView(
     IReadOnlyDictionary<string, string> Types,
     IReadOnlyDictionary<string, string> LocaleVersions,
     DateTime UpdatedAt,
-    IReadOnlyList<EcosystemWebsiteView>? Websites = null);
+    IReadOnlyList<EcosystemWebsiteView>? Websites = null,
+    IReadOnlyList<CreatorChannelPublicView>? Channels = null);

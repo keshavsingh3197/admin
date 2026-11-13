@@ -9,6 +9,7 @@ import { LocalizationAdminService } from '../../core/services/localization-admin
 import { WebsiteContentView } from '../../core/models/website.models';
 import { ApplicationMetrics, WebsiteLinkView } from '../../core/models/settings.models';
 import { LocaleView } from '../../core/models/localization.models';
+import { ChannelsManagerComponent } from './channels-manager.component';
 
 /**
  * The content behind the public sites: each entry is a JSON payload addressed by site key + content key
@@ -22,30 +23,34 @@ import { LocaleView } from '../../core/models/localization.models';
   selector: 'app-website-manage',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, ChannelsManagerComponent],
   template: `
     <div class="page">
       <header class="head">
         <div>
-          <h1>Websites</h1>
-          <p class="subtitle">Manage registered applications, access footprint, and published content.</p>
+          <h1>Ecosystem Hub & Websites</h1>
+          <p class="subtitle">Manage registered applications, central creator channels, and published content.</p>
         </div>
         <div class="ops">
-          <label class="inline">
-            <span>Site</span>
-            <select class="input" [ngModel]="site()" (ngModelChange)="selectSite($event)">
-              <option value="">All sites</option>
-              @for (s of sites(); track s.id) { <option [value]="s.key">{{ s.name }} ({{ s.key }})</option> }
-              @for (k of extraSiteKeys(); track k) { <option [value]="k">{{ k }}</option> }
-            </select>
-          </label>
-          <button class="btn primary sm" (click)="openNew()">+ New content</button>
+          @if (tab() === 'content') {
+            <label class="inline">
+              <span>Site</span>
+              <select class="input" [ngModel]="site()" (ngModelChange)="selectSite($event)">
+                <option value="">All sites</option>
+                @for (s of sites(); track s.id) { <option [value]="s.key">{{ s.name }} ({{ s.key }})</option> }
+                @for (k of extraSiteKeys(); track k) { <option [value]="k">{{ k }}</option> }
+              </select>
+            </label>
+            <button class="btn primary sm" (click)="openNew()">+ New content</button>
+          }
         </div>
       </header>
 
-      <div class="tabs"><button [class.active]="tab() === 'applications'" (click)="tab.set('applications')">Applications</button><button [class.active]="tab() === 'content'" (click)="tab.set('content')">Content</button></div>
+      <div class="tabs"><button [class.active]="tab() === 'applications'" (click)="tab.set('applications')">Applications</button><button [class.active]="tab() === 'channels'" (click)="tab.set('channels')">Creator Channels & Socials</button><button [class.active]="tab() === 'content'" (click)="tab.set('content')">Content</button></div>
 
-      @if (tab() === 'content') {
+      @if (tab() === 'channels') {
+        <app-channels-manager />
+      } @else if (tab() === 'content') {
       <div class="grid">
         <div class="col list">
           @for (c of entries(); track c.id) {
@@ -212,7 +217,7 @@ export class WebsiteManageComponent implements OnInit {
   /** Registered languages: content is authored one row per language for the same key. */
   locales = signal<LocaleView[]>([]);
   sites = signal<WebsiteLinkView[]>([]);
-  tab = signal<'applications' | 'content'>('applications');
+  tab = signal<'applications' | 'channels' | 'content'>('applications');
   selectedApp = signal<WebsiteLinkView | null>(null);
   appMetrics = signal<ApplicationMetrics | null>(null);
   entries = signal<WebsiteContentView[]>([]);

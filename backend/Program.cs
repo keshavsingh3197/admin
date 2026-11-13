@@ -73,6 +73,7 @@ builder.Services.AddSingleton<AccountRequestService>();
 builder.Services.AddSingleton<VisitorChatService>();
 builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
+builder.Services.AddSingleton<CreatorChannelService>();
 builder.Services.AddSingleton<WebsiteVisitService>();
 builder.Services.AddSingleton<WebsiteContentService>();
 // ---- Localisation + runtime config registry (KeshavSingh.Localization) ----
@@ -176,6 +177,9 @@ builder.Services.AddKeshavSsoCors(
     CorsPolicy,
     allowedOrigins,
     allowLocalhost: builder.Environment.IsDevelopment());
+builder.Services.AddSingleton<DynamicEcosystemCorsPolicyProvider>();
+builder.Services.AddSingleton<Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider>(
+    sp => sp.GetRequiredService<DynamicEcosystemCorsPolicyProvider>());
 
 // ---- Authentication: OAuth2 bearer (JWT) validated on every request ----
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

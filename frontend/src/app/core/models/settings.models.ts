@@ -91,3 +91,41 @@ export interface ApplicationMetrics {
   groupCount: number;
   activeSessionCount: number;
 }
+
+export interface CreatorChannelView {
+  id: string;
+  key: string;
+  name: string;
+  handle: string;
+  platform: string;
+  channelId: string;
+  url: string;
+  niche: string;
+  tagline: string;
+  description: string;
+  engineName: string;
+  visualsCredit: string;
+  hashtags: string[];
+  tags: string[];
+  retiredHandles: string[];
+  retiredUrls: string[];
+  isPrimary: boolean;
+  isEnabled: boolean;
+  showInAnalytics: boolean;
+  showInPanchang: boolean;
+  showInStudio: boolean;
+  showInFooter: boolean;
+  sortOrder: number;
+  updatedAt: string;
+}
+
+export type UpsertCreatorChannelRequest = Omit<CreatorChannelView, 'id' | 'updatedAt'>;
+
+export interface ResolvedYouTubeChannelResponse {
+  channelId: string;
+  title: string;
+  handle: string;
+  url: string;
+  description: string;
+  feedUrl: string;
+}
