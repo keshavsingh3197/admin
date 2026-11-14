@@ -85,4 +85,44 @@ public sealed class CreatorChannelAndCorsTests
         Assert.Equal(expectedAllowed, allowed);
         Assert.Equal(expectedOrigin, origin);
     }
+
+    [Theory]
+    [InlineData("blog", "Content Blog", "https://git.keshavsingh.in", true)]
+    [InlineData("blog-admin", "Blog Admin", "https://blog-admin.keshavsingh.in", true)]
+    [InlineData("admin", "Admin & SSO", "https://admin.keshavsingh.in", true)]
+    [InlineData("ghar-ledger", "Ghar Ledger", "https://ghar.keshavsingh.in", true)]
+    [InlineData("gharledger", "Ghar Ledger", "https://ghar-ledger.onrender.com", true)]
+    [InlineData("studio", "AnimStudio AI", "https://studio.keshavsingh.in", false)]
+    [InlineData("social", "Social Analytics", "https://social.keshavsingh.in", false)]
+    [InlineData("panchang", "Hindu Panchang", "https://panchang.keshavsingh.in", false)]
+    [InlineData("pratiyogita", "Pratiyogita", "https://pratiyogita.keshavsingh.in", false)]
+    public void WebsiteRegistry_IdentifiesInternalAndHiddenSites(string key, string name, string url, bool expectedHidden)
+    {
+        Assert.Equal(expectedHidden, WebsiteRegistryService.IsInternalOrHiddenByDefaultWebsite(key, name, url));
+    }
+
+    [Fact]
+    public void WebsiteRegistry_DeduplicatesEcosystemLinksByUrlAndName()
+    {
+        var list = new List<WebsiteLink>
+        {
+            new() { Key = "studio", Name = "AnimStudio AI", Url = "https://studio.keshavsingh.in/", SortOrder = 10, IsEnabled = true, ShowInEcosystemBar = true },
+            new() { Key = "ghar-ledger", Name = "Ghar Ledger", Url = "https://ghar.keshavsingh.in", SortOrder = 25, IsEnabled = true, ShowInEcosystemBar = false },
+            new() { Key = "gharledger-dup", Name = "Ghar Ledger", Url = "https://ghar.keshavsingh.in/", SortOrder = 99, IsEnabled = true, ShowInEcosystemBar = true },
+            new() { Key = "panchang", Name = "Hindu Panchang", Url = "https://panchang.keshavsingh.in", SortOrder = 20, IsEnabled = true, ShowInEcosystemBar = true },
+        };
+
+        var projected = WebsiteRegistryService.ProjectEcosystemLinks(list);
+        Assert.Equal(3, projected.Count);
+        Assert.Equal(["studio", "panchang", "ghar-ledger"], projected.Select(x => x.Key).ToArray());
+    }
+
+    [Theory]
+    [InlineData("keshavsinghworld", "@keshavsinghworld", "Keshav Singh World", true)]
+    [InlineData("personal", "keshavsinghworld", "Keshav Singh", true)]
+    [InlineData("omkarshivbhakti", "@OmkarShivBhakti", "Omkar Shiv Bhakti", false)]
+    public void CreatorChannel_ExcludesPersonalChannelFromPanchangByDefault(string key, string handle, string name, bool expectedExcluded)
+    {
+        Assert.Equal(expectedExcluded, CreatorChannelService.IsExcludedFromPanchangByDefault(key, handle, name));
+    }
 }
