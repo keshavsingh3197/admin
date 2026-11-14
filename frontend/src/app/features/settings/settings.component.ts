@@ -8,6 +8,7 @@ import { ConfigService } from '../../core/services/config.service';
 import { PackageInventoryService } from '../../core/services/package-inventory.service';
 import { environment } from '../../../environments/environment';
 import { SettingsView, UpsertWebsiteLinkRequest, WebsiteLinkView } from '../../core/models/settings.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 interface SettingsImportPayload {
   settings?: Partial<SettingsView>;
@@ -20,7 +21,7 @@ interface SettingsImportPayload {
  */
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, LoadingStateComponent],
   template: `
     <div class="set-wrap">
       <div class="head">
@@ -36,7 +37,7 @@ interface SettingsImportPayload {
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
       @if (loading()) {
-        <p>Loading…</p>
+        <app-loading-state mode="list" [count]="5" title="Loading settings…" />
       } @else if (model(); as m) {
         <div class="tabs" role="tablist" aria-label="Settings sections">
           <button type="button" role="tab" class="tab" [class.active]="activeTab() === 'general'"

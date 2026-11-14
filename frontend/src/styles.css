@@ -521,3 +521,17 @@ kbd {
   white-space: nowrap;
   border: 0;
 }
+
+.btn-spin::before {
+  content: '';
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  display: inline-block;
+  flex-shrink: 0;
+  animation: admSpin 0.7s linear infinite;
+}
+
+@keyframes admSpin { to { transform: rotate(360deg); } }

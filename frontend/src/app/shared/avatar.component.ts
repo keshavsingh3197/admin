@@ -13,7 +13,7 @@ import { UsersService } from '../core/services/users.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (imageUrl(); as url) {
-      <img class="avatar" [style.width.px]="size()" [style.height.px]="size()" [src]="url" [alt]="displayName()" />
+      <img class="avatar" [style.width.px]="size()" [style.height.px]="size()" [src]="url" [alt]="displayName()" loading="lazy" decoding="async" />
     } @else {
       <span class="avatar initials" [style.width.px]="size()" [style.height.px]="size()"
             [style.fontSize.px]="size() / 2.4">{{ initials() }}</span>

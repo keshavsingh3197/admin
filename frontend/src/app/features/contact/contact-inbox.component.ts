@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ContactInboxService } from '../../core/services/contact.service';
 import { ContactStatus, ContactSubmission } from '../../core/models/contact.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 const FILTERS: { key: ContactStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -24,7 +25,7 @@ const FILTERS: { key: ContactStatus | 'all'; label: string }[] = [
   selector: 'app-contact-inbox',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LoadingStateComponent],
   template: `
     <div class="page">
       <header class="head">
@@ -58,7 +59,11 @@ const FILTERS: { key: ContactStatus | 'all'; label: string }[] = [
             </button>
           }
           @if (!submissions().length && !loading()) { <p class="muted pad">Nothing here.</p> }
-          @if (loading()) { <p class="muted pad">Loading…</p> }
+          @if (loading()) {
+            <div class="pad">
+              <app-loading-state mode="list" [count]="4" [compact]="true" title="Loading inbox…" />
+            </div>
+          }
         </div>
 
         <div class="col detail">

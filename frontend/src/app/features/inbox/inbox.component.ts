@@ -118,18 +118,18 @@ export class InboxComponent implements OnInit {
 
   /** Counts come from each source's own summary — cheap calls, and none of them block the page. */
   private refreshCounts(): void {
-    this.chat.conversations().subscribe({
+    this.chat.conversations({ silent: true }).subscribe({
       next: list => this.teamUnread.set(list.reduce((total, c) => total + (c.unreadCount ?? 0), 0)),
       error: () => {},
     });
 
-    this.visitors.summary().subscribe({
+    this.visitors.summary({ silent: true }).subscribe({
       next: s => this.visitorWaiting.set(s.waiting),
       error: () => {},
     });
 
     if (this.auth.hasRole('Admin')) {
-      this.contact.summary().subscribe({
+      this.contact.summary({ silent: true }).subscribe({
         next: s => this.contactUnread.set(s.unread),
         error: () => {},
       });

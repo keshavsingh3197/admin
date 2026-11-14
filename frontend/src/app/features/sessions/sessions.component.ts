@@ -4,15 +4,16 @@ import { Router } from '@angular/router';
 import { UserSession } from '../../core/models/session.models';
 import { AuthService } from '../../core/services/auth.service';
 import { SessionsService } from '../../core/services/sessions.service';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 @Component({
   selector: 'app-sessions',
-  imports: [DatePipe],
+  imports: [DatePipe, LoadingStateComponent],
   template: `
     <div class="page">
-      <div class="page-head"><div><p class="eyebrow">Account security</p><h1>Active sessions</h1><p class="lead">Review where your account is signed in across applications.</p></div><button class="secondary" type="button" [disabled]="loading()" (click)="load()">Refresh</button></div>
+      <div class="page-head"><div><p class="eyebrow">Account security</p><h1>Active sessions</h1><p class="lead">Review where your account is signed in across applications.</p></div><button class="secondary" [class.btn-spin]="loading()" type="button" [disabled]="loading()" (click)="load()">Refresh</button></div>
       @if (message()) { <div class="banner" role="status">{{ message() }}</div> }
-      @if (loading()) { <div class="state">Loading sessions…</div> }
+      @if (loading()) { <app-loading-state mode="list" [count]="3" title="Loading active sessions…" /> }
       @else if (!sessions().length) { <div class="state"><strong>No active sessions</strong><span>Your active application sessions will appear here.</span></div> }
       @else {
         <div class="session-list">

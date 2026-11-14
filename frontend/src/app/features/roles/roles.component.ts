@@ -13,6 +13,7 @@ import {
   WebsiteAccessOption,
   WebsiteGrant,
 } from '../../core/models/rbac.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 const ALL_WEBSITES_KEY = '*';
 const ADMIN_WEBSITE_KEY = 'admin';
@@ -25,7 +26,7 @@ const ADMIN_WEBSITE_KEY = 'admin';
  */
 @Component({
   selector: 'app-roles',
-  imports: [FormsModule, DatePipe, RouterLink, BrandDataTableComponent, BrandModalComponent],
+  imports: [FormsModule, DatePipe, RouterLink, BrandDataTableComponent, BrandModalComponent, LoadingStateComponent],
   template: `
     <div class="wrap">
       <div class="head">
@@ -128,7 +129,7 @@ const ADMIN_WEBSITE_KEY = 'admin';
       </brand-modal>
 
       @if (loading()) {
-        <p>Loading…</p>
+        <app-loading-state mode="table" [count]="4" title="Loading roles…" />
       } @else {
         <brand-data-table [columns]="columns" [rows]="visibleRoles()" [trackBy]="trackById"
                            searchPlaceholder="Search roles…">

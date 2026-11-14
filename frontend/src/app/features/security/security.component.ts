@@ -109,7 +109,7 @@ import { createPasskey, createPasskeyErrorMessage, isPasskeySupported, ServerCre
 
         @if (enroll(); as data) {
           <p>Scan this QR in your authenticator app, then enter the 6-digit code to register this device.</p>
-          <img class="qr" [src]="data.qrCodePngDataUrl" alt="Authenticator QR code" />
+          <img class="qr" [src]="data.qrCodePngDataUrl" alt="Authenticator QR code" loading="lazy" decoding="async" />
           <p class="secret">Or enter the key manually: <code>{{ data.secret }}</code></p>
           <label class="field"><span>Device name</span>
             <input class="input" type="text" name="dname" maxlength="80" placeholder="e.g. iPhone Authenticator"

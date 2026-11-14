@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { silentHttpContext } from '../interceptors/loading.interceptor';
 import { ContactInboxSummary, ContactStatus, ContactSubmission } from '../models/contact.models';
 
 /**
@@ -18,8 +19,11 @@ export class ContactInboxService {
     return this.http.get<ContactSubmission[]>(`${this.base}${q}`);
   }
 
-  summary(): Observable<ContactInboxSummary> {
-    return this.http.get<ContactInboxSummary>(`${this.base}/summary`);
+  summary(opts?: { silent?: boolean }): Observable<ContactInboxSummary> {
+    return this.http.get<ContactInboxSummary>(
+      `${this.base}/summary`,
+      opts?.silent ? { context: silentHttpContext() } : undefined,
+    );
   }
 
   /** Opening a submission marks it read server-side. */

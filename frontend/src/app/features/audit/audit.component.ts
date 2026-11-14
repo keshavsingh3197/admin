@@ -65,7 +65,7 @@ const PAGE_SIZE = 50;
           <h1 class="page-title">Audit log</h1>
           <p class="subtitle">Who did what, and when. Read-only.</p>
         </div>
-        <button class="btn-secondary" type="button" (click)="reload()" [disabled]="loading()">
+        <button class="btn-secondary" [class.btn-spin]="loading()" type="button" (click)="reload()" [disabled]="loading()">
           {{ loading() ? 'Loading…' : 'Refresh' }}
         </button>
       </header>

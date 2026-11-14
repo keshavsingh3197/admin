@@ -5,6 +5,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { UsersService } from '../../core/services/users.service';
 import { UserListItem } from '../../core/models/user.models';
 import { AvatarComponent } from '../../shared/avatar.component';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 const MAX_AVATAR_BYTES = 3 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
@@ -17,7 +18,7 @@ const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/g
   selector: 'app-profile-info',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, AvatarComponent],
+  imports: [FormsModule, AvatarComponent, LoadingStateComponent],
   template: `
     <div class="wrap">
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
@@ -52,10 +53,10 @@ const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/g
             <input class="input" type="email" [value]="user.email" disabled />
           </label>
           <p class="hint">Email is your sign-in identity and isn't changed here.</p>
-          <button class="btn-primary" type="submit" [disabled]="busy()">{{ busy() ? 'Saving…' : 'Save changes' }}</button>
+          <button class="btn-primary" [class.btn-spin]="busy()" type="submit" [disabled]="busy()">{{ busy() ? 'Saving…' : 'Save changes' }}</button>
         </form>
       } @else {
-        <p class="muted">Loading…</p>
+        <app-loading-state mode="list" [count]="3" title="Loading profile…" />
       }
     </div>
   `,

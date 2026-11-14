@@ -1,5 +1,6 @@
 @let signedIn = auth.isAuthenticated() && (!permissionsLoaded() || hasAppAccess());
 
+<app-global-loader />
 <div class="app-shell" [class.signed-in]="signedIn" [class.rail]="sidebarCollapsed()">
 
   @if (signedIn) {
@@ -119,11 +120,6 @@
           </div>
         </div>
       </header>
-    }
-
-    @if (routeLoading()) {
-      <div class="route-progress" role="status" aria-live="polite"
-           [attr.aria-label]="i18n.t('common.state.loading')"></div>
     }
 
     <main class="app-main">

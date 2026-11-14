@@ -5,13 +5,14 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PackageStatus } from '../../core/models/package-inventory.models';
 import { PackageInventoryService } from '../../core/services/package-inventory.service';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 type StatusFilter = 'all' | PackageStatus;
 type EcosystemFilter = 'all' | 'nuget' | 'npm';
 
 @Component({
   selector: 'app-packages',
-  imports: [DatePipe, FormsModule, RouterLink],
+  imports: [DatePipe, FormsModule, RouterLink, LoadingStateComponent],
   template: `
     <div class="wrap">
       <header class="head">
@@ -19,13 +20,13 @@ type EcosystemFilter = 'all' | 'nuget' | 'npm';
           <h1>Package inventory</h1>
           <p>Private package releases and every repo that consumes them, read live from GitHub.</p>
         </div>
-        <button type="button" class="refresh" [disabled]="loading()" (click)="load(true)">Refresh</button>
+        <button type="button" class="refresh" [class.btn-spin]="loading()" [disabled]="loading()" (click)="load(true)">Refresh</button>
       </header>
 
       @if (error()) { <div class="banner" role="alert">{{ error() }}</div> }
 
       @if (loading() && !inventory()) {
-        <div class="loading"><span class="spinner"></span> Scanning package manifests...</div>
+        <app-loading-state mode="table" [count]="4" title="Scanning package manifests…" subtitle="Reading versions from GitHub repositories…" />
       } @else if (inventory(); as result) {
         @switch (result.state) {
           @case ('token-missing') {
