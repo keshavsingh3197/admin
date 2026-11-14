@@ -13,12 +13,15 @@ public sealed partial class CreatorChannelService
         "YouTube", "Instagram", "Facebook", "GitHub", "LinkedIn", "X", "Website"
     };
 
+    private const string PanchangChannelCleanupMigrationId = "panchang-channel-cleanup-v1";
     private readonly IMongoCollection<CreatorChannel> _channels;
+    private readonly IMongoCollection<WebsiteRegistryService.RegistryMigrationMarker> _migrations;
     private readonly IHttpClientFactory _httpFactory;
 
     public CreatorChannelService(MongoDbService db, IHttpClientFactory httpFactory)
     {
         _channels = db.GetCollection<CreatorChannel>("creator_channels");
+        _migrations = db.GetCollection<WebsiteRegistryService.RegistryMigrationMarker>("_migrations");
         _httpFactory = httpFactory;
     }
 
@@ -37,7 +40,10 @@ public sealed partial class CreatorChannelService
     public async Task SeedDefaultsAsync(CancellationToken ct = default)
     {
         if (await _channels.CountDocumentsAsync(FilterDefinition<CreatorChannel>.Empty, cancellationToken: ct) > 0)
+        {
+            await ApplyOneTimePanchangChannelCleanupAsync(ct);
             return;
+        }
 
         var now = DateTime.UtcNow;
         var defaults = new List<CreatorChannel>
@@ -57,7 +63,7 @@ public sealed partial class CreatorChannelService
                 IsPrimary = true,
                 IsEnabled = true,
                 ShowInAnalytics = true,
-                ShowInPanchang = true,
+                ShowInPanchang = false,
                 ShowInStudio = true,
                 ShowInFooter = true,
                 SortOrder = 10,
@@ -113,6 +119,39 @@ public sealed partial class CreatorChannelService
         };
 
         await _channels.InsertManyAsync(defaults, cancellationToken: ct);
+    }
+
+    private async Task ApplyOneTimePanchangChannelCleanupAsync(CancellationToken ct)
+    {
+        var alreadyApplied = await _migrations.Find(x => x.Id == PanchangChannelCleanupMigrationId).AnyAsync(ct);
+        if (alreadyApplied) return;
+
+        var channels = await _channels.Find(FilterDefinition<CreatorChannel>.Empty).ToListAsync(ct);
+        var now = DateTime.UtcNow;
+        foreach (var channel in channels)
+        {
+            if (channel.ShowInPanchang && IsExcludedFromPanchangByDefault(channel.Key, channel.Handle, channel.Name))
+            {
+                var update = Builders<CreatorChannel>.Update
+                    .Set(x => x.ShowInPanchang, false)
+                    .Set(x => x.UpdatedAt, now);
+                await _channels.UpdateOneAsync(x => x.Id == channel.Id, update, cancellationToken: ct);
+            }
+        }
+
+        await _migrations.ReplaceOneAsync(
+            x => x.Id == PanchangChannelCleanupMigrationId,
+            new WebsiteRegistryService.RegistryMigrationMarker { Id = PanchangChannelCleanupMigrationId, AppliedAtUtc = now },
+            new ReplaceOptions { IsUpsert = true },
+            ct);
+    }
+
+    public static bool IsExcludedFromPanchangByDefault(string? key, string? handle, string? name)
+    {
+        var k = (key ?? string.Empty).Trim().ToLowerInvariant();
+        var h = (handle ?? string.Empty).Trim().TrimStart('@').ToLowerInvariant();
+        var n = (name ?? string.Empty).Trim().ToLowerInvariant();
+        return k == "keshavsinghworld" || h == "keshavsinghworld" || n == "keshav singh world";
     }
 
     public async Task<IReadOnlyList<CreatorChannelView>> ListAsync(CancellationToken ct = default)

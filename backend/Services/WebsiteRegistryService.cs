@@ -1,16 +1,20 @@
 using Admin.Api.Dtos;
 using Admin.Api.Models;
+using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
 namespace Admin.Api.Services;
 
 public sealed class WebsiteRegistryService
 {
+    private const string EcosystemBarCleanupMigrationId = "ecosystem-bar-cleanup-v1";
     private readonly IMongoCollection<WebsiteLink> _websites;
+    private readonly IMongoCollection<RegistryMigrationMarker> _migrations;
 
     public WebsiteRegistryService(MongoDbService db)
     {
         _websites = db.GetCollection<WebsiteLink>("websites");
+        _migrations = db.GetCollection<RegistryMigrationMarker>("_migrations");
     }
 
     public async Task EnsureIndexesAsync(CancellationToken ct = default)
@@ -57,7 +61,7 @@ public sealed class WebsiteRegistryService
                 IsEnabled = true,
                 Icon = "✍️",
                 Description = "Deep-dive programming tutorials, cloud guides, and interview prep notes.",
-                ShowInEcosystemBar = true,
+                ShowInEcosystemBar = false,
             },
             new()
             {
@@ -112,7 +116,7 @@ public sealed class WebsiteRegistryService
                 IsEnabled = true,
                 Icon = "🏠",
                 Description = "Household vendor ledgers, milk/newspaper tracking & expense settlements.",
-                ShowInEcosystemBar = true,
+                ShowInEcosystemBar = false,
             },
             new()
             {
@@ -134,7 +138,7 @@ public sealed class WebsiteRegistryService
                 IsEnabled = true,
                 Icon = "🛡️",
                 Description = "Central identity provider, RBAC permissions, global config & audit portal.",
-                ShowInEcosystemBar = true,
+                ShowInEcosystemBar = false,
             }
         };
 
@@ -144,6 +148,52 @@ public sealed class WebsiteRegistryService
 
         var missing = defaults.Where(x => !existing.Contains(x.Key)).ToList();
         if (missing.Count > 0) await _websites.InsertManyAsync(missing, cancellationToken: ct);
+
+        await ApplyOneTimeEcosystemBarCleanupAsync(ct);
+    }
+
+    private async Task ApplyOneTimeEcosystemBarCleanupAsync(CancellationToken ct)
+    {
+        var alreadyApplied = await _migrations.Find(x => x.Id == EcosystemBarCleanupMigrationId).AnyAsync(ct);
+        if (alreadyApplied) return;
+
+        var all = await _websites.Find(FilterDefinition<WebsiteLink>.Empty).ToListAsync(ct);
+        var now = DateTime.UtcNow;
+        foreach (var item in all)
+        {
+            if (item.ShowInEcosystemBar && IsInternalOrHiddenByDefaultWebsite(item.Key, item.Name, item.Url))
+            {
+                var update = Builders<WebsiteLink>.Update
+                    .Set(x => x.ShowInEcosystemBar, false)
+                    .Set(x => x.UpdatedAt, now);
+                await _websites.UpdateOneAsync(x => x.Id == item.Id, update, cancellationToken: ct);
+            }
+        }
+
+        await _migrations.ReplaceOneAsync(
+            x => x.Id == EcosystemBarCleanupMigrationId,
+            new RegistryMigrationMarker { Id = EcosystemBarCleanupMigrationId, AppliedAtUtc = now },
+            new ReplaceOptions { IsUpsert = true },
+            ct);
+    }
+
+    public static bool IsInternalOrHiddenByDefaultWebsite(string? key, string? name, string? url)
+    {
+        var k = (key ?? string.Empty).Trim().ToLowerInvariant();
+        if (k is "blog" or "content-blog" or "blog-admin" or "admin" or "ghar-ledger" or "gharledger")
+            return true;
+
+        var n = (name ?? string.Empty).Trim().ToLowerInvariant();
+        if (n is "blog" or "content blog" or "blog admin" or "admin & sso" or "ghar ledger")
+            return true;
+
+        var u = (url ?? string.Empty).Trim().TrimEnd('/').ToLowerInvariant();
+        return u.Contains("ghar.keshavsingh.in", StringComparison.Ordinal)
+            || u.Contains("ghar-ledger", StringComparison.Ordinal)
+            || u.Contains("blog-admin", StringComparison.Ordinal)
+            || u.EndsWith("://blog.keshavsingh.in", StringComparison.Ordinal)
+            || u.EndsWith("://admin.keshavsingh.in", StringComparison.Ordinal)
+            || u.EndsWith("://id.keshavsingh.in", StringComparison.Ordinal);
     }
 
     public async Task<IReadOnlyList<WebsiteLinkView>> ListAsync(CancellationToken ct = default)
@@ -206,15 +256,44 @@ public sealed class WebsiteRegistryService
     public async Task<IReadOnlyList<EcosystemWebsiteView>> ListEcosystemAsync(CancellationToken ct = default)
     {
         var enabled = await ListEnabledAsync(ct);
-        return enabled.Select(x => new EcosystemWebsiteView(
-            x.Key,
-            x.Name,
-            x.Url,
-            ResolveIcon(x.Icon, x.Key),
-            x.Description ?? string.Empty,
-            x.SortOrder,
-            x.ShowInEcosystemBar,
-            x.UpdatedAt)).ToList();
+        return ProjectEcosystemLinks(enabled);
+    }
+
+    public static IReadOnlyList<EcosystemWebsiteView> ProjectEcosystemLinks(IEnumerable<WebsiteLink> enabled)
+    {
+        var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<EcosystemWebsiteView>();
+
+        foreach (var x in enabled.Where(w => w.IsEnabled).OrderBy(w => w.SortOrder).ThenBy(w => w.Name))
+        {
+            var normalizedUrl = (x.Url ?? string.Empty).Trim().TrimEnd('/');
+            var normalizedName = (x.Name ?? string.Empty).Trim();
+            if ((!string.IsNullOrEmpty(normalizedUrl) && !seenUrls.Add(normalizedUrl))
+                || (!string.IsNullOrEmpty(normalizedName) && !seenNames.Add(normalizedName)))
+            {
+                continue;
+            }
+
+            result.Add(new EcosystemWebsiteView(
+                x.Key,
+                normalizedName,
+                x.Url ?? string.Empty,
+                ResolveIcon(x.Icon, x.Key),
+                x.Description ?? string.Empty,
+                x.SortOrder,
+                x.ShowInEcosystemBar,
+                x.UpdatedAt));
+        }
+
+        return result;
+    }
+
+    internal sealed class RegistryMigrationMarker
+    {
+        [BsonId]
+        public string Id { get; set; } = string.Empty;
+        public DateTime AppliedAtUtc { get; set; }
     }
 
     private static WebsiteLinkView Map(WebsiteLink x) =>
