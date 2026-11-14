@@ -139,11 +139,11 @@ import { CallMedia, CallSummary } from '../../core/models/call.models';
                     @if (m.body) { <span class="body">{{ m.body }}</span> }
                     @if (m.attachment; as att) {
                       @if (isImage(att)) {
-                        <img class="att-img" [src]="mediaUrl(m)" (click)="downloadAttachment(m)" alt="{{ att.fileName }}" />
+                        <img class="att-img" [src]="mediaUrl(m)" (click)="downloadAttachment(m)" alt="{{ att.fileName }}" loading="lazy" decoding="async" />
                       } @else if (isAudio(att)) {
-                        <audio class="att-audio" [src]="mediaUrl(m)" controls></audio>
+                        <audio class="att-audio" [src]="mediaUrl(m)" preload="metadata" controls></audio>
                       } @else if (isVideo(att)) {
-                        <video class="att-video" [src]="mediaUrl(m)" controls></video>
+                        <video class="att-video" [src]="mediaUrl(m)" preload="metadata" controls></video>
                       } @else {
                         <button class="attach" (click)="downloadAttachment(m)">📎 {{ att.fileName }}</button>
                       }

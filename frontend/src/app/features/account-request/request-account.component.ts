@@ -86,7 +86,7 @@ import { AccountRequestsService } from '../../core/services/account-requests.ser
                 [(ngModel)]="reason"></textarea>
             </label>
 
-            <button class="btn-primary" type="submit" [disabled]="loading() || !isValid()">
+            <button class="btn-primary" [class.btn-spin]="loading()" type="submit" [disabled]="loading() || !isValid()">
               {{ loading() ? 'Sending…' : 'Send request' }}
             </button>
           </form>

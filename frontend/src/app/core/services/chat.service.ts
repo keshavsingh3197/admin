@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, Subject } from 'rxjs';
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
+import { silentHttpContext } from '../interceptors/loading.interceptor';
 import { AuthService } from './auth.service';
 import { AdminBlock, AdminConversation, Conversation, DirectoryUser, Message, PresenceState, ShareLink } from '../models/chat.models';
 import { CallEnded, CallHubEvent, CallMedia, CallRoom, CallSignalKind, IncomingCall } from '../models/call.models';
@@ -169,7 +170,12 @@ export class ChatService {
 
   // ---- REST ----
   directory(): Observable<DirectoryUser[]> { return this.http.get<DirectoryUser[]>(`${this.base}/chat/directory`); }
-  conversations(): Observable<Conversation[]> { return this.http.get<Conversation[]>(`${this.base}/chat/conversations`); }
+  conversations(opts?: { silent?: boolean }): Observable<Conversation[]> {
+    return this.http.get<Conversation[]>(
+      `${this.base}/chat/conversations`,
+      opts?.silent ? { context: silentHttpContext() } : undefined,
+    );
+  }
 
   start(recipientUserId: string, body?: string): Observable<Conversation> {
     return this.http.post<Conversation>(`${this.base}/chat/conversations`, { recipientUserId, body: body ?? null });

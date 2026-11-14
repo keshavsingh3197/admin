@@ -6,10 +6,11 @@ import {
   Advisory, AdvisorySeverity, AppliedSuggestion, FinanceOverview, HouseholdMetrics,
   StatementAnalysis, StatementSuggestion,
 } from '../../core/models/finance.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 @Component({
   selector: 'app-finance-dashboard',
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, LoadingStateComponent],
   template: `
     <div class="finance">
       <div class="fin-head">
@@ -21,7 +22,7 @@ import {
       </div>
 
       @if (loading()) {
-        <p class="loading">Loading…</p>
+        <app-loading-state mode="cards" [count]="6" title="Loading financial overview…" />
       } @else if (errorMessage()) {
         <div class="error-banner">⚠️ {{ errorMessage() }}</div>
       } @else if (metrics(); as m) {

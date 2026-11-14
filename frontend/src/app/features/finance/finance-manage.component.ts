@@ -9,12 +9,13 @@ import {
   Frequency, GoalPriority, Household, ImportTransactionsRequest, IncomeSource, IncomeType,
   InstrumentKind, Investment, Liability, PdfStatementPreview, Transaction, TransactionDirection,
 } from '../../core/models/finance.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'liabilities' | 'goals' | 'transactions';
 
 @Component({
   selector: 'app-finance-manage',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, LoadingStateComponent],
   template: `
     <div class="manage">
       <div class="fin-head">
@@ -52,7 +53,9 @@ type Tab = 'household' | 'members' | 'income' | 'expenses' | 'investments' | 'li
               <button class="btn-primary" (click)="openCreate()">+ Add</button>
             </div>
           </div>
-          @if (loading()) { <p class="muted">Loading…</p> }
+          @if (loading()) {
+            <app-loading-state mode="table" [count]="4" [title]="'Loading ' + currentLabel().toLowerCase() + '…'" />
+          }
           @else {
             <div class="table-wrap">
               <table>

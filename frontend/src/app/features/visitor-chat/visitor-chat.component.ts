@@ -8,6 +8,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, interval, switchMap, throttleTime } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { VisitorChatService } from '../../core/services/visitor-chat.service';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 import {
   VisitorChatMessageView, VisitorChatSessionView, VisitorChatStatus, VisitorChatThread,
 } from '../../core/models/visitor-chat.models';
@@ -35,7 +36,7 @@ const THREAD_POLL_MS = 3_000;
   selector: 'app-visitor-chat',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LoadingStateComponent],
   template: `
     <div class="page">
       <header class="head">
@@ -77,7 +78,11 @@ const THREAD_POLL_MS = 3_000;
             </button>
           }
           @if (!sessions().length && !loading()) { <p class="muted pad">No conversations yet.</p> }
-          @if (loading()) { <p class="muted pad">Loading…</p> }
+          @if (loading()) {
+            <div class="pad">
+              <app-loading-state mode="list" [count]="4" [compact]="true" title="Loading visitor queue…" />
+            </div>
+          }
         </div>
 
         <div class="col detail">
@@ -253,12 +258,12 @@ export class VisitorChatComponent implements OnInit {
 
   private refreshQueue(): void {
     if (this.loading()) return;
-    this.fetchQueue();
+    this.fetchQueue(undefined, true);
   }
 
-  private fetchQueue(done?: () => void): void {
+  private fetchQueue(done?: () => void, silent = false): void {
     const status = this.filter();
-    this.api.list(status === 'all' ? undefined : status).subscribe({
+    this.api.list(status === 'all' ? undefined : status, { silent }).subscribe({
       next: list => {
         this.sessions.set(list);
         // Keep the open conversation's header (online, typing, status) in step with the queue.

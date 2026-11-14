@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { silentHttpContext } from '../interceptors/loading.interceptor';
 import {
   VisitorChatMessageView, VisitorChatSessionView, VisitorChatStatus, VisitorChatSummary, VisitorChatThread,
 } from '../models/visitor-chat.models';
@@ -15,13 +16,19 @@ export class VisitorChatService {
   private http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/visitor-chat/staff`;
 
-  list(status?: VisitorChatStatus): Observable<VisitorChatSessionView[]> {
+  list(status?: VisitorChatStatus, opts?: { silent?: boolean }): Observable<VisitorChatSessionView[]> {
     const query = status ? `?status=${status}` : '';
-    return this.http.get<VisitorChatSessionView[]>(`${this.baseUrl}${query}`);
+    return this.http.get<VisitorChatSessionView[]>(
+      `${this.baseUrl}${query}`,
+      opts?.silent ? { context: silentHttpContext() } : undefined,
+    );
   }
 
-  summary(): Observable<VisitorChatSummary> {
-    return this.http.get<VisitorChatSummary>(`${this.baseUrl}/summary`);
+  summary(opts?: { silent?: boolean }): Observable<VisitorChatSummary> {
+    return this.http.get<VisitorChatSummary>(
+      `${this.baseUrl}/summary`,
+      opts?.silent ? { context: silentHttpContext() } : undefined,
+    );
   }
 
   /** Opens a conversation — this marks it read, so use poll() for refreshes. */
@@ -31,7 +38,7 @@ export class VisitorChatService {
 
   poll(id: string, after: string | null): Observable<VisitorChatThread> {
     const query = after ? `?after=${encodeURIComponent(after)}` : '';
-    return this.http.get<VisitorChatThread>(`${this.baseUrl}/${id}/poll${query}`);
+    return this.http.get<VisitorChatThread>(`${this.baseUrl}/${id}/poll${query}`, { context: silentHttpContext() });
   }
 
   reply(id: string, body: string): Observable<VisitorChatMessageView> {
@@ -39,7 +46,7 @@ export class VisitorChatService {
   }
 
   typing(id: string): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/${id}/typing`, {});
+    return this.http.post<void>(`${this.baseUrl}/${id}/typing`, {}, { context: silentHttpContext() });
   }
 
   setStatus(id: string, status: VisitorChatStatus): Observable<void> {

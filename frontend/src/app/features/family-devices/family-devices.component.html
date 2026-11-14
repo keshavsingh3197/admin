@@ -6,8 +6,8 @@
       <p class="subtitle">Monitor connected mobile devices, view contacts, chat, and manage app versions.</p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-secondary" (click)="refreshAll()" [disabled]="loading()">
-        <span>⟳</span> Refresh
+      <button class="btn btn-secondary" [class.btn-spin]="loading()" (click)="refreshAll()" [disabled]="loading()">
+        @if (!loading()) { <span>⟳</span> } Refresh
       </button>
       <button class="btn btn-primary" (click)="generateQr()">
         <span>📷</span> Generate Pairing QR
@@ -75,7 +75,9 @@
   <!-- Tab 1: Device Fleet -->
   @if (activeTab() === 'fleet') {
     <div class="fleet-grid">
-      @if (devices().length === 0 && !loading()) {
+      @if (loading() && devices().length === 0) {
+        <app-loading-state mode="cards" [count]="3" title="Loading family devices…" />
+      } @else if (devices().length === 0) {
         <div class="empty-state">
           <div class="empty-icon">📱</div>
           <h3>No Family Devices Enrolled Yet</h3>
@@ -367,13 +369,13 @@
       <div class="accounts-table-card">
         <div class="table-card-header">
           <h4>Active Mobile Accounts ({{ mobileUsers().length }})</h4>
-          <button class="btn btn-secondary btn-sm" (click)="loadMobileUsers()" [disabled]="mobileUsersLoading()">
+          <button class="btn btn-secondary btn-sm" [class.btn-spin]="mobileUsersLoading()" (click)="loadMobileUsers()" [disabled]="mobileUsersLoading()">
             ⟳ Refresh
           </button>
         </div>
 
         @if (mobileUsersLoading()) {
-          <div class="table-loading">Loading accounts from database…</div>
+          <app-loading-state mode="table" [count]="4" [compact]="true" title="Loading accounts from database…" />
         } @else if (mobileUsers().length === 0) {
           <div class="empty-state">
             <p>No dedicated mobile accounts currently provisioned.</p>
@@ -439,14 +441,14 @@
               [ngModel]="contactsSearch()"
               (ngModelChange)="contactsSearch.set($event)"
             />
-            <button class="btn btn-secondary btn-sm" (click)="loadContacts()" [disabled]="contactsLoading()">
+            <button class="btn btn-secondary btn-sm" [class.btn-spin]="contactsLoading()" (click)="loadContacts()" [disabled]="contactsLoading()">
               ⟳ Refresh
             </button>
           </div>
         </div>
 
         @if (contactsLoading()) {
-          <div class="table-loading">Loading contacts from FamSphere database…</div>
+          <app-loading-state mode="table" [count]="4" [compact]="true" title="Loading contacts from FamSphere database…" />
         } @else if (filteredContacts().length === 0) {
           <div class="empty-state">
             <p>No contacts found.</p>
@@ -494,7 +496,7 @@
           <button class="btn btn-secondary btn-sm" (click)="loadComms()">⟳ Refresh</button>
         </div>
         @if (commsLoading()) {
-          <div class="table-loading">Loading calls…</div>
+          <app-loading-state mode="table" [count]="4" [compact]="true" title="Loading calls…" />
         } @else if (calls().length === 0) {
           <div class="empty-state">
             <p>No call history recorded yet.</p>
@@ -541,7 +543,7 @@
           <h4>💬 Family Chat Messages</h4>
         </div>
         @if (commsLoading()) {
-          <div class="table-loading">Loading chat messages…</div>
+          <app-loading-state mode="list" [count]="4" [compact]="true" title="Loading chat messages…" />
         } @else if (messages().length === 0) {
           <div class="empty-state">
             <p>No chat messages yet.</p>

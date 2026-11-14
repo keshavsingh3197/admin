@@ -1,6 +1,6 @@
 import { Component, DestroyRef, HostListener, computed, effect, inject, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
-import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart } from '@angular/router';
+import { NavigationCancel, NavigationEnd, NavigationError } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from './core/services/auth.service';
@@ -15,6 +15,7 @@ import { CallOverlayComponent } from './features/messages/call-overlay.component
 import { MeetingReminderComponent } from './features/meetings/meeting-reminder.component';
 import { AvatarComponent } from './shared/avatar.component';
 import { CommandPaletteComponent } from './shared/command-palette.component';
+import { GlobalLoaderComponent } from './shared/global-loader.component';
 import { NAV_GROUPS, NavGroup, NavLink } from './core/models/navigation';
 
 /**
@@ -31,7 +32,7 @@ import { NAV_GROUPS, NavGroup, NavLink } from './core/models/navigation';
   // FormsModule: the language picker in the topbar is an ngModel-bound <select>.
   imports: [
     RouterOutlet, RouterLink, RouterLinkActive, FormsModule,
-    CallOverlayComponent, MeetingReminderComponent, AvatarComponent, CommandPaletteComponent,
+    CallOverlayComponent, MeetingReminderComponent, AvatarComponent, CommandPaletteComponent, GlobalLoaderComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css'
@@ -99,7 +100,6 @@ export class App {
     return match ? this.i18n.t(match.labelKey) : this.i18n.t('admin.nav.dashboard');
   });
 
-  readonly routeLoading = signal(false);
   /** Mobile drawer. Distinct from `sidebarCollapsed`, which is the desktop rail. */
   readonly navOpen = signal(false);
   readonly accountOpen = signal(false);
@@ -143,16 +143,11 @@ export class App {
     this.router.events
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((event) => {
-        if (event instanceof NavigationStart) {
-          this.routeLoading.set(true);
-        }
-
         if (
           event instanceof NavigationEnd ||
           event instanceof NavigationCancel ||
           event instanceof NavigationError
         ) {
-          this.routeLoading.set(false);
           this.navOpen.set(false);
           this.accountOpen.set(false);
         }

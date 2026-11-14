@@ -15,10 +15,11 @@ import {
 } from '../../core/models/family-device.models';
 import { UsersService } from '../../core/services/users.service';
 import { UserListItem } from '../../core/models/user.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 @Component({
   selector: 'app-family-devices',
-  imports: [FormsModule, DatePipe, DecimalPipe],
+  imports: [FormsModule, DatePipe, DecimalPipe, LoadingStateComponent],
   templateUrl: './family-devices.component.html',
   styleUrl: './family-devices.component.css'
 })

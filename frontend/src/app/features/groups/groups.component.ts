@@ -15,6 +15,7 @@ import {
   WebsiteAccessOption,
 } from '../../core/models/rbac.models';
 import { UserListItem } from '../../core/models/user.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 /**
  * User group management (Admin only). A group grants its members every permission and website
@@ -22,7 +23,7 @@ import { UserListItem } from '../../core/models/user.models';
  */
 @Component({
   selector: 'app-groups',
-  imports: [FormsModule, RouterLink, BrandDataTableComponent, BrandModalComponent],
+  imports: [FormsModule, RouterLink, BrandDataTableComponent, BrandModalComponent, LoadingStateComponent],
   template: `
     <div class="wrap">
       <div class="head">
@@ -69,7 +70,7 @@ import { UserListItem } from '../../core/models/user.models';
       </brand-modal>
 
       @if (loading()) {
-        <p>Loading…</p>
+        <app-loading-state mode="table" [count]="4" title="Loading groups…" />
       } @else {
         <brand-data-table [columns]="columns" [rows]="visibleGroups()" [trackBy]="trackById"
                            searchPlaceholder="Search groups…">
@@ -90,7 +91,7 @@ import { UserListItem } from '../../core/models/user.models';
               <tr class="view-row"><td colspan="5">
                 <div class="view-panel">
                   @if (previewLoading()) {
-                    <span class="muted">Loading access…</span>
+                    <app-loading-state mode="inline" [compact]="true" title="Loading access…" />
                   } @else if (preview()) {
                     <div class="grant-card">
                       <strong>Admin (this app)</strong>

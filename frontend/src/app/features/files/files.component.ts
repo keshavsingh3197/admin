@@ -11,6 +11,7 @@ import {
 } from '../../core/models/file.models';
 import { UserListItem } from '../../core/models/user.models';
 import { GroupView } from '../../core/models/rbac.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 interface UploadItem { ref: number; name: string; progress: number; error?: string; }
 interface FileKind { label: string; cls: string; }
@@ -20,7 +21,7 @@ type PreviewKind = 'image' | 'pdf' | 'text';
   selector: 'app-files',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LoadingStateComponent],
   template: `
     <div class="docs">
       <header class="head">
@@ -91,7 +92,7 @@ type PreviewKind = 'image' | 'pdf' | 'text';
       @if (error()) { <div class="banner">{{ error() }}</div> }
 
       @if (loading()) {
-        <p class="muted">Loading…</p>
+        <app-loading-state mode="list" [count]="5" title="Loading files…" />
       } @else if (view(); as v) {
         @if (!v.folders.length && !v.files.length && !v.sharedWithMe.length) {
           <div class="empty">
@@ -188,7 +189,7 @@ type PreviewKind = 'image' | 'pdf' | 'text';
           </header>
           <div class="p-body">
             @switch (previewKind()) {
-              @case ('image') { <img [src]="previewUrl()" [alt]="pf.fileName" /> }
+              @case ('image') { <img [src]="previewUrl()" [alt]="pf.fileName" loading="lazy" decoding="async" /> }
               @case ('pdf') { <iframe [src]="previewSafeUrl()" title="PDF preview"></iframe> }
               @case ('text') { <pre>{{ previewText() }}</pre> }
             }

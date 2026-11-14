@@ -10,6 +10,7 @@ import { WebsiteContentView } from '../../core/models/website.models';
 import { ApplicationMetrics, WebsiteLinkView } from '../../core/models/settings.models';
 import { LocaleView } from '../../core/models/localization.models';
 import { ChannelsManagerComponent } from './channels-manager.component';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 /**
  * The content behind the public sites: each entry is a JSON payload addressed by site key + content key
@@ -23,7 +24,7 @@ import { ChannelsManagerComponent } from './channels-manager.component';
   selector: 'app-website-manage',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink, ChannelsManagerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, ChannelsManagerComponent, LoadingStateComponent],
   template: `
     <div class="page">
       <header class="head">
@@ -66,7 +67,11 @@ import { ChannelsManagerComponent } from './channels-manager.component';
             </button>
           }
           @if (!entries().length && !loading()) { <p class="muted pad">Nothing here yet.</p> }
-          @if (loading()) { <p class="muted pad">Loading…</p> }
+          @if (loading()) {
+            <div class="pad">
+              <app-loading-state mode="list" [count]="4" [compact]="true" title="Loading content…" />
+            </div>
+          }
         </div>
 
         <div class="col detail">

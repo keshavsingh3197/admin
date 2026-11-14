@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ShortLinksService } from '../../core/services/short-links.service';
 import { ShortLink } from '../../core/models/short-link.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 @Component({
   selector: 'app-short-links',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, DatePipe],
+  imports: [CommonModule, FormsModule, DatePipe, LoadingStateComponent],
   template: `
     <div class="shortlinks">
       <header class="head">
@@ -24,7 +25,7 @@ import { ShortLink } from '../../core/models/short-link.models';
       }
 
       @if (loading()) {
-        <p class="loading">Loading short links…</p>
+        <app-loading-state mode="table" [count]="4" title="Loading short links…" />
       } @else if (links().length === 0) {
         <div class="empty-state">
           <span class="empty-icon" aria-hidden="true">🔗</span>

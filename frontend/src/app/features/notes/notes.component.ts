@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@a
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService, Note } from '../../core/services/api.service';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 type Category = 'general' | 'family' | 'finance' | 'work';
 
@@ -10,7 +11,7 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
 @Component({
   selector: 'app-notes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LoadingStateComponent],
   template: `
     <div class="notes">
       <header class="notes-header">
@@ -39,7 +40,7 @@ const CATEGORIES: Category[] = ['general', 'family', 'finance', 'work'];
       }
 
       @if (loading()) {
-        <p class="loading">Loading notes…</p>
+        <app-loading-state mode="cards" [count]="4" title="Loading notes…" />
       } @else if (notes().length === 0) {
         <div class="empty-state">
           <span class="empty-icon" aria-hidden="true">🗒️</span>

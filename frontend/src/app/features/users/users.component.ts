@@ -11,10 +11,11 @@ import { scopedRoleKeys } from '../../core/services/rbac-scope.util';
 import { Role } from '../../core/models/auth.models';
 import { CustomRoleView, GroupView } from '../../core/models/rbac.models';
 import { CreateUserRequest, UpdateUserRequest, UserListItem } from '../../core/models/user.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 @Component({
   selector: 'app-users',
-  imports: [FormsModule, DatePipe, RouterLink, BrandDataTableComponent, BrandModalComponent],
+  imports: [FormsModule, DatePipe, RouterLink, BrandDataTableComponent, BrandModalComponent, LoadingStateComponent],
   template: `
     <div class="users-wrap">
       <div class="head"><h1 class="page-title">Users &amp; access</h1><button class="btn-primary" type="button" (click)="openCreate()">+ New user</button></div>
@@ -36,7 +37,9 @@ import { CreateUserRequest, UpdateUserRequest, UserListItem } from '../../core/m
         </form>
       </brand-modal>
 
-      @if (loading()) { <p>Loading…</p> } @else {
+      @if (loading()) {
+        <app-loading-state mode="table" [count]="5" title="Loading users…" />
+      } @else {
         <brand-data-table [columns]="columns" [rows]="visibleUsers()" [trackBy]="trackById" defaultSortKey="email" searchPlaceholder="Search users…">
           <ng-template let-u><tr [class.inactive]="!u.isActive"><td>{{ u.email }}</td><td>{{ u.displayName }}</td><td>@for (r of u.roles; track r) { <span class="badge">{{ r }}</span> }</td><td>{{ websitesFor(u) }}</td><td>{{ u.isActive ? 'Active' : 'Disabled' }}</td><td>{{ u.twoFactorEnabled ? 'Enabled' : 'Not enrolled' }}</td><td>{{ u.lastLoginAt ? (u.lastLoginAt | date:'short') : 'Never' }}</td><td><button class="linkish" type="button" (click)="edit(u)">Edit</button></td></tr></ng-template>
           <span table-empty>No users match these filters.</span>

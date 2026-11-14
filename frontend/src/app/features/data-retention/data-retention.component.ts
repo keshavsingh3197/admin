@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DataRetentionService } from '../../core/services/data-retention.service';
 import { DataDomainOverview } from '../../core/models/data-retention.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 /**
  * Manual, date-ranged purging for time-series data (login audit logs, analytics visits) — on top
@@ -12,12 +13,12 @@ import { DataDomainOverview } from '../../core/models/data-retention.models';
  */
 @Component({
   selector: 'app-data-retention',
-  imports: [FormsModule, DatePipe, RouterLink],
+  imports: [FormsModule, DatePipe, RouterLink, LoadingStateComponent],
   template: `
     <div class="wrap">
       <div class="head">
         <h1 class="page-title">Data retention</h1>
-        <button class="btn-secondary" type="button" [disabled]="loading()" (click)="reload()">Refresh</button>
+        <button class="btn-secondary" [class.btn-spin]="loading()" type="button" [disabled]="loading()" (click)="reload()">Refresh</button>
       </div>
       <p class="lead">Clear old login logs or analytics visit records for a specific date range, or apply each
         domain's configured retention window immediately. Automatic cleanup already runs every 30 minutes using
@@ -26,7 +27,7 @@ import { DataDomainOverview } from '../../core/models/data-retention.models';
       @if (message()) { <div class="banner" [class.ok]="ok()">{{ message() }}</div> }
 
       @if (loading()) {
-        <p>Loading…</p>
+        <app-loading-state mode="cards" [count]="2" title="Loading retention policies…" />
       } @else {
         <div class="domains">
           @for (d of domains(); track d.key) {

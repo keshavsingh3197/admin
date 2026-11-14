@@ -6,6 +6,7 @@ import {
   AccountRequestStatus,
   AccountRequestsService,
 } from '../../core/services/account-requests.service';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 /**
  * The approval queue.
@@ -17,7 +18,7 @@ import {
  */
 @Component({
   selector: 'app-account-requests',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LoadingStateComponent],
   template: `
     <section class="page">
       <header class="page-head">
@@ -27,7 +28,7 @@ import {
             People asking for access. Nobody can sign in until you approve them.
           </p>
         </div>
-        <button class="btn" (click)="reload()" [disabled]="loading()">Refresh</button>
+        <button class="btn" [class.btn-spin]="loading()" (click)="reload()" [disabled]="loading()">Refresh</button>
       </header>
 
       <nav class="tabs">
@@ -45,7 +46,7 @@ import {
       </nav>
 
       @if (loading()) {
-        <p class="muted">Loading…</p>
+        <app-loading-state mode="list" [count]="4" title="Loading account requests…" />
       } @else if (!requests().length) {
         <p class="muted">Nothing here.</p>
       } @else {

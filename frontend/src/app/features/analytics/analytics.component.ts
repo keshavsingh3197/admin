@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AnalyticsService } from '../../core/services/analytics.service';
 import { WebsiteDashboard, WebsiteOption } from '../../core/models/analytics.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 type MetricKey =
   | 'websiteStatus'
@@ -14,7 +15,7 @@ type Tab = 'website' | 'identity';
 
 @Component({
   selector: 'app-analytics',
-  imports: [CommonModule],
+  imports: [CommonModule, LoadingStateComponent],
   template: `
     <section class="analytics-page">
       <header class="hero">
@@ -34,7 +35,7 @@ type Tab = 'website' | 'identity';
               <option [value]="site.key">{{ site.name }}</option>
             }
           </select>
-          <button type="button" class="refresh-btn" [disabled]="loadingDashboard()" (click)="refresh()">Refresh</button>
+          <button type="button" class="refresh-btn" [class.btn-spin]="loadingDashboard()" [disabled]="loadingDashboard()" (click)="refresh()">Refresh</button>
         </div>
       </header>
 
@@ -43,7 +44,7 @@ type Tab = 'website' | 'identity';
       }
 
       @if (loadingWebsites() && !dashboard()) {
-        <div class="initial-loading"><span class="spinner"></span> Loading dashboard…</div>
+        <app-loading-state mode="cards" [count]="3" title="Loading analytics dashboard…" subtitle="Gathering traffic and health telemetry…" />
       }
 
       @if (dashboard(); as d) {

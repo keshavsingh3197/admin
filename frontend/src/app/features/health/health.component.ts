@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { HealthService } from '../../core/services/health.service';
 import { HealthCheck, HealthReport, HealthStatus } from '../../core/models/health.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 type StatusFilter = 'all' | HealthStatus;
 
@@ -15,7 +16,7 @@ type StatusFilter = 'all' | HealthStatus;
  */
 @Component({
   selector: 'app-health',
-  imports: [DatePipe, FormsModule, RouterLink],
+  imports: [DatePipe, FormsModule, RouterLink, LoadingStateComponent],
   template: `
     <div class="wrap">
       <div class="head">
@@ -23,13 +24,13 @@ type StatusFilter = 'all' | HealthStatus;
           <h1 class="page-title">System health</h1>
           <p class="lead">Diagnostic checks across the database, RBAC data, websites, and settings.</p>
         </div>
-        <button class="btn-secondary" type="button" [disabled]="loading()" (click)="reload()">Refresh</button>
+        <button class="btn-secondary" [class.btn-spin]="loading()" type="button" [disabled]="loading()" (click)="reload()">Refresh</button>
       </div>
 
       @if (error()) { <div class="banner">{{ error() }}</div> }
 
       @if (loading() && !report()) {
-        <div class="initial-loading"><span class="spinner"></span> Running checks…</div>
+        <app-loading-state mode="cards" [count]="4" title="Running system health checks…" />
       } @else if (report(); as r) {
         <div class="summary">
           <div class="overall" [class.healthy]="r.errorCount === 0 && r.warningCount === 0" [class.degraded]="r.errorCount === 0 && r.warningCount > 0"><strong>{{ overallLabel() }}</strong><span>{{ overallMessage() }}</span></div>

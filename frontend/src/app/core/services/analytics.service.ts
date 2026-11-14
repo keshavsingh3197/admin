@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { TrackVisitRequest, WebsiteDashboard, WebsiteOption } from '../models/analytics.models';
+import { silentHttpContext } from '../interceptors/loading.interceptor';
 
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
@@ -19,6 +20,6 @@ export class AnalyticsService {
   }
 
   trackVisit(req: TrackVisitRequest): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/analytics/visit`, req);
+    return this.http.post<void>(`${this.baseUrl}/analytics/visit`, req, { context: silentHttpContext() });
   }
 }

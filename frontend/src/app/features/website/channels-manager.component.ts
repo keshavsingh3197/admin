@@ -8,6 +8,7 @@ import {
   CreatorChannelView,
   UpsertCreatorChannelRequest,
 } from '../../core/models/settings.models';
+import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 /**
  * Admin-only management UI for central ecosystem Creator Channels & Social Profiles.
@@ -18,7 +19,7 @@ import {
   selector: 'app-channels-manager',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LoadingStateComponent],
   template: `
     <div class="cm-shell">
       <div class="cm-sidebar">
@@ -29,7 +30,9 @@ import {
         </div>
 
         @if (loading()) {
-          <p class="cm-empty">Loading channels…</p>
+          <div style="padding: 0.75rem">
+            <app-loading-state mode="list" [count]="5" [compact]="true" title="Loading channels…" />
+          </div>
         } @else if (!filteredChannels().length) {
           <p class="cm-empty">No creator channels match your filter.</p>
         } @else {
