@@ -75,6 +75,7 @@ public static class StartupInitializationExtensions
                 configuration["Websites:PanchangUrl"] ?? "https://panchang.keshavsingh.in");
         await services.GetRequiredService<CreatorChannelService>().EnsureIndexesAsync();
         await services.GetRequiredService<CreatorChannelService>().SeedDefaultsAsync();
+        await services.GetRequiredService<ChannelVideoService>().EnsureIndexesAsync();
         using (var scope = services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();

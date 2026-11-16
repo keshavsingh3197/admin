@@ -125,4 +125,46 @@ public sealed class CreatorChannelAndCorsTests
     {
         Assert.Equal(expectedExcluded, CreatorChannelService.IsExcludedFromPanchangByDefault(key, handle, name));
     }
+
+    [Fact]
+    public void CreatorChannel_BuildFunnyAnimationChannel_HasExpectedDefaults()
+    {
+        var channel = CreatorChannelService.BuildFunnyAnimationChannel(DateTime.UtcNow);
+        Assert.Equal("keshav-anim-ff", channel.Key);
+        Assert.Equal("@KESHAV-ANIM-FF", channel.Handle);
+        Assert.Equal("YouTube", channel.Platform);
+        Assert.True(channel.IsEnabled);
+        Assert.True(channel.ShowInStudio);
+        Assert.True(channel.ShowInAnalytics);
+        Assert.True(channel.ShowInFooter);
+        Assert.False(channel.ShowInPanchang);
+    }
+
+    [Fact]
+    public void WebsiteRegistry_ProjectEcosystemLinks_PreservesPerSiteLocalizationPolicy()
+    {
+        var list = new List<WebsiteLink>
+        {
+            new()
+            {
+                Key = "panchang",
+                Name = "Hindu Panchang",
+                Url = "https://panchang.keshavsingh.in",
+                IsEnabled = true,
+                DefaultLocale = "hi",
+                EnabledLocales = ["hi", "en"],
+                AllowVisitorLanguageSwitch = true,
+                ShowLanguagePicker = true,
+                ForceLocale = false,
+            }
+        };
+
+        var projected = WebsiteRegistryService.ProjectEcosystemLinks(list);
+        var site = Assert.Single(projected);
+        Assert.Equal("hi", site.DefaultLocale);
+        Assert.Equal(["hi", "en"], site.EnabledLocales);
+        Assert.True(site.ShowLanguagePicker);
+        Assert.True(site.AllowVisitorLanguageSwitch);
+        Assert.False(site.ForceLocale);
+    }
 }

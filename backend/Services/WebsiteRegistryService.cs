@@ -8,6 +8,7 @@ namespace Admin.Api.Services;
 public sealed class WebsiteRegistryService
 {
     private const string EcosystemBarCleanupMigrationId = "ecosystem-bar-cleanup-v1";
+    private const string LocalizationDefaultsMigrationId = "website-localization-defaults-v1";
     private readonly IMongoCollection<WebsiteLink> _websites;
     private readonly IMongoCollection<RegistryMigrationMarker> _migrations;
 
@@ -106,6 +107,11 @@ public sealed class WebsiteRegistryService
                 Icon = "🕉️",
                 Description = "Daily Vedic calendar, muhurats, spiritual video hub & Aaj Ka Itihaas.",
                 ShowInEcosystemBar = true,
+                DefaultLocale = "hi",
+                EnabledLocales = ["en", "hi"],
+                AllowVisitorLanguageSwitch = true,
+                ShowLanguagePicker = true,
+                ForceLocale = false,
             },
             new()
             {
@@ -150,6 +156,47 @@ public sealed class WebsiteRegistryService
         if (missing.Count > 0) await _websites.InsertManyAsync(missing, cancellationToken: ct);
 
         await ApplyOneTimeEcosystemBarCleanupAsync(ct);
+        await ApplyOneTimeLocalizationDefaultsAsync(ct);
+    }
+
+    private async Task ApplyOneTimeLocalizationDefaultsAsync(CancellationToken ct)
+    {
+        var alreadyApplied = await _migrations.Find(x => x.Id == LocalizationDefaultsMigrationId).AnyAsync(ct);
+        if (alreadyApplied) return;
+
+        var all = await _websites.Find(FilterDefinition<WebsiteLink>.Empty).ToListAsync(ct);
+        var now = DateTime.UtcNow;
+        foreach (var item in all)
+        {
+            var isPanchang = string.Equals(item.Key, "panchang", StringComparison.OrdinalIgnoreCase);
+            var defaultLocale = string.IsNullOrWhiteSpace(item.DefaultLocale)
+                ? (isPanchang ? "hi" : "en")
+                : NormalizeLocale(item.DefaultLocale);
+            if (isPanchang && string.IsNullOrWhiteSpace(item.DefaultLocale))
+                defaultLocale = "hi";
+
+            var enabledLocales = NormalizeEnabledLocales(item.EnabledLocales, defaultLocale);
+            var needsUpdate = string.IsNullOrWhiteSpace(item.DefaultLocale)
+                || item.EnabledLocales is null
+                || item.EnabledLocales.Count == 0;
+
+            if (needsUpdate)
+            {
+                var update = Builders<WebsiteLink>.Update
+                    .Set(x => x.DefaultLocale, defaultLocale)
+                    .Set(x => x.EnabledLocales, enabledLocales)
+                    .Set(x => x.AllowVisitorLanguageSwitch, item.AllowVisitorLanguageSwitch)
+                    .Set(x => x.ShowLanguagePicker, item.ShowLanguagePicker)
+                    .Set(x => x.UpdatedAt, now);
+                await _websites.UpdateOneAsync(x => x.Id == item.Id, update, cancellationToken: ct);
+            }
+        }
+
+        await _migrations.ReplaceOneAsync(
+            x => x.Id == LocalizationDefaultsMigrationId,
+            new RegistryMigrationMarker { Id = LocalizationDefaultsMigrationId, AppliedAtUtc = now },
+            new ReplaceOptions { IsUpsert = true },
+            ct);
     }
 
     private async Task ApplyOneTimeEcosystemBarCleanupAsync(CancellationToken ct)
@@ -207,6 +254,8 @@ public sealed class WebsiteRegistryService
     public async Task<WebsiteLinkView> CreateAsync(UpsertWebsiteLinkRequest request, CancellationToken ct = default)
     {
         var key = NormalizeKey(request.Key);
+        var defaultLocale = NormalizeLocale(request.DefaultLocale ?? (key == "panchang" ? "hi" : "en"));
+        var enabledLocales = NormalizeEnabledLocales(request.EnabledLocales, defaultLocale);
         var entity = new WebsiteLink
         {
             Key = key,
@@ -217,6 +266,11 @@ public sealed class WebsiteRegistryService
             Icon = NormalizeIcon(request.Icon, key),
             Description = (request.Description ?? string.Empty).Trim(),
             ShowInEcosystemBar = request.ShowInEcosystemBar ?? true,
+            DefaultLocale = defaultLocale,
+            EnabledLocales = enabledLocales,
+            AllowVisitorLanguageSwitch = request.AllowVisitorLanguageSwitch ?? true,
+            ShowLanguagePicker = request.ShowLanguagePicker ?? true,
+            ForceLocale = request.ForceLocale ?? false,
             UpdatedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
         };
@@ -229,6 +283,11 @@ public sealed class WebsiteRegistryService
     {
         var key = NormalizeKey(request.Key);
         var now = DateTime.UtcNow;
+        var existing = await _websites.Find(x => x.Id == id).FirstOrDefaultAsync(ct);
+        if (existing is null) return null;
+
+        var defaultLocale = NormalizeLocale(request.DefaultLocale ?? existing.DefaultLocale ?? (key == "panchang" ? "hi" : "en"));
+        var enabledLocales = NormalizeEnabledLocales(request.EnabledLocales ?? existing.EnabledLocales, defaultLocale);
 
         var update = Builders<WebsiteLink>.Update
             .Set(x => x.Key, key)
@@ -238,7 +297,12 @@ public sealed class WebsiteRegistryService
             .Set(x => x.SortOrder, request.SortOrder)
             .Set(x => x.Icon, NormalizeIcon(request.Icon, key))
             .Set(x => x.Description, (request.Description ?? string.Empty).Trim())
-            .Set(x => x.ShowInEcosystemBar, request.ShowInEcosystemBar ?? true)
+            .Set(x => x.ShowInEcosystemBar, request.ShowInEcosystemBar ?? existing.ShowInEcosystemBar)
+            .Set(x => x.DefaultLocale, defaultLocale)
+            .Set(x => x.EnabledLocales, enabledLocales)
+            .Set(x => x.AllowVisitorLanguageSwitch, request.AllowVisitorLanguageSwitch ?? existing.AllowVisitorLanguageSwitch)
+            .Set(x => x.ShowLanguagePicker, request.ShowLanguagePicker ?? existing.ShowLanguagePicker)
+            .Set(x => x.ForceLocale, request.ForceLocale ?? existing.ForceLocale)
             .Set(x => x.UpdatedAt, now);
 
         var updated = await _websites.FindOneAndUpdateAsync(x => x.Id == id, update,
@@ -275,6 +339,9 @@ public sealed class WebsiteRegistryService
                 continue;
             }
 
+            var defaultLocale = NormalizeLocale(x.DefaultLocale ?? (x.Key.Equals("panchang", StringComparison.OrdinalIgnoreCase) ? "hi" : "en"));
+            var enabledLocales = NormalizeEnabledLocales(x.EnabledLocales, defaultLocale);
+
             result.Add(new EcosystemWebsiteView(
                 x.Key,
                 normalizedName,
@@ -283,10 +350,39 @@ public sealed class WebsiteRegistryService
                 x.Description ?? string.Empty,
                 x.SortOrder,
                 x.ShowInEcosystemBar,
-                x.UpdatedAt));
+                x.UpdatedAt,
+                defaultLocale,
+                enabledLocales,
+                x.AllowVisitorLanguageSwitch,
+                x.ShowLanguagePicker,
+                x.ForceLocale));
         }
 
         return result;
+    }
+
+    public async Task<EcosystemWebsiteView?> GetEcosystemSiteAsync(string siteKey, CancellationToken ct = default)
+    {
+        var normalized = (siteKey ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(normalized)) return null;
+        var site = await _websites.Find(x => x.Key == normalized && x.IsEnabled).FirstOrDefaultAsync(ct);
+        if (site is null) return null;
+        var defaultLocale = NormalizeLocale(site.DefaultLocale ?? (site.Key.Equals("panchang", StringComparison.OrdinalIgnoreCase) ? "hi" : "en"));
+        var enabledLocales = NormalizeEnabledLocales(site.EnabledLocales, defaultLocale);
+        return new EcosystemWebsiteView(
+            site.Key,
+            site.Name,
+            site.Url ?? string.Empty,
+            ResolveIcon(site.Icon, site.Key),
+            site.Description ?? string.Empty,
+            site.SortOrder,
+            site.ShowInEcosystemBar,
+            site.UpdatedAt,
+            defaultLocale,
+            enabledLocales,
+            site.AllowVisitorLanguageSwitch,
+            site.ShowLanguagePicker,
+            site.ForceLocale);
     }
 
     internal sealed class RegistryMigrationMarker
@@ -296,8 +392,11 @@ public sealed class WebsiteRegistryService
         public DateTime AppliedAtUtc { get; set; }
     }
 
-    private static WebsiteLinkView Map(WebsiteLink x) =>
-        new(
+    private static WebsiteLinkView Map(WebsiteLink x)
+    {
+        var defaultLocale = NormalizeLocale(x.DefaultLocale ?? (x.Key.Equals("panchang", StringComparison.OrdinalIgnoreCase) ? "hi" : "en"));
+        var enabledLocales = NormalizeEnabledLocales(x.EnabledLocales, defaultLocale);
+        return new WebsiteLinkView(
             x.Id,
             x.Key,
             x.Name,
@@ -307,7 +406,44 @@ public sealed class WebsiteRegistryService
             x.UpdatedAt,
             ResolveIcon(x.Icon, x.Key),
             x.Description ?? string.Empty,
-            x.ShowInEcosystemBar);
+            x.ShowInEcosystemBar,
+            defaultLocale,
+            enabledLocales,
+            x.AllowVisitorLanguageSwitch,
+            x.ShowLanguagePicker,
+            x.ForceLocale);
+    }
+
+    public static string NormalizeLocale(string? locale)
+    {
+        var code = (locale ?? string.Empty).Trim().ToLowerInvariant();
+        if (code.StartsWith("hi", StringComparison.Ordinal)) return "hi";
+        if (code.StartsWith("en", StringComparison.Ordinal)) return "en";
+        return string.IsNullOrWhiteSpace(code) ? "en" : code;
+    }
+
+    public static List<string> NormalizeEnabledLocales(IEnumerable<string>? locales, string defaultLocale)
+    {
+        var result = new List<string>();
+        if (locales is not null)
+        {
+            foreach (var raw in locales)
+            {
+                var norm = NormalizeLocale(raw);
+                if (!result.Contains(norm, StringComparer.OrdinalIgnoreCase))
+                    result.Add(norm);
+            }
+        }
+        if (result.Count == 0)
+        {
+            result.Add("en");
+            result.Add("hi");
+        }
+        var def = NormalizeLocale(defaultLocale);
+        if (!result.Contains(def, StringComparer.OrdinalIgnoreCase))
+            result.Insert(0, def);
+        return result;
+    }
 
     private static string NormalizeIcon(string? icon, string key) =>
         string.IsNullOrWhiteSpace(icon) ? DefaultIconForKey(key) : icon.Trim();

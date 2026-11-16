@@ -92,6 +92,16 @@ public sealed class ConfigController : ControllerBase
         return Ok(await _websites.ListEcosystemAsync(ct));
     }
 
+    /// <summary>Public read of a single website's localization &amp; launcher policy.</summary>
+    [HttpGet("site/{siteKey}")]
+    public async Task<ActionResult<EcosystemWebsiteView>> SiteConfig(string siteKey, CancellationToken ct)
+    {
+        var site = await _websites.GetEcosystemSiteAsync(siteKey, ct);
+        if (site is null) return NotFound(new { error = $"Website '{siteKey}' not found or disabled." });
+        Response.Headers.CacheControl = "public, max-age=60";
+        return Ok(site);
+    }
+
     /// <summary>
     /// Public read of enabled creator/social channels configured in Admin Console.
     /// Optional <paramref name="app"/> filter: studio, panchang, social, or footer.

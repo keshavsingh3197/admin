@@ -21,6 +21,16 @@ public sealed class WebsiteLink
     [BsonDefaultValue(true)]
     public bool ShowInEcosystemBar { get; set; } = true;
 
+    [BsonDefaultValue("en")]
+    public string DefaultLocale { get; set; } = "en";
+    public List<string> EnabledLocales { get; set; } = ["en", "hi"];
+    [BsonDefaultValue(true)]
+    public bool AllowVisitorLanguageSwitch { get; set; } = true;
+    [BsonDefaultValue(true)]
+    public bool ShowLanguagePicker { get; set; } = true;
+    [BsonDefaultValue(false)]
+    public bool ForceLocale { get; set; } = false;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

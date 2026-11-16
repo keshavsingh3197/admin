@@ -39,7 +39,7 @@ public sealed class LocalizationSeedsValidationTests
     public void All_Seeded_Config_Entries_Validate_Against_Appsettings_AllowedHosts()
     {
         var allowedHosts = LoadDeploymentAllowedHosts();
-        ILocalizationSeedSource[] sources = [new AdminAppSeeds(), new PublicSiteSeeds()];
+        ILocalizationSeedSource[] sources = [new AdminAppSeeds(), new PublicSiteSeeds(), new EcosystemSiteSeeds()];
 
         foreach (var source in sources)
         {

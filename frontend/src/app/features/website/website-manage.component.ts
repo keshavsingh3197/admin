@@ -157,6 +157,36 @@ import { LoadingStateComponent } from '../../shared/loading-state.component';
               <div class="grid-2"><label class="field"><span>Icon / Emoji</span><input class="input" [(ngModel)]="appDraft.icon" placeholder="🌐"></label><label class="field"><span>URL</span><input class="input" type="url" [(ngModel)]="appDraft.url" placeholder="https://example.keshavsingh.in"></label></div>
               <label class="field"><span>Description</span><input class="input" [(ngModel)]="appDraft.description" placeholder="Short description for ecosystem cards and funnels"></label>
               <div class="grid-2"><label class="field"><span>Sort order</span><input class="input" type="number" [(ngModel)]="appDraft.sortOrder"></label><div class="check app-enabled" style="display:flex;gap:1rem;flex-wrap:wrap"><label class="check"><input type="checkbox" [(ngModel)]="appDraft.isEnabled"> Enabled</label><label class="check"><input type="checkbox" [(ngModel)]="appDraft.showInEcosystemBar"> Show in ecosystem bar</label></div></div>
+              <div class="grid-2" style="margin-top:.25rem">
+                <label class="field">
+                  <span>Default Language</span>
+                  <select class="input" [(ngModel)]="appDraft.defaultLocale">
+                    <option value="en">English (en)</option>
+                    <option value="hi">हिन्दी (hi)</option>
+                    @for (l of locales(); track l.code) {
+                      @if (l.code !== 'en' && l.code !== 'hi') {
+                        <option [value]="l.code">{{ l.englishName }} ({{ l.code }})</option>
+                      }
+                    }
+                  </select>
+                </label>
+                <div class="field">
+                  <span>Enabled Languages</span>
+                  <div style="display:flex;gap:.85rem;flex-wrap:wrap;padding:.45rem 0">
+                    @for (code of availableLocaleCodes(); track code) {
+                      <label class="check">
+                        <input type="checkbox" [checked]="isLocaleEnabledForApp(code)" (change)="toggleAppLocale(code)">
+                        {{ code === 'hi' ? 'हिन्दी (hi)' : code === 'en' ? 'English (en)' : code }}
+                      </label>
+                    }
+                  </div>
+                </div>
+              </div>
+              <div class="check" style="display:flex;gap:1.1rem;flex-wrap:wrap;margin-bottom:.75rem">
+                <label class="check"><input type="checkbox" [(ngModel)]="appDraft.showLanguagePicker"> Show language switcher</label>
+                <label class="check"><input type="checkbox" [(ngModel)]="appDraft.allowVisitorLanguageSwitch"> Allow visitor language switch</label>
+                <label class="check"><input type="checkbox" [(ngModel)]="appDraft.forceLocale"> Force default language (lock)</label>
+              </div>
               <div class="row-actions"><button class="btn primary" [disabled]="busy()" (click)="saveApplication()">{{ editingAppId ? 'Update application' : 'Create application' }}</button>@if (editingAppId) { <button class="btn danger" [disabled]="busy()" (click)="deleteApplication()">Delete</button> }</div>
             </div>
           </section>
@@ -237,7 +267,44 @@ export class WebsiteManageComponent implements OnInit {
 
   draft = this.blank();
   editingAppId: string | null = null;
-  appDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: 0, icon: '🌐', description: '', showInEcosystemBar: true };
+  appDraft = {
+    key: '',
+    name: '',
+    url: '',
+    isEnabled: true,
+    sortOrder: 0,
+    icon: '🌐',
+    description: '',
+    showInEcosystemBar: true,
+    defaultLocale: 'en',
+    enabledLocales: ['en', 'hi'] as string[],
+    allowVisitorLanguageSwitch: true,
+    showLanguagePicker: true,
+    forceLocale: false,
+  };
+
+  availableLocaleCodes(): string[] {
+    const codes = ['en', 'hi'];
+    for (const loc of this.locales()) {
+      if (loc.isEnabled && !codes.includes(loc.code)) codes.push(loc.code);
+    }
+    return codes;
+  }
+
+  isLocaleEnabledForApp(code: string): boolean {
+    return this.appDraft.enabledLocales.includes(code);
+  }
+
+  toggleAppLocale(code: string): void {
+    const next = new Set(this.appDraft.enabledLocales);
+    if (next.has(code)) {
+      if (code === this.appDraft.defaultLocale || next.size <= 1) return;
+      next.delete(code);
+    } else {
+      next.add(code);
+    }
+    this.appDraft.enabledLocales = [...next];
+  }
 
   ngOnInit(): void {
     this.settings.listWebsites().subscribe({
@@ -267,6 +334,9 @@ export class WebsiteManageComponent implements OnInit {
   selectApp(app: WebsiteLinkView): void {
     this.selectedApp.set(app);
     this.editingAppId = app.id;
+    const defaultLocale = app.defaultLocale || (app.key === 'panchang' ? 'hi' : 'en');
+    const enabled = app.enabledLocales?.length ? [...app.enabledLocales] : ['en', 'hi'];
+    if (!enabled.includes(defaultLocale)) enabled.unshift(defaultLocale);
     this.appDraft = {
       key: app.key,
       name: app.name,
@@ -276,6 +346,11 @@ export class WebsiteManageComponent implements OnInit {
       icon: app.icon ?? '🌐',
       description: app.description ?? '',
       showInEcosystemBar: app.showInEcosystemBar ?? true,
+      defaultLocale,
+      enabledLocales: enabled,
+      allowVisitorLanguageSwitch: app.allowVisitorLanguageSwitch ?? true,
+      showLanguagePicker: app.showLanguagePicker ?? true,
+      forceLocale: app.forceLocale ?? false,
     };
     this.appMetrics.set(null);
     this.settings.websiteMetrics(app.key).subscribe({ next: metrics => this.appMetrics.set(metrics), error: () => this.error.set('Could not load application metrics.') });
@@ -285,12 +360,30 @@ export class WebsiteManageComponent implements OnInit {
     this.selectedApp.set(null);
     this.appMetrics.set(null);
     this.editingAppId = null;
-    this.appDraft = { key: '', name: '', url: '', isEnabled: true, sortOrder: this.sites().length, icon: '🌐', description: '', showInEcosystemBar: true };
+    this.appDraft = {
+      key: '',
+      name: '',
+      url: '',
+      isEnabled: true,
+      sortOrder: this.sites().length,
+      icon: '🌐',
+      description: '',
+      showInEcosystemBar: true,
+      defaultLocale: 'en',
+      enabledLocales: ['en', 'hi'],
+      allowVisitorLanguageSwitch: true,
+      showLanguagePicker: true,
+      forceLocale: false,
+    };
   }
 
   saveApplication(): void {
     if (!this.appDraft.key.trim() || !this.appDraft.name.trim() || !this.appDraft.url.trim()) { this.error.set('Key, name, and URL are required.'); return; }
     this.busy.set(true);
+    const defaultLocale = this.appDraft.defaultLocale || 'en';
+    const enabledLocales = this.appDraft.enabledLocales.includes(defaultLocale)
+      ? [...this.appDraft.enabledLocales]
+      : [defaultLocale, ...this.appDraft.enabledLocales];
     const request = {
       ...this.appDraft,
       key: this.appDraft.key.trim(),
@@ -298,6 +391,8 @@ export class WebsiteManageComponent implements OnInit {
       url: this.appDraft.url.trim(),
       icon: this.appDraft.icon.trim() || '🌐',
       description: this.appDraft.description.trim(),
+      defaultLocale,
+      enabledLocales,
     };
     const operation = this.editingAppId ? this.settings.updateWebsite(this.editingAppId, request) : this.settings.createWebsite(request);
     operation.subscribe({ next: saved => { this.busy.set(false); this.sites.update(items => [...items.filter(item => item.id !== saved.id), saved].sort((a, b) => a.sortOrder - b.sortOrder)); this.selectApp(saved); this.message.set(`Saved application ${saved.name}.`); }, error: (err: HttpErrorResponse) => { this.busy.set(false); this.error.set(err.error?.error ?? 'Could not save the application.'); } });
