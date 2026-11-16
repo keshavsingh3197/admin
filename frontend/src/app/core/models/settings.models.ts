@@ -105,6 +105,11 @@ export interface WebsiteLinkView {
   icon?: string;
   description?: string;
   showInEcosystemBar?: boolean;
+  defaultLocale?: string;
+  enabledLocales?: string[];
+  allowVisitorLanguageSwitch?: boolean;
+  showLanguagePicker?: boolean;
+  forceLocale?: boolean;
 }
 
 export interface UpsertWebsiteLinkRequest {
@@ -116,6 +121,11 @@ export interface UpsertWebsiteLinkRequest {
   icon?: string;
   description?: string;
   showInEcosystemBar?: boolean;
+  defaultLocale?: string;
+  enabledLocales?: string[];
+  allowVisitorLanguageSwitch?: boolean;
+  showLanguagePicker?: boolean;
+  forceLocale?: boolean;
 }
 
 export interface ApplicationMetrics {

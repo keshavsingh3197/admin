@@ -14,6 +14,7 @@ public sealed partial class CreatorChannelService
     };
 
     private const string PanchangChannelCleanupMigrationId = "panchang-channel-cleanup-v1";
+    private const string SeedFunnyAnimationChannelMigrationId = "seed-keshav-anim-ff-v1";
     private readonly IMongoCollection<CreatorChannel> _channels;
     private readonly IMongoCollection<WebsiteRegistryService.RegistryMigrationMarker> _migrations;
     private readonly IHttpClientFactory _httpFactory;
@@ -42,6 +43,7 @@ public sealed partial class CreatorChannelService
         if (await _channels.CountDocumentsAsync(FilterDefinition<CreatorChannel>.Empty, cancellationToken: ct) > 0)
         {
             await ApplyOneTimePanchangChannelCleanupAsync(ct);
+            await EnsureFunnyAnimationChannelSeededAsync(ct);
             return;
         }
 
@@ -96,6 +98,7 @@ public sealed partial class CreatorChannelService
                 CreatedAt = now,
                 UpdatedAt = now,
             },
+            BuildFunnyAnimationChannel(now),
             new()
             {
                 Key = "github-keshavsingh3197",
@@ -119,7 +122,56 @@ public sealed partial class CreatorChannelService
         };
 
         await _channels.InsertManyAsync(defaults, cancellationToken: ct);
+        await MarkMigrationAppliedAsync(SeedFunnyAnimationChannelMigrationId, now, ct);
     }
+
+    public static CreatorChannel BuildFunnyAnimationChannel(DateTime utcNow) => new()
+    {
+        Key = "keshav-anim-ff",
+        Name = "KESHAV-ANIM-FF",
+        Handle = "@KESHAV-ANIM-FF",
+        Platform = "YouTube",
+        Url = "https://www.youtube.com/@KESHAV-ANIM-FF",
+        Niche = "3D Funny Shorts & Comedy Animations",
+        Tagline = "Punchy 10s-60s 3D Hinglish comedy shorts & multi-joke animated compilations.",
+        Description = "Fast-paced 3D animated comedy skits, relatable desi humor, and laugh-out-loud story compilations powered by AnimStudio.",
+        EngineName = "AnimStudio",
+        VisualsCredit = "KESHAV-ANIM-FF 3D Comedy Studio",
+        Hashtags = ["KeshavAnimFF", "Funny3DAnimation", "HindiComedyShorts", "AnimStudio"],
+        Tags = ["keshav anim ff", "keshav-anim-ff", "3d funny shorts", "hindi comedy animation", "desi funny cartoon", "animstudio"],
+        IsPrimary = false,
+        IsEnabled = true,
+        ShowInAnalytics = true,
+        ShowInPanchang = false,
+        ShowInStudio = true,
+        ShowInFooter = true,
+        SortOrder = 25,
+        CreatedAt = utcNow,
+        UpdatedAt = utcNow,
+    };
+
+    private async Task EnsureFunnyAnimationChannelSeededAsync(CancellationToken ct)
+    {
+        if (await _migrations.Find(x => x.Id == SeedFunnyAnimationChannelMigrationId).AnyAsync(ct))
+            return;
+
+        var now = DateTime.UtcNow;
+        var exists = await _channels.Find(x => x.Key == "keshav-anim-ff" || x.Handle == "@KESHAV-ANIM-FF")
+            .AnyAsync(ct);
+        if (!exists)
+        {
+            await _channels.InsertOneAsync(BuildFunnyAnimationChannel(now), cancellationToken: ct);
+        }
+
+        await MarkMigrationAppliedAsync(SeedFunnyAnimationChannelMigrationId, now, ct);
+    }
+
+    private Task MarkMigrationAppliedAsync(string migrationId, DateTime now, CancellationToken ct) =>
+        _migrations.ReplaceOneAsync(
+            x => x.Id == migrationId,
+            new WebsiteRegistryService.RegistryMigrationMarker { Id = migrationId, AppliedAtUtc = now },
+            new ReplaceOptions { IsUpsert = true },
+            ct);
 
     private async Task ApplyOneTimePanchangChannelCleanupAsync(CancellationToken ct)
     {

@@ -743,6 +743,11 @@ export class SettingsComponent implements OnInit {
       url,
       isEnabled: item.isEnabled ?? true,
       sortOrder: Number(item.sortOrder ?? 100),
+      defaultLocale: item.defaultLocale,
+      enabledLocales: item.enabledLocales,
+      allowVisitorLanguageSwitch: item.allowVisitorLanguageSwitch,
+      showLanguagePicker: item.showLanguagePicker,
+      forceLocale: item.forceLocale,
     };
   }
 

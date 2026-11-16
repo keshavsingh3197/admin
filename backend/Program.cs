@@ -74,6 +74,7 @@ builder.Services.AddSingleton<VisitorChatService>();
 builder.Services.AddSingleton<AnalyticsService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
 builder.Services.AddSingleton<CreatorChannelService>();
+builder.Services.AddSingleton<ChannelVideoService>();
 builder.Services.AddSingleton<WebsiteVisitService>();
 builder.Services.AddSingleton<WebsiteContentService>();
 // ---- Localisation + runtime config registry (KeshavSingh.Localization) ----
@@ -84,6 +85,7 @@ builder.Services.AddSingleton<WebsiteContentService>();
 builder.Services.AddKeshavLocalization(builder.Configuration);
 builder.Services.AddLocalizationSeeds<AdminAppSeeds>();
 builder.Services.AddLocalizationSeeds<PublicSiteSeeds>();
+builder.Services.AddLocalizationSeeds<EcosystemSiteSeeds>();
 builder.Services.AddSingleton<TwoFactorDeviceService>();
 builder.Services.AddSingleton<SessionRetentionService>();
 builder.Services.AddSingleton<CustomRoleService>();
