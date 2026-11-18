@@ -45,6 +45,7 @@ export class SessionsComponent implements OnInit {
    *  one of these, and "which site am I looking at" should never take a second guess. */
   private static readonly APP_NAMES: Record<string, string> = {
     admin: 'Admin',
+    hub: 'Keshav Hub',
     blog: 'Blog',
     'content-blog': 'Blog',
     portfolio: 'Portfolio',

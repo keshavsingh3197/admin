@@ -9,6 +9,7 @@ public sealed class WebsiteRegistryService
 {
     private const string EcosystemBarCleanupMigrationId = "ecosystem-bar-cleanup-v1";
     private const string LocalizationDefaultsMigrationId = "website-localization-defaults-v1";
+    private const string PortfolioSubdomainSplitMigrationId = "portfolio-subdomain-split-v1";
     private readonly IMongoCollection<WebsiteLink> _websites;
     private readonly IMongoCollection<RegistryMigrationMarker> _migrations;
 
@@ -38,15 +39,30 @@ public sealed class WebsiteRegistryService
         string studioUrl = "https://studio.keshavsingh.in",
         string socialUrl = "https://social.keshavsingh.in",
         string panchangUrl = "https://panchang.keshavsingh.in",
+        string hubUrl = "https://keshavsingh.in",
         CancellationToken ct = default)
     {
+        var normalizedPortfolioUrl = NormalizeUrl(portfolioUrl, nameof(portfolioUrl));
+        var normalizedHubUrl = NormalizeUrl(hubUrl, nameof(hubUrl));
+
         var defaults = new List<WebsiteLink>
         {
             new()
             {
+                Key = "hub",
+                Name = "Keshav Hub",
+                Url = normalizedHubUrl,
+                SortOrder = 1,
+                IsEnabled = true,
+                Icon = "🌐",
+                Description = "Main creator hub, interactive calculators, platform walkthroughs, original guides & plans.",
+                ShowInEcosystemBar = true,
+            },
+            new()
+            {
                 Key = "portfolio",
                 Name = "Portfolio",
-                Url = NormalizeUrl(portfolioUrl, nameof(portfolioUrl)),
+                Url = normalizedPortfolioUrl,
                 SortOrder = 5,
                 IsEnabled = true,
                 Icon = "💼",
@@ -157,6 +173,30 @@ public sealed class WebsiteRegistryService
 
         await ApplyOneTimeEcosystemBarCleanupAsync(ct);
         await ApplyOneTimeLocalizationDefaultsAsync(ct);
+        await ApplyOneTimePortfolioSubdomainSplitAsync(normalizedPortfolioUrl, ct);
+    }
+
+    private async Task ApplyOneTimePortfolioSubdomainSplitAsync(string portfolioUrl, CancellationToken ct)
+    {
+        var alreadyApplied = await _migrations.Find(x => x.Id == PortfolioSubdomainSplitMigrationId).AnyAsync(ct);
+        if (alreadyApplied) return;
+
+        var now = DateTime.UtcNow;
+        var existingPortfolio = await _websites.Find(x => x.Key == "portfolio").FirstOrDefaultAsync(ct);
+        if (existingPortfolio is not null
+            && string.Equals(existingPortfolio.Url?.Trim().TrimEnd('/'), "https://keshavsingh.in", StringComparison.OrdinalIgnoreCase))
+        {
+            var update = Builders<WebsiteLink>.Update
+                .Set(x => x.Url, portfolioUrl)
+                .Set(x => x.UpdatedAt, now);
+            await _websites.UpdateOneAsync(x => x.Id == existingPortfolio.Id, update, cancellationToken: ct);
+        }
+
+        await _migrations.ReplaceOneAsync(
+            x => x.Id == PortfolioSubdomainSplitMigrationId,
+            new RegistryMigrationMarker { Id = PortfolioSubdomainSplitMigrationId, AppliedAtUtc = now },
+            new ReplaceOptions { IsUpsert = true },
+            ct);
     }
 
     private async Task ApplyOneTimeLocalizationDefaultsAsync(CancellationToken ct)
@@ -453,6 +493,7 @@ public sealed class WebsiteRegistryService
 
     private static string DefaultIconForKey(string key) => key.ToLowerInvariant() switch
     {
+        "hub" => "🌐",
         "studio" => "🎬",
         "social" or "social-analytics" => "📊",
         "panchang" or "hindu-panchang" => "🕉️",

@@ -69,10 +69,11 @@ public static class StartupInitializationExtensions
             .SeedDefaultsAsync(
                 publicConfig.BlogUrl,
                 publicConfig.BlogAdminUrl,
-                configuration["Websites:PortfolioUrl"] ?? "https://keshavsingh.in",
+                configuration["Websites:PortfolioUrl"] ?? "https://portfolio.keshavsingh.in",
                 configuration["Websites:StudioUrl"] ?? "https://studio.keshavsingh.in",
                 configuration["Websites:SocialUrl"] ?? "https://social.keshavsingh.in",
-                configuration["Websites:PanchangUrl"] ?? "https://panchang.keshavsingh.in");
+                configuration["Websites:PanchangUrl"] ?? "https://panchang.keshavsingh.in",
+                configuration["Websites:HubUrl"] ?? "https://keshavsingh.in");
         await services.GetRequiredService<CreatorChannelService>().EnsureIndexesAsync();
         await services.GetRequiredService<CreatorChannelService>().SeedDefaultsAsync();
         await services.GetRequiredService<ChannelVideoService>().EnsureIndexesAsync();
