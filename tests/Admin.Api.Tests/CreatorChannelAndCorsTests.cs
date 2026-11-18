@@ -76,6 +76,7 @@ public sealed class CreatorChannelAndCorsTests
     [InlineData("https://social.keshavsingh.in/dashboard", true, "https://social.keshavsingh.in")]
     [InlineData("https://panchang.keshavsingh.in", true, "https://panchang.keshavsingh.in")]
     [InlineData("https://keshavsingh.in/", true, "https://keshavsingh.in")]
+    [InlineData("https://portfolio.keshavsingh.in/resume", true, "https://portfolio.keshavsingh.in")]
     [InlineData("https://keshavsingh3197.github.io/site", true, "https://keshavsingh3197.github.io")]
     [InlineData("https://evil-keshavsingh.in", false, "")]
     [InlineData("http://social.keshavsingh.in", false, "")]
@@ -96,6 +97,8 @@ public sealed class CreatorChannelAndCorsTests
     [InlineData("social", "Social Analytics", "https://social.keshavsingh.in", false)]
     [InlineData("panchang", "Hindu Panchang", "https://panchang.keshavsingh.in", false)]
     [InlineData("pratiyogita", "Pratiyogita", "https://pratiyogita.keshavsingh.in", false)]
+    [InlineData("hub", "Keshav Hub", "https://keshavsingh.in", false)]
+    [InlineData("portfolio", "Portfolio", "https://portfolio.keshavsingh.in", false)]
     public void WebsiteRegistry_IdentifiesInternalAndHiddenSites(string key, string name, string url, bool expectedHidden)
     {
         Assert.Equal(expectedHidden, WebsiteRegistryService.IsInternalOrHiddenByDefaultWebsite(key, name, url));
