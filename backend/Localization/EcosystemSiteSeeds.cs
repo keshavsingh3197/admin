@@ -134,6 +134,18 @@ public sealed class EcosystemSiteSeeds : ILocalizationSeedSource
         ("studio", "comedy.compileTitle", "Build < 3 Min Multi-Joke Compilation", "३ मिनट से कम का मल्टी-जोक संकलन बनाएँ"),
         ("studio", "live.quizTitle", "Interactive Live Stream Quiz Host", "इंटरैक्टिव लाइव स्ट्रीम क्विज़ होस्ट"),
         ("studio", "live.pickWinner", "Pick Random Verified Winner", "रैंडम सत्यापित विजेता चुनें"),
+
+        // ---- Keshav Hub (keshavsingh.in) ----
+        ("hub", "nav.brandSub", "Ecosystem & Creator Hub", "इकोसिस्टम और क्रिएटर हब"),
+        ("hub", "nav.home", "Home", "होम"),
+        ("hub", "nav.apps", "Apps", "ऐप्स"),
+        ("hub", "nav.tools", "Tools", "टूल्स"),
+        ("hub", "nav.creators", "Creators", "क्रिएटर्स"),
+        ("hub", "nav.guides", "Guides", "गाइड्स"),
+        ("hub", "nav.plans", "Plans", "प्लान्स"),
+        ("hub", "nav.about", "About", "परिचय"),
+        ("hub", "nav.contact", "Contact", "संपर्क"),
+        ("hub", "hero.title", "Interactive Web Tools, Creator Studios & Original Engineering Guides", "इंटरैक्टिव वेब टूल्स, क्रिएटर स्टूडियो और मौलिक इंजीनियरिंग गाइड्स"),
     });
 
     public IEnumerable<ConfigEntrySeed> ConfigEntries() => Enumerable.Empty<ConfigEntrySeed>();
