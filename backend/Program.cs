@@ -72,6 +72,7 @@ builder.Services.AddSingleton<AccountRequestService>();
 // side (an opaque token, only its hash stored) and encrypted at rest, like the contact inbox.
 builder.Services.AddSingleton<VisitorChatService>();
 builder.Services.AddSingleton<AnalyticsService>();
+builder.Services.AddSingleton<EcosystemStatusService>();
 builder.Services.AddSingleton<WebsiteRegistryService>();
 builder.Services.AddSingleton<CreatorChannelService>();
 builder.Services.AddSingleton<ChannelVideoService>();

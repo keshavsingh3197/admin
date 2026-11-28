@@ -28,6 +28,13 @@ public sealed class AnalyticsController : ControllerBase
         return Ok(await _analytics.GetWebsitesAsync(adminBaseUrl, ct));
     }
 
+    [HttpGet("overview")]
+    public async Task<ActionResult<EcosystemOverviewDto>> Overview(CancellationToken ct)
+    {
+        var adminBaseUrl = $"{Request.Scheme}://{Request.Host}";
+        return Ok(await _analytics.GetEcosystemOverviewAsync(adminBaseUrl, ct));
+    }
+
     [HttpGet("dashboard/{websiteKey}")]
     public async Task<ActionResult<WebsiteDashboardDto>> Dashboard(string websiteKey, CancellationToken ct)
     {

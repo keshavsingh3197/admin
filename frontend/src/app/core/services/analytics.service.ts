@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { TrackVisitRequest, WebsiteDashboard, WebsiteOption } from '../models/analytics.models';
+import { EcosystemOverview, TrackVisitRequest, WebsiteDashboard, WebsiteOption } from '../models/analytics.models';
 import { silentHttpContext } from '../interceptors/loading.interceptor';
 
 @Injectable({ providedIn: 'root' })
@@ -13,6 +13,10 @@ export class AnalyticsService {
 
   getWebsites(): Observable<WebsiteOption[]> {
     return this.http.get<WebsiteOption[]>(`${this.baseUrl}/analytics/websites`);
+  }
+
+  getOverview(): Observable<EcosystemOverview> {
+    return this.http.get<EcosystemOverview>(`${this.baseUrl}/analytics/overview`);
   }
 
   getDashboard(websiteKey: string): Observable<WebsiteDashboard> {

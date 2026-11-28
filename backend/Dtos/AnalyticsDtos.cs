@@ -60,3 +60,39 @@ public sealed record TrackVisitRequest(
     string? Path,
     string? Referrer
 );
+
+public sealed record WebsiteTrafficRankDto(
+    string WebsiteKey,
+    string Name,
+    string Url,
+    long Visits24h,
+    long UniqueVisitors24h,
+    long Visits7d,
+    long UniqueVisitors7d
+);
+
+public sealed record EcosystemPageMetricDto(
+    string WebsiteKey,
+    string Path,
+    long Visits
+);
+
+public sealed record DailyTrafficPointDto(
+    string Date,
+    long Visits,
+    long UniqueVisitors
+);
+
+public sealed record EcosystemOverviewDto(
+    long TotalVisits24h,
+    long UniqueVisitors24h,
+    long TotalVisits7d,
+    long UniqueVisitors7d,
+    string? TopWebsiteKey,
+    string? TopWebsiteName,
+    IReadOnlyList<WebsiteTrafficRankDto> Websites,
+    IReadOnlyList<EcosystemPageMetricDto> TopPages,
+    IReadOnlyList<CountryMetricDto> TopCountries,
+    IReadOnlyList<DailyTrafficPointDto> DailyTrend,
+    DateTime GeneratedAtUtc
+);

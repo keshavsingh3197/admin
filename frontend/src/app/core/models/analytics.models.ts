@@ -58,3 +58,61 @@ export interface TrackVisitRequest {
   path?: string;
   referrer?: string;
 }
+
+export interface WebsiteTrafficRank {
+  websiteKey: string;
+  name: string;
+  url: string;
+  visits24h: number;
+  uniqueVisitors24h: number;
+  visits7d: number;
+  uniqueVisitors7d: number;
+}
+
+export interface EcosystemPageMetric {
+  websiteKey: string;
+  path: string;
+  visits: number;
+}
+
+export interface DailyTrafficPoint {
+  date: string;
+  visits: number;
+  uniqueVisitors: number;
+}
+
+export interface EcosystemOverview {
+  totalVisits24h: number;
+  uniqueVisitors24h: number;
+  totalVisits7d: number;
+  uniqueVisitors7d: number;
+  topWebsiteKey: string | null;
+  topWebsiteName: string | null;
+  websites: WebsiteTrafficRank[];
+  topPages: EcosystemPageMetric[];
+  topCountries: CountryMetric[];
+  dailyTrend: DailyTrafficPoint[];
+  generatedAtUtc: string;
+}
+
+export interface ServiceStatusItem {
+  key: string;
+  name: string;
+  category: 'backend' | 'frontend';
+  url: string;
+  probeUrl: string;
+  status: 'operational' | 'degraded' | 'down';
+  httpStatus: number | null;
+  latencyMs: number | null;
+  note: string | null;
+}
+
+export interface EcosystemStatusReport {
+  overallStatus: 'operational' | 'degraded' | 'outage';
+  healthyCount: number;
+  degradedCount: number;
+  downCount: number;
+  totalCount: number;
+  checkedAtUtc: string;
+  services: ServiceStatusItem[];
+}

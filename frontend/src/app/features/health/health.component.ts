@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { HealthService } from '../../core/services/health.service';
 import { HealthCheck, HealthReport, HealthStatus } from '../../core/models/health.models';
+import { EcosystemStatusReport } from '../../core/models/analytics.models';
 import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 type StatusFilter = 'all' | HealthStatus;
@@ -76,6 +77,27 @@ type StatusFilter = 'all' | HealthStatus;
           @if (filteredGroups().length === 0) {
             <p class="empty">No checks match this filter.</p>
           }
+
+          @if (liveStatus(); as ls) {
+            <section class="category">
+              <h2>Live ecosystem endpoints ({{ ls.healthyCount }}/{{ ls.totalCount }} operational)</h2>
+              <div class="checks">
+                @for (svc of ls.services; track svc.key) {
+                  <div class="check" [class.ok]="svc.status === 'operational'" [class.warning]="svc.status === 'degraded'" [class.error]="svc.status === 'down'">
+                    <div class="check-head">
+                      <span class="dot"></span>
+                      <strong>{{ svc.name }}</strong>
+                    </div>
+                    <p>{{ svc.category.toUpperCase() }} · {{ svc.url }}</p>
+                    <div class="check-foot">
+                      <span>{{ svc.httpStatus ? 'HTTP ' + svc.httpStatus : 'Unreachable' }}@if (svc.latencyMs !== null) { · {{ svc.latencyMs }} ms }</span>
+                      @if (svc.note) { <span>{{ svc.note }}</span> }
+                    </div>
+                  </div>
+                }
+              </div>
+            </section>
+          }
         </div>
       }
     </div>
@@ -125,6 +147,7 @@ export class HealthComponent implements OnInit {
   private api = inject(HealthService);
 
   readonly report = signal<HealthReport | null>(null);
+  readonly liveStatus = signal<EcosystemStatusReport | null>(null);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   statusFilter: StatusFilter = 'all';
@@ -159,6 +182,10 @@ export class HealthComponent implements OnInit {
         this.loading.set(false);
         this.error.set(typeof err.error?.error === 'string' ? err.error.error : 'Could not run health checks.');
       },
+    });
+    this.api.ecosystemStatus(true).subscribe({
+      next: (s) => this.liveStatus.set(s),
+      error: () => { /* keep existing live status */ }
     });
   }
 }
