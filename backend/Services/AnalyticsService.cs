@@ -61,6 +61,12 @@ public sealed class AnalyticsService
         return new WebsiteDashboardDto(website, status, metrics, details);
     }
 
+    public async Task<EcosystemOverviewDto> GetEcosystemOverviewAsync(string adminBaseUrl, CancellationToken ct)
+    {
+        var websites = await GetWebsitesAsync(adminBaseUrl, ct);
+        return await _visits.GetEcosystemOverviewAsync(websites, ct);
+    }
+
     private async Task<WebsiteMetricsDto> BuildMetricsAsync(string websiteKey, CancellationToken ct)
     {
         var now = DateTime.UtcNow;

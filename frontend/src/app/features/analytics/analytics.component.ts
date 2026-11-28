@@ -3,7 +3,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AnalyticsService } from '../../core/services/analytics.service';
-import { WebsiteDashboard, WebsiteOption } from '../../core/models/analytics.models';
+import { EcosystemOverview, WebsiteDashboard, WebsiteOption } from '../../core/models/analytics.models';
 import { LoadingStateComponent } from '../../shared/loading-state.component';
 
 type MetricKey =
@@ -11,7 +11,7 @@ type MetricKey =
   | 'visitsLast24h'
   | 'uniqueVisitorsLast24h';
 
-type Tab = 'website' | 'identity';
+type Tab = 'ecosystem' | 'website' | 'identity';
 
 @Component({
   selector: 'app-analytics',
@@ -49,7 +49,8 @@ type Tab = 'website' | 'identity';
 
       @if (dashboard(); as d) {
         <nav class="tabs">
-          <button type="button" class="tab" [class.active]="activeTab() === 'website'" (click)="selectTab('website')">Website overview</button>
+          <button type="button" class="tab" [class.active]="activeTab() === 'ecosystem'" (click)="selectTab('ecosystem')">All websites (ecosystem)</button>
+          <button type="button" class="tab" [class.active]="activeTab() === 'website'" (click)="selectTab('website')">Selected website</button>
           <button type="button" class="tab" [class.active]="activeTab() === 'identity'" (click)="selectTab('identity')">Identity platform (global)</button>
         </nav>
 
@@ -58,7 +59,71 @@ type Tab = 'website' | 'identity';
             <div class="loading-overlay"><span class="spinner"></span> Refreshing…</div>
           }
 
-          @if (activeTab() === 'website') {
+          @if (activeTab() === 'ecosystem') {
+            @if (overview(); as ov) {
+              <section class="cards">
+                <div class="card"><h3>Total visits (24h)</h3><strong>{{ ov.totalVisits24h }}</strong></div>
+                <div class="card"><h3>Unique visitors (24h)</h3><strong>{{ ov.uniqueVisitors24h }}</strong></div>
+                <div class="card"><h3>Total visits (7d)</h3><strong>{{ ov.totalVisits7d }}</strong></div>
+                <div class="card"><h3>Top website (7d)</h3><strong>{{ ov.topWebsiteName || '—' }}</strong></div>
+              </section>
+
+              <section class="detail-card">
+                <h3>7-day ecosystem traffic trend</h3>
+                <div class="chart-bars">
+                  @for (pt of ov.dailyTrend; track pt.date) {
+                    <div class="bar-col" [title]="pt.date + ': ' + pt.visits + ' visits (' + pt.uniqueVisitors + ' unique)'">
+                      <span class="bar-val">{{ pt.visits }}</span>
+                      <div class="bar-track">
+                        <div class="bar-fill" [style.height.%]="barPercent(pt.visits, maxDailyVisits())"></div>
+                      </div>
+                      <span class="bar-lbl">{{ pt.date.slice(5) }}</span>
+                    </div>
+                  }
+                </div>
+              </section>
+
+              <section class="detail-card">
+                <h3>Traffic by website (7d &amp; 24h)</h3>
+                <div class="rank-list">
+                  @for (site of ov.websites; track site.websiteKey) {
+                    <div class="rank-row">
+                      <div class="rank-head">
+                        <button type="button" class="site-link" (click)="inspectSite(site.websiteKey)">{{ site.name }}</button>
+                        <span>{{ site.visits7d }} (7d) · {{ site.visits24h }} (24h) · {{ site.uniqueVisitors7d }} unique</span>
+                      </div>
+                      <div class="rank-track">
+                        <div class="rank-fill" [style.width.%]="barPercent(site.visits7d, maxSiteVisits())"></div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </section>
+
+              <section class="detail-card">
+                <div class="detail-grid">
+                  <div>
+                    <h4>Top pages across all websites (7d)</h4>
+                    <ul>
+                      @for (p of ov.topPages; track p.websiteKey + p.path) {
+                        <li><span><strong>{{ p.websiteKey }}</strong> {{ p.path }}</span><strong>{{ p.visits }}</strong></li>
+                      }
+                    </ul>
+                  </div>
+                  <div>
+                    <h4>Top countries across ecosystem (7d)</h4>
+                    <ul>
+                      @for (c of ov.topCountries; track c.country) {
+                        <li><span>{{ c.country }}</span><strong>{{ c.visits }}</strong></li>
+                      }
+                    </ul>
+                  </div>
+                </div>
+              </section>
+            } @else {
+              <p class="empty">Loading ecosystem overview…</p>
+            }
+          } @else if (activeTab() === 'website') {
             <section class="site-overview">
               <h2>{{ d.website.name }}</h2>
               <a [href]="d.website.url" target="_blank" rel="noopener">{{ d.website.url }}</a>
@@ -313,6 +378,19 @@ type Tab = 'website' | 'identity';
     .tbl th { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
     .error { color: var(--danger); }
     .loading, .empty { color: var(--muted); }
+    .chart-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.65rem; align-items: end; padding-top: 0.5rem; }
+    .bar-col { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+    .bar-val { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+    .bar-track { width: 100%; max-width: 44px; height: 110px; background: color-mix(in srgb, var(--surface) 75%, var(--bg)); border: 1px solid var(--border); border-radius: 6px; display: flex; align-items: flex-end; overflow: hidden; }
+    .bar-fill { width: 100%; background: var(--accent, #2563eb); min-height: 2px; transition: height 0.25s ease; }
+    .bar-lbl { font-size: 0.74rem; color: var(--muted); }
+    .rank-list { display: grid; gap: 0.6rem; }
+    .rank-row { display: grid; gap: 0.25rem; }
+    .rank-head { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.86rem; flex-wrap: wrap; }
+    .site-link { background: none; border: none; padding: 0; color: var(--accent, #2563eb); font-weight: 600; cursor: pointer; text-align: left; }
+    .site-link:hover { text-decoration: underline; }
+    .rank-track { width: 100%; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 75%, var(--bg)); overflow: hidden; }
+    .rank-fill { height: 100%; border-radius: 999px; background: var(--accent, #2563eb); transition: width 0.25s ease; }
 
     @media (max-width: 720px) {
       .hero { align-items: stretch; flex-direction: column; }
@@ -328,15 +406,17 @@ export class AnalyticsComponent implements OnInit {
 
   readonly websites = signal<WebsiteOption[]>([]);
   readonly dashboard = signal<WebsiteDashboard | null>(null);
+  readonly overview = signal<EcosystemOverview | null>(null);
   readonly selectedKey = signal<string>('');
   readonly loadingWebsites = signal(false);
   readonly loadingDashboard = signal(false);
   readonly error = signal<string>('');
   readonly selectedMetric = signal<MetricKey>('visitsLast24h');
-  readonly activeTab = signal<Tab>('website');
+  readonly activeTab = signal<Tab>('ecosystem');
 
   ngOnInit(): void {
     this.loadWebsites();
+    this.loadOverview();
     this.analytics.trackVisit({
       websiteKey: 'admin',
       path: window.location.pathname,
@@ -351,9 +431,38 @@ export class AnalyticsComponent implements OnInit {
   }
 
   refresh(): void {
+    this.loadOverview();
     const key = this.selectedKey();
     if (!key) return;
     this.loadDashboard(key);
+  }
+
+  private loadOverview(): void {
+    this.analytics.getOverview().subscribe({
+      next: (ov) => this.overview.set(ov),
+      error: () => { /* keep existing state */ }
+    });
+  }
+
+  inspectSite(key: string): void {
+    this.selectedKey.set(key);
+    this.activeTab.set('website');
+    this.loadDashboard(key);
+  }
+
+  maxDailyVisits(): number {
+    const pts = this.overview()?.dailyTrend ?? [];
+    return Math.max(1, ...pts.map(p => p.visits));
+  }
+
+  maxSiteVisits(): number {
+    const sites = this.overview()?.websites ?? [];
+    return Math.max(1, ...sites.map(s => s.visits7d));
+  }
+
+  barPercent(value: number, max: number): number {
+    if (!max || value <= 0) return 0;
+    return Math.max(4, Math.round((value / max) * 100));
   }
 
   private loadWebsites(): void {

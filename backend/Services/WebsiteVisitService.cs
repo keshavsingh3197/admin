@@ -90,6 +90,101 @@ public sealed class WebsiteVisitService
         return result.DeletedCount;
     }
 
+    public async Task<EcosystemOverviewDto> GetEcosystemOverviewAsync(
+        IReadOnlyList<WebsiteOptionDto> websites,
+        CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var since7d = now.Date.AddDays(-6);
+        var since24h = now.AddHours(-24);
+
+        var visits7d = await _visits
+            .Find(Builders<WebsiteVisit>.Filter.Gte(x => x.Timestamp, since7d))
+            .ToListAsync(ct);
+
+        var visits24h = visits7d.Where(x => x.Timestamp >= since24h).ToList();
+
+        var total24h = visits24h.LongCount();
+        var unique24h = visits24h.Select(x => x.VisitorKey).Distinct(StringComparer.Ordinal).LongCount();
+        var total7d = visits7d.LongCount();
+        var unique7d = visits7d.Select(x => x.VisitorKey).Distinct(StringComparer.Ordinal).LongCount();
+
+        var bySite7d = visits7d.GroupBy(x => x.WebsiteKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+        var bySite24h = visits24h.GroupBy(x => x.WebsiteKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var knownKeys = new HashSet<string>(websites.Select(w => w.Key), StringComparer.OrdinalIgnoreCase);
+        var allSiteEntries = websites.ToList();
+        foreach (var key in bySite7d.Keys)
+        {
+            if (!knownKeys.Contains(key))
+                allSiteEntries.Add(new WebsiteOptionDto(key, key, ""));
+        }
+
+        var siteRanks = allSiteEntries
+            .Select(site =>
+            {
+                bySite24h.TryGetValue(site.Key, out var list24);
+                bySite7d.TryGetValue(site.Key, out var list7);
+                list24 ??= new List<WebsiteVisit>();
+                list7 ??= new List<WebsiteVisit>();
+                return new WebsiteTrafficRankDto(
+                    site.Key,
+                    site.Name,
+                    site.Url,
+                    list24.LongCount(),
+                    list24.Select(v => v.VisitorKey).Distinct(StringComparer.Ordinal).LongCount(),
+                    list7.LongCount(),
+                    list7.Select(v => v.VisitorKey).Distinct(StringComparer.Ordinal).LongCount());
+            })
+            .OrderByDescending(x => x.Visits7d)
+            .ThenByDescending(x => x.Visits24h)
+            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var topSite = siteRanks.FirstOrDefault(x => x.Visits7d > 0) ?? siteRanks.FirstOrDefault();
+
+        var topPages = visits7d
+            .GroupBy(x => (Key: x.WebsiteKey.ToLowerInvariant(), Path: x.Path))
+            .Select(g => new EcosystemPageMetricDto(g.Key.Key, g.Key.Path, g.LongCount()))
+            .OrderByDescending(x => x.Visits)
+            .Take(15)
+            .ToList();
+
+        var topCountries = visits7d
+            .GroupBy(x => x.Country)
+            .Select(g => new CountryMetricDto(g.Key, g.LongCount()))
+            .OrderByDescending(x => x.Visits)
+            .Take(10)
+            .ToList();
+
+        var dailyTrend = Enumerable.Range(0, 7)
+            .Select(offset =>
+            {
+                var day = since7d.AddDays(offset);
+                var dayVisits = visits7d.Where(x => x.Timestamp.Date == day).ToList();
+                return new DailyTrafficPointDto(
+                    day.ToString("yyyy-MM-dd"),
+                    dayVisits.LongCount(),
+                    dayVisits.Select(v => v.VisitorKey).Distinct(StringComparer.Ordinal).LongCount());
+            })
+            .ToList();
+
+        return new EcosystemOverviewDto(
+            total24h,
+            unique24h,
+            total7d,
+            unique7d,
+            topSite?.WebsiteKey,
+            topSite?.Name,
+            siteRanks,
+            topPages,
+            topCountries,
+            dailyTrend,
+            now);
+    }
+
     public static string BuildVisitorKey(string? ip, string? userAgent)
     {
         var source = $"{ip ?? ""}|{userAgent ?? ""}";
